@@ -1,7 +1,7 @@
 # Android-App Version 1 – Design
 
 Stand: 2026-11-06 · Epic stargazer74/bike-maintainer-backend#104, Teilprojekt B (Teilprojekt A: Geräte-Anmeldung,
-Spec im Backend `docs/specs/2026-11-06-device-login-design.md`, umgesetzt mit API-Spec 2.10.0) · Tickets: folgen
+Spec im Backend `docs/specs/2026-11-06-device-login-design.md`, umgesetzt mit API-Spec 2.10.0) · Tickets: #8–#12
 
 ## Ziel
 
