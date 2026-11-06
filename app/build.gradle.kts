@@ -45,10 +45,11 @@ android {
     }
 }
 
-// Exact versions of all resolved dependencies in gradle.lockfile, so that Trivy can scan them.
+// Exact versions of what ships in the APK (runtime classpaths) in gradle.lockfile, so that Trivy can scan them. Build
+// tools (lint, compiler, test runners) never reach a phone and are kept out of the scan.
 // After changing dependencies: ./gradlew :app:dependencies --write-locks
-dependencyLocking {
-    lockAllConfigurations()
+configurations.matching { it.name.endsWith("RuntimeClasspath") && !it.name.contains("Test") }.configureEach {
+    resolutionStrategy.activateDependencyLocking()
 }
 
 dependencies {
