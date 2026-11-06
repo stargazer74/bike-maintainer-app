@@ -34,6 +34,21 @@ android {
     buildFeatures {
         compose = true
     }
+    lint {
+        // Lint covers Android security checks (exported components, cleartext traffic, …); findings fail the build.
+        warningsAsErrors = true
+        abortOnError = true
+        checkDependencies = true
+        sarifReport = true
+        // Version freshness is Dependabot's job; as lint errors these would break the build with every new release.
+        disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion")
+    }
+}
+
+// Exact versions of all resolved dependencies in gradle.lockfile, so that Trivy can scan them.
+// After changing dependencies: ./gradlew :app:dependencies --write-locks
+dependencyLocking {
+    lockAllConfigurations()
 }
 
 dependencies {

@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # Upload of the lint and Trivy results to the Security tab.
+      security-events: write
+    steps:
+      - name: Check out app
+        uses: actions/checkout@v7
+
+      # The Gradle daemon runs on Java 25 (gradle/gradle-daemon-jvm.properties); the app compiles for Java 11.
+      - name: Set up Java 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      # Also validates the checksum of gradle-wrapper.jar against the official Gradle releases, so a tampered wrapper
+      # cannot run in CI.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Build and test
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
+
+      # Android Lint incl. security checks (exported components, cleartext traffic, …); warnings are errors.
+      - name: Lint
+        run: ./gradlew --no-daemon lintDebug
+
+      - name: Upload lint results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: app/build/reports/lint-results-debug.sarif
+          category: android-lint
+
+      # Trivy: the report step sends all findings from MEDIUM up to Security → Code scanning without failing the build;
+      # the gate step fails it on CRITICAL/HIGH vulnerabilities that have a fix. Accepted exceptions go into
+      # .trivyignore with a reason. Trivy reads the exact versions from app/gradle.lockfile.
+      - name: Scan Gradle dependencies for vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: app/gradle.lockfile
+          scanners: vuln
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH,MEDIUM
+          format: sarif
+          output: trivy-dependencies.sarif
+          exit-code: '0'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-dependencies.sarif
+          category: trivy-dependencies
+
+      - name: Fail on fixable CRITICAL/HIGH vulnerabilities in Gradle dependencies (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: app/gradle.lockfile
+          scanners: vuln
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          format: table
+          exit-code: '1'
+
+      # The lockfile must match the declared dependencies; a Dependabot update without new locks fails here.
+      - name: Check dependency locks are up to date
+        run: |
+          ./gradlew --no-daemon -q :app:dependencies --write-locks > /dev/null
+          git diff --exit-code -- app/gradle.lockfile
+
+      - name: Upload test and lint reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports
+          path: app/build/reports/
+          retention-days: 7

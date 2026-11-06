@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # Libraries and plugins from gradle/libs.versions.toml and the Gradle wrapper. After an update the CI checks that
+  # app/gradle.lockfile matches; if not, run ./gradlew :app:dependencies --write-locks on the Dependabot branch.
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      androidx:
+        patterns: ['androidx.*']
+        update-types: [minor, patch]
+      gradle-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ['*']
