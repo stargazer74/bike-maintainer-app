@@ -6,6 +6,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # The Android Gradle Plugin ships its own Kotlin (AGP 9.5: Kotlin 2.2.10); the Compose compiler plugin must use
+      # exactly that version, a newer one breaks the build. It moves together with AGP updates, not on its own.
+      - dependency-name: org.jetbrains.kotlin.plugin.compose
     groups:
       androidx:
         patterns: ['androidx.*']
