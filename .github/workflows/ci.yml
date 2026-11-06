@@ -34,7 +34,7 @@ jobs:
       # Also validates the checksum of gradle-wrapper.jar against the official Gradle releases, so a tampered wrapper
       # cannot run in CI.
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Build and test
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
