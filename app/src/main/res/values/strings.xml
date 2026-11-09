@@ -92,4 +92,10 @@
         <item quantity="one">OK (%1$s day left)</item>
         <item quantity="other">OK (%1$s days left)</item>
     </plurals>
+    <string name="save">Save</string>
+    <string name="mileage_enter">Enter mileage</string>
+    <string name="mileage_label">Mileage (km)</string>
+    <string name="error_mileage_invalid">Please enter a whole number.</string>
+    <string name="error_mileage_too_low">Must not be lower than before (%1$s km).</string>
+    <string name="log_title">Log maintenance</string>
 </resources>

@@ -92,4 +92,10 @@
         <item quantity="one">OK (%1$s Tag verbleibend)</item>
         <item quantity="other">OK (%1$s Tage verbleibend)</item>
     </plurals>
+    <string name="save">Speichern</string>
+    <string name="mileage_enter">Kilometerstand eintragen</string>
+    <string name="mileage_label">Kilometerstand (km)</string>
+    <string name="error_mileage_invalid">Bitte eine ganze Zahl eingeben.</string>
+    <string name="error_mileage_too_low">Darf nicht kleiner sein als bisher (%1$s km).</string>
+    <string name="log_title">Wartung erfassen</string>
 </resources>

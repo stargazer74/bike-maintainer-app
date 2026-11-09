@@ -167,4 +167,114 @@ class VehicleViewModelTest {
         assertFalse(vm.state.value.refreshing)
         assertEquals(AppError.Network, vm.state.value.error)
     }
+
+    private fun openDialog(): VehicleViewModel {
+        val vm = viewModel()
+        vm.openMileageDialog()
+        return vm
+    }
+
+    @Test fun openPrefillsCurrentMileage() {
+        val vm = openDialog()
+        assertEquals(MileageDialogState("12345"), vm.state.value.mileageDialog)
+    }
+
+    @Test fun openWithoutVehicleDoesNothing() {
+        vehicles.vehicleResult = Outcome.Failure(AppError.Network)
+        val vm = viewModel()
+        vm.openMileageDialog()
+        assertNull(vm.state.value.mileageDialog)
+    }
+
+    @Test fun inputClearsError() {
+        val vm = openDialog()
+        vm.onMileageInput("abc")
+        vm.saveMileage()
+        assertEquals(MileageError.Invalid, vm.state.value.mileageDialog!!.error)
+        vm.onMileageInput("12400")
+        assertEquals(MileageDialogState("12400"), vm.state.value.mileageDialog)
+    }
+
+    @Test fun lowerMileageIsRejected() {
+        val vm = openDialog()
+        vm.onMileageInput("12000")
+        vm.saveMileage()
+        assertEquals(MileageError.TooLow(12345), vm.state.value.mileageDialog!!.error)
+        assertTrue(vehicles.updateMileageCalls.isEmpty())
+    }
+
+    @Test fun invalidMileageIsRejected() {
+        val vm = openDialog()
+        vm.onMileageInput("12.600")
+        vm.saveMileage()
+        assertEquals(MileageError.Invalid, vm.state.value.mileageDialog!!.error)
+        assertTrue(vehicles.updateMileageCalls.isEmpty())
+    }
+
+    @Test fun sameMileageClosesWithoutRequest() {
+        val vm = openDialog()
+        vm.saveMileage()
+        assertNull(vm.state.value.mileageDialog)
+        assertTrue(vehicles.updateMileageCalls.isEmpty())
+    }
+
+    @Test fun mileageSavedReloadsDetail() {
+        vehicles.updateMileageResult = Outcome.Success(vehicle.copy(currentMileage = 12600))
+        val vm = openDialog()
+        vm.onMileageInput(" 12600 ")
+        vehicles.vehicleResult = Outcome.Success(vehicle.copy(currentMileage = 12600))
+        vm.saveMileage()
+        assertEquals(listOf(vehicle to 12600), vehicles.updateMileageCalls)
+        assertNull(vm.state.value.mileageDialog)
+        assertEquals(2, vehicles.vehicleCalls.size)
+        assertEquals(12600, vm.state.value.vehicle!!.currentMileage)
+    }
+
+    @Test fun saveFailureKeepsDialogWithError() {
+        vehicles.updateMileageResult = Outcome.Failure(AppError.Network)
+        val vm = openDialog()
+        vm.onMileageInput("12600")
+        vm.saveMileage()
+        assertEquals(
+            MileageDialogState("12600", MileageError.Save(AppError.Network), saving = false),
+            vm.state.value.mileageDialog,
+        )
+    }
+
+    @Test fun saveTwiceSendsOnce() {
+        vehicles.updateMileageResult = Outcome.Success(vehicle)
+        vehicles.updateMileageGate = CompletableDeferred()
+        val vm = openDialog()
+        vm.onMileageInput("12600")
+        vm.saveMileage()
+        assertTrue(vm.state.value.mileageDialog!!.saving)
+        vm.saveMileage()
+        assertEquals(1, vehicles.updateMileageCalls.size)
+        vehicles.updateMileageGate!!.complete(Unit)
+    }
+
+    @Test fun dismissIgnoredWhileSaving() {
+        vehicles.updateMileageResult = Outcome.Success(vehicle)
+        vehicles.updateMileageGate = CompletableDeferred()
+        val vm = openDialog()
+        vm.onMileageInput("12600")
+        vm.saveMileage()
+        vm.dismissMileageDialog()
+        assertTrue(vm.state.value.mileageDialog!!.saving)
+        vehicles.updateMileageGate!!.complete(Unit)
+        assertNull(vm.state.value.mileageDialog)
+    }
+
+    @Test fun dismissClosesDialog() {
+        val vm = openDialog()
+        vm.dismissMileageDialog()
+        assertNull(vm.state.value.mileageDialog)
+    }
+
+    @Test fun dialogSurvivesSilentReload() {
+        val vm = openDialog()
+        vm.onMileageInput("123")
+        vm.reloadSilently()
+        assertEquals("123", vm.state.value.mileageDialog!!.input)
+    }
 }

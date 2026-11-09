@@ -113,7 +113,7 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                     }
                 },
             )
-            VehicleScreen(viewModel = viewModel, onBack = back)
+            VehicleScreen(viewModel = viewModel, onBack = back, onLogMaintenance = {})
         }
         composable<NotificationPermissionRoute> {
             NotificationPermissionScreen(

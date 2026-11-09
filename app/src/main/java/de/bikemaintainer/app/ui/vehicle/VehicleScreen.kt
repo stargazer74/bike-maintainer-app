@@ -9,6 +9,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import de.bikemaintainer.app.ui.common.saveMessageRes
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,12 +48,13 @@ import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.StatusDot
 import de.bikemaintainer.app.ui.common.isNotFound
+import de.bikemaintainer.app.ui.common.formatNumber
 import de.bikemaintainer.app.ui.common.mileageText
 import de.bikemaintainer.app.ui.common.statusColor
 import de.bikemaintainer.app.ui.common.vehicleLoadMessageRes
 
 @Composable
-fun VehicleScreen(viewModel: VehicleViewModel, onBack: () -> Unit) {
+fun VehicleScreen(viewModel: VehicleViewModel, onBack: () -> Unit, onLogMaintenance: () -> Unit) {
     val state by viewModel.state.collectAsState()
 
     // Reload when returning to the app; the ViewModel skips the first resume (it loaded in init).
@@ -53,12 +63,38 @@ fun VehicleScreen(viewModel: VehicleViewModel, onBack: () -> Unit) {
         onPauseOrDispose {}
     }
 
-    VehicleContent(state = state, onBack = onBack, onRefresh = viewModel::refresh, onRetry = viewModel::refresh)
+    VehicleContent(
+        state = state,
+        onBack = onBack,
+        onRefresh = viewModel::refresh,
+        onRetry = viewModel::refresh,
+        actions = VehicleActions(
+            onOpenMileage = viewModel::openMileageDialog,
+            onMileageInput = viewModel::onMileageInput,
+            onSaveMileage = viewModel::saveMileage,
+            onDismissMileage = viewModel::dismissMileageDialog,
+            onLogMaintenance = onLogMaintenance,
+        ),
+    )
 }
+
+data class VehicleActions(
+    val onOpenMileage: () -> Unit,
+    val onMileageInput: (String) -> Unit,
+    val onSaveMileage: () -> Unit,
+    val onDismissMileage: () -> Unit,
+    val onLogMaintenance: () -> Unit,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VehicleContent(state: VehicleUiState, onBack: () -> Unit, onRefresh: () -> Unit, onRetry: () -> Unit) {
+fun VehicleContent(
+    state: VehicleUiState,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+    onRetry: () -> Unit,
+    actions: VehicleActions,
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -71,6 +107,7 @@ fun VehicleContent(state: VehicleUiState, onBack: () -> Unit, onRefresh: () -> U
             )
         },
     ) { padding ->
+        state.mileageDialog?.let { MileageDialog(it, actions) }
         PullToRefreshBox(
             isRefreshing = state.refreshing,
             onRefresh = onRefresh,
@@ -103,6 +140,18 @@ fun VehicleContent(state: VehicleUiState, onBack: () -> Unit, onRefresh: () -> U
                     }
                     else -> {
                         item { VehicleHeader(vehicle) }
+                        item {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = actions.onOpenMileage) {
+                                    Text(stringResource(R.string.mileage_enter))
+                                }
+                                if (state.tasks.isNotEmpty()) {
+                                    Button(onClick = actions.onLogMaintenance) {
+                                        Text(stringResource(R.string.log_title))
+                                    }
+                                }
+                            }
+                        }
                         if (error != null) item { ErrorText(stringResource(error.vehicleLoadMessageRes())) }
                         if (state.tasks.isEmpty()) {
                             item {
@@ -120,6 +169,46 @@ fun VehicleContent(state: VehicleUiState, onBack: () -> Unit, onRefresh: () -> U
             }
         }
     }
+}
+
+@Composable
+private fun MileageDialog(dialog: MileageDialogState, actions: VehicleActions) {
+    AlertDialog(
+        onDismissRequest = actions.onDismissMileage,
+        title = { Text(stringResource(R.string.mileage_enter)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = dialog.input,
+                    onValueChange = actions.onMileageInput,
+                    label = { Text(stringResource(R.string.mileage_label)) },
+                    singleLine = true,
+                    enabled = !dialog.saving,
+                    isError = dialog.error != null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { actions.onSaveMileage() }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                when (val error = dialog.error) {
+                    null -> {}
+                    MileageError.Invalid -> ErrorText(stringResource(R.string.error_mileage_invalid))
+                    is MileageError.TooLow ->
+                        ErrorText(stringResource(R.string.error_mileage_too_low, formatNumber(error.current)))
+                    is MileageError.Save -> ErrorText(stringResource(error.error.saveMessageRes()))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = actions.onSaveMileage, enabled = !dialog.saving) {
+                if (dialog.saving) LoadingIndicator(small = true) else Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = actions.onDismissMileage, enabled = !dialog.saving) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
 }
 
 @Composable
