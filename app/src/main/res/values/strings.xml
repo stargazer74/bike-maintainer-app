@@ -65,4 +65,29 @@
     <string name="legal_imprint">Legal notice</string>
     <string name="legal_privacy">Privacy</string>
     <string name="legal_website">Website</string>
+    <string name="vehicle_tasks_empty">No maintenance tasks created yet.</string>
+    <string name="vehicle_subtitle">%1$s • Model year %2$d</string>
+    <string name="vehicle_subtitle_year">Model year %1$d</string>
+    <string name="task_overdue_km">Overdue by %1$s km</string>
+    <string name="task_due_soon_km">Due in %1$s km</string>
+    <string name="task_first_due_km">First due in %1$s km</string>
+    <string name="task_ok_km">OK (%1$s km left)</string>
+    <string name="task_never_performed">Due (never performed)</string>
+    <string name="task_done_on">Done on %1$s</string>
+    <plurals name="task_overdue_days">
+        <item quantity="one">Overdue by %1$s day</item>
+        <item quantity="other">Overdue by %1$s days</item>
+    </plurals>
+    <plurals name="task_due_soon_days">
+        <item quantity="one">Due in %1$s day</item>
+        <item quantity="other">Due in %1$s days</item>
+    </plurals>
+    <plurals name="task_first_due_days">
+        <item quantity="one">First due in %1$s day</item>
+        <item quantity="other">First due in %1$s days</item>
+    </plurals>
+    <plurals name="task_ok_days">
+        <item quantity="one">OK (%1$s day left)</item>
+        <item quantity="other">OK (%1$s days left)</item>
+    </plurals>
 </resources>

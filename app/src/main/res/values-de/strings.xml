@@ -65,4 +65,29 @@
     <string name="legal_imprint">Impressum</string>
     <string name="legal_privacy">Datenschutz</string>
     <string name="legal_website">Website</string>
+    <string name="vehicle_tasks_empty">Noch keine Wartungsaufgaben angelegt.</string>
+    <string name="vehicle_subtitle">%1$s • Baujahr %2$d</string>
+    <string name="vehicle_subtitle_year">Baujahr %1$d</string>
+    <string name="task_overdue_km">Überfällig um %1$s km</string>
+    <string name="task_due_soon_km">Fällig in %1$s km</string>
+    <string name="task_first_due_km">Erstfällig in %1$s km</string>
+    <string name="task_ok_km">OK (%1$s km verbleibend)</string>
+    <string name="task_never_performed">Fällig (noch nie durchgeführt)</string>
+    <string name="task_done_on">Erledigt am %1$s</string>
+    <plurals name="task_overdue_days">
+        <item quantity="one">Überfällig seit %1$s Tag</item>
+        <item quantity="other">Überfällig seit %1$s Tagen</item>
+    </plurals>
+    <plurals name="task_due_soon_days">
+        <item quantity="one">Fällig in %1$s Tag</item>
+        <item quantity="other">Fällig in %1$s Tagen</item>
+    </plurals>
+    <plurals name="task_first_due_days">
+        <item quantity="one">Erstfällig in %1$s Tag</item>
+        <item quantity="other">Erstfällig in %1$s Tagen</item>
+    </plurals>
+    <plurals name="task_ok_days">
+        <item quantity="one">OK (%1$s Tag verbleibend)</item>
+        <item quantity="other">OK (%1$s Tage verbleibend)</item>
+    </plurals>
 </resources>

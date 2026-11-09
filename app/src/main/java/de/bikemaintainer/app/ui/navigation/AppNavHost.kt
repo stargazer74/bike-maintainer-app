@@ -23,6 +23,8 @@ import de.bikemaintainer.app.ui.profiles.ProfilesScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesViewModel
 import de.bikemaintainer.app.ui.setup.SetupScreen
 import de.bikemaintainer.app.ui.setup.SetupViewModel
+import de.bikemaintainer.app.ui.vehicle.VehicleScreen
+import de.bikemaintainer.app.ui.vehicle.VehicleViewModel
 import de.bikemaintainer.app.ui.vehicles.VehiclesScreen
 import de.bikemaintainer.app.ui.vehicles.VehiclesViewModel
 
@@ -87,6 +89,18 @@ fun AppNavHost(container: AppContainer, start: Any) {
                 onOpenVehicle = { navController.navigate(VehicleRoute(it)) },
                 onOpenSettings = { navController.navigate(SettingsRoute) },
             )
+        }
+        composable<VehicleRoute> { entry ->
+            val route = entry.toRoute<VehicleRoute>()
+            val back = navController.popBackOnce()
+            val viewModel: VehicleViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer {
+                        VehicleViewModel(route.vehicleId, container.vehicleRepository, container.maintenanceRepository)
+                    }
+                },
+            )
+            VehicleScreen(viewModel = viewModel, onBack = back)
         }
         composable<NotificationPermissionRoute> {
             NotificationPermissionScreen(

@@ -1,6 +1,5 @@
 package de.bikemaintainer.app.ui.vehicles
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,10 +8,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -29,13 +26,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -44,10 +37,12 @@ import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.LoadingIndicator
+import de.bikemaintainer.app.ui.common.StatusDot
 import de.bikemaintainer.app.ui.common.loadMessageRes
+import de.bikemaintainer.app.ui.common.mileageText
+import de.bikemaintainer.app.ui.common.nameRes
+import de.bikemaintainer.app.ui.common.statusColor
 import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
-import de.bikemaintainer.app.ui.theme.LocalStatusColors
-import java.text.NumberFormat
 
 @Composable
 fun VehiclesScreen(
@@ -157,8 +152,6 @@ fun VehiclesContent(
 
 @Composable
 private fun VehicleCard(summary: VehicleSummary, onClick: () -> Unit) {
-    val locale = LocalConfiguration.current.locales[0]
-    val mileage = NumberFormat.getIntegerInstance(locale).format(summary.vehicle.currentMileage)
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -167,7 +160,7 @@ private fun VehicleCard(summary: VehicleSummary, onClick: () -> Unit) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(summary.vehicle.name, style = MaterialTheme.typography.titleMedium)
             Text(
-                stringResource(R.string.vehicle_mileage, mileage),
+                mileageText(summary.vehicle.currentMileage),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -179,20 +172,8 @@ private fun VehicleCard(summary: VehicleSummary, onClick: () -> Unit) {
 @Composable
 private fun StatusLine(summary: VehicleSummary) {
     val status = summary.status
-    val colors = LocalStatusColors.current
-    val name = when (status) {
-        TaskStatus.OVERDUE -> stringResource(R.string.status_overdue)
-        TaskStatus.DUE_SOON -> stringResource(R.string.status_due_soon)
-        TaskStatus.OK -> stringResource(R.string.status_ok)
-        TaskStatus.DONE -> stringResource(R.string.status_done)
-        null -> stringResource(R.string.vehicle_no_tasks)
-    }
-    val color: Color = when (status) {
-        TaskStatus.OVERDUE -> colors.overdue
-        TaskStatus.DUE_SOON -> colors.dueSoon
-        TaskStatus.OK -> colors.ok
-        TaskStatus.DONE, null -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val name = status?.let { stringResource(it.nameRes()) } ?: stringResource(R.string.vehicle_no_tasks)
+    val color = status.statusColor()
     // "All up to date" is the friendlier wording for OK (the overall status never has due tasks then).
     val text = if (status == TaskStatus.OK || status == TaskStatus.DONE) {
         stringResource(R.string.vehicle_all_up_to_date)
@@ -200,13 +181,8 @@ private fun StatusLine(summary: VehicleSummary) {
         name
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(
-            Modifier
-                .size(10.dp)
-                .background(color, CircleShape)
-                // The status text next to the dot already says it; describe the dot only if that text differs.
-                .semantics { if (text != name) contentDescription = name },
-        )
+        // The status text next to the dot already says it; describe the dot only if that text differs.
+        StatusDot(color, description = if (text != name) name else null)
         Text(text, style = MaterialTheme.typography.bodyMedium)
         if (summary.dueCount > 0) {
             Text(
