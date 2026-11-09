@@ -165,4 +165,46 @@ class DueTaskNotifierTest {
         notifier.showRelogin()
         assertTrue(posted().isEmpty())
     }
+
+    private fun many(count: Int, new: Int = count) = VehicleDue(
+        1,
+        "Kawasaki",
+        (1..new).map { DueTask(it.toLong(), "Neu $it", TaskStatus.OVERDUE) },
+        (new + 1..count).map { DueTask(it.toLong(), "Alt $it", TaskStatus.DUE_SOON) },
+    )
+
+    private fun bigText() = entry("vehicle", 1).extras.getCharSequence(Notification.EXTRA_BIG_TEXT).toString()
+    private fun shortText() = entry("vehicle", 1).extras.getCharSequence(Notification.EXTRA_TEXT).toString()
+
+    @Test fun fiveTasksAreAllNamed() {
+        DueTaskNotifier(app).showDue(many(5))
+        assertEquals(
+            "Neu 1 überfällig, Neu 2 überfällig, Neu 3 überfällig, Neu 4 überfällig, Neu 5 überfällig",
+            bigText(),
+        )
+        assertEquals(bigText(), shortText())
+    }
+
+    @Test fun moreThanFiveNamesFiveAndCountsTheRest() {
+        DueTaskNotifier(app).showDue(many(29, new = 2))
+        assertEquals(
+            "Neu 1 überfällig, Neu 2 überfällig, Alt 3 bald fällig, Alt 4 bald fällig, Alt 5 bald fällig " +
+                "und 24 weitere",
+            bigText(),
+        )
+        assertEquals("29 Wartungen fällig", shortText())
+    }
+
+    @Test fun oneMoreUsesSingular() {
+        DueTaskNotifier(app).showDue(many(6))
+        assertTrue(bigText(), bigText().endsWith("Neu 5 überfällig und 1 weitere"))
+    }
+
+    @Test @Config(qualifiers = "en") fun englishCountsTheRest() {
+        DueTaskNotifier(app).showDue(many(7))
+        assertTrue(bigText(), bigText().endsWith("Neu 5 overdue and 2 more"))
+        assertEquals("7 maintenance tasks due", shortText())
+        DueTaskNotifier(app).showDue(many(6))
+        assertTrue(bigText(), bigText().endsWith("Neu 5 overdue and 1 more"))
+    }
 }
