@@ -33,7 +33,7 @@ class MaintenanceRepositoryTest {
     private fun setUp(configured: Boolean = true): MaintenanceRepository {
         env = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), handler = { json(LOG, 201) })
         if (configured) runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
-        return MaintenanceRepository(env.provider)
+        return ApiMaintenanceRepository(env.provider)
     }
 
     private fun send(notes: String?) = runBlocking {

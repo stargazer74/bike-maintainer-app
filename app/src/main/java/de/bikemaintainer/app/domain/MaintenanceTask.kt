@@ -16,4 +16,5 @@ data class MaintenanceTask(
     val daysRemaining: Int?,
     val lastServiceMileage: Int?,
     val lastServiceDate: LocalDate?,
+    val remainingFraction: Double?,
 )
