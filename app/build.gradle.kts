@@ -41,14 +41,19 @@ openApiGenerate {
     )
 }
 
-tasks.named("openApiGenerate") {
+// A separate task, because the generator's own input validation fails with a less helpful message first.
+val checkApiSpec by tasks.registering {
     val specPath = apiSpec
-    doFirst {
+    doLast {
         check(File(specPath.get()).exists()) {
             "API spec not found at ${specPath.get()} – check out bike-maintainer-api next to this repo " +
                 "or pass -Pbm.apiSpec=…"
         }
     }
+}
+
+tasks.named("openApiGenerate") {
+    dependsOn(checkApiSpec)
 }
 
 tasks.named("preBuild") {
