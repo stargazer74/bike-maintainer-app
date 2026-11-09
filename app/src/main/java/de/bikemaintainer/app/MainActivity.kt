@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
                             container.sessionState.status,
                             container.reminderScheduler,
                             container.notifier,
-                            { NotificationManagerCompat.from(this).areNotificationsEnabled() },
+                            { NotificationManagerCompat.from(applicationContext).areNotificationsEnabled() },
                             openVehicle.asStateFlow(),
                             { openVehicle.value = null },
                         )

@@ -4,10 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.domain.Account
-import de.bikemaintainer.app.notifications.DueNotifications
-import de.bikemaintainer.app.notifications.ReminderScheduler
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.ServerMode
+import de.bikemaintainer.app.notifications.DueNotifications
+import de.bikemaintainer.app.notifications.ReminderScheduler
 import de.bikemaintainer.app.ui.navigation.LoginRoute
 import de.bikemaintainer.app.ui.navigation.ProfilesRoute
 import de.bikemaintainer.app.ui.navigation.SetupRoute
@@ -38,6 +38,7 @@ class SettingsViewModel(
     private val notifications: DueNotifications,
     private val notificationsAllowed: () -> Boolean,
 ) : ViewModel() {
+    private var lastAllowed = notificationsAllowed()
     private val _state = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
@@ -68,13 +69,26 @@ class SettingsViewModel(
     fun setNotificationsEnabled(enabled: Boolean) {
         viewModelScope.launch {
             auth.setNotificationsEnabled(enabled)
-            refreshPermission()
+            lastAllowed = notificationsAllowed()
+            updateBlocked()
             reminders.sync()
         }
     }
 
-    /** Re-reads the system permission, e.g. when the screen is resumed or after the permission dialog. */
+    /**
+     * Re-reads the system permission, e.g. when the screen is resumed or after the permission dialog. If it changed
+     * since the last sync (granted in the dialog or the system settings), the schedule is brought in line again.
+     */
     fun refreshPermission() {
+        updateBlocked()
+        val allowed = notificationsAllowed()
+        if (allowed != lastAllowed) {
+            lastAllowed = allowed
+            viewModelScope.launch { reminders.sync() }
+        }
+    }
+
+    private fun updateBlocked() {
         _state.update { it.copy(notificationsBlocked = it.notificationsEnabled && !notificationsAllowed()) }
     }
 

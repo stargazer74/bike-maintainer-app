@@ -127,4 +127,20 @@ class SettingsViewModelTest {
         assertEquals(1, reminders.cancelCalls)
         assertEquals(1, notifications.cancelAllCalls)
     }
+
+    @Test fun grantedPermissionSyncsOnceOnRefresh() {
+        store(ServerMode.PORTAL)
+        allowed = false
+        val vm = SettingsViewModel(auth)
+        vm.refreshPermission()
+        assertEquals(0, reminders.syncCalls)
+        allowed = true
+        vm.refreshPermission()
+        assertEquals(1, reminders.syncCalls)
+        vm.refreshPermission()
+        assertEquals(1, reminders.syncCalls)
+        allowed = false
+        vm.refreshPermission()
+        assertEquals(2, reminders.syncCalls)
+    }
 }

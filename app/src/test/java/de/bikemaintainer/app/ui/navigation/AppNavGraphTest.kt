@@ -30,15 +30,15 @@ import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.domain.VehicleType
-import de.bikemaintainer.app.ui.FakeAuthRepository
 import de.bikemaintainer.app.notifications.FakeDueNotifications
+import de.bikemaintainer.app.ui.FakeAuthRepository
 import de.bikemaintainer.app.ui.FakeMaintenanceRepository
 import de.bikemaintainer.app.ui.FakeReminderScheduler
 import de.bikemaintainer.app.ui.FakeVehicleRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
 import java.time.LocalDate
-import org.junit.Assert.assertEquals
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
