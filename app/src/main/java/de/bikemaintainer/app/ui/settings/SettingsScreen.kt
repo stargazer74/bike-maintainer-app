@@ -39,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,6 +57,8 @@ import de.bikemaintainer.app.R
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.WebLinks
 import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
+import de.bikemaintainer.app.ui.theme.ThemeMode
+import de.bikemaintainer.app.ui.theme.ThemeSetting
 
 private enum class Confirm { LOGOUT, SWITCH_SERVER }
 
@@ -83,6 +86,8 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate:
     // The configuration locale follows setApplicationLocales, so this reacts to the picker below.
     val german = LocalConfiguration.current.locales[0]?.language == "de"
     val selected = AppCompatDelegate.getApplicationLocales().let { if (it.isEmpty) "" else it[0]?.language.orEmpty() }
+    // AppCompat recreates the activity on a change; the state only matters until then.
+    var theme by remember { mutableStateOf(ThemeMode.applied()) }
 
     Scaffold(
         topBar = {
@@ -104,9 +109,17 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate:
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Section(R.string.settings_language)
-            LanguageOption(R.string.settings_language_system, selected == "") { setLanguage("") }
-            LanguageOption(R.string.settings_language_german, selected == "de") { setLanguage("de") }
-            LanguageOption(R.string.settings_language_english, selected == "en") { setLanguage("en") }
+            RadioOption(R.string.settings_language_system, selected == "") { setLanguage("") }
+            RadioOption(R.string.settings_language_german, selected == "de") { setLanguage("de") }
+            RadioOption(R.string.settings_language_english, selected == "en") { setLanguage("en") }
+
+            Section(R.string.settings_theme)
+            ThemeMode.entries.forEach { mode ->
+                RadioOption(themeLabel(mode), theme == mode) {
+                    theme = mode
+                    ThemeSetting.set(context, mode)
+                }
+            }
 
             Spacer(Modifier.height(8.dp))
             Row(
@@ -219,6 +232,12 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate:
     }
 }
 
+private fun themeLabel(mode: ThemeMode) = when (mode) {
+    ThemeMode.SYSTEM -> R.string.settings_theme_system
+    ThemeMode.LIGHT -> R.string.settings_theme_light
+    ThemeMode.DARK -> R.string.settings_theme_dark
+}
+
 private fun setLanguage(tag: String) =
     AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
 
@@ -233,7 +252,7 @@ private fun Section(title: Int) {
 }
 
 @Composable
-private fun LanguageOption(label: Int, selected: Boolean, onClick: () -> Unit) {
+private fun RadioOption(label: Int, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
