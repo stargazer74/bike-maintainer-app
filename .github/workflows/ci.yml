@@ -20,9 +20,35 @@ jobs:
       contents: read
       # Upload of the lint and Trivy results to the Security tab.
       security-events: write
+    defaults:
+      run:
+        working-directory: bike-maintainer-app
     steps:
+      # The API client is generated from ../bike-maintainer-api's spec, so both repos are checked out side by side.
       - name: Check out app
         uses: actions/checkout@v7
+        with:
+          path: bike-maintainer-app
+
+      # The branch with the same name if it exists (PRs that depend on an open API PR), else main.
+      - name: Select API branch
+        id: api-branch
+        working-directory: .
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          if git ls-remote --exit-code --heads https://github.com/stargazer74/bike-maintainer-api.git "$BRANCH" > /dev/null; then
+            echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out API spec (${{ steps.api-branch.outputs.ref }})
+        uses: actions/checkout@v7
+        with:
+          repository: stargazer74/bike-maintainer-api
+          ref: ${{ steps.api-branch.outputs.ref }}
+          path: bike-maintainer-api
 
       # The Gradle daemon runs on Java 25 (gradle/gradle-daemon-jvm.properties); the app compiles for Java 11.
       - name: Set up Java 25
@@ -47,7 +73,7 @@ jobs:
         if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: app/build/reports/lint-results-debug.sarif
+          sarif_file: bike-maintainer-app/app/build/reports/lint-results-debug.sarif
           category: android-lint
 
       # Trivy: the report step sends all findings from MEDIUM up to Security → Code scanning without failing the build;
@@ -57,7 +83,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
-          scan-ref: app/gradle.lockfile
+          scan-ref: bike-maintainer-app/app/gradle.lockfile
           scanners: vuln
           ignore-unfixed: true
           severity: CRITICAL,HIGH,MEDIUM
@@ -75,7 +101,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
-          scan-ref: app/gradle.lockfile
+          scan-ref: bike-maintainer-app/app/gradle.lockfile
           scanners: vuln
           ignore-unfixed: true
           severity: CRITICAL,HIGH
@@ -93,5 +119,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: reports
-          path: app/build/reports/
+          path: bike-maintainer-app/app/build/reports/
           retention-days: 7

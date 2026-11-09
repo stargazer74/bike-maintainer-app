@@ -23,9 +23,35 @@ jobs:
       contents: read
       actions: read
       security-events: write
+    defaults:
+      run:
+        working-directory: bike-maintainer-app
     steps:
+      # The API client is generated from ../bike-maintainer-api's spec, so both repos are checked out side by side.
       - name: Check out app
         uses: actions/checkout@v7
+        with:
+          path: bike-maintainer-app
+
+      # The branch with the same name if it exists (PRs that depend on an open API PR), else main.
+      - name: Select API branch
+        id: api-branch
+        working-directory: .
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          if git ls-remote --exit-code --heads https://github.com/stargazer74/bike-maintainer-api.git "$BRANCH" > /dev/null; then
+            echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out API spec (${{ steps.api-branch.outputs.ref }})
+        uses: actions/checkout@v7
+        with:
+          repository: stargazer74/bike-maintainer-api
+          ref: ${{ steps.api-branch.outputs.ref }}
+          path: bike-maintainer-api
 
       - name: Set up Java 25
         uses: actions/setup-java@v6
