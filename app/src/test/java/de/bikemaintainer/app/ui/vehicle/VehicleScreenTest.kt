@@ -18,6 +18,7 @@ import de.bikemaintainer.app.domain.VehicleType
 import java.time.LocalDate
 import de.bikemaintainer.app.ui.FakeMaintenanceRepository
 import de.bikemaintainer.app.ui.FakeVehicleRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -119,7 +120,7 @@ class VehicleScreenTest {
             FakeVehicleRepository().apply { vehicleResult = Outcome.Success(vehicle.copy(currentMileage = 24500)) },
             FakeMaintenanceRepository(),
         )
-        compose.setContent { VehicleScreen(viewModel = viewModel, onBack = {}, onLogMaintenance = {}) }
+        compose.setContent { VehicleScreen(viewModel = viewModel, onBack = {}, onLogMaintenance = {}, logResult = MutableStateFlow(null), onLogResultShown = {}) }
         compose.onNodeWithText("Kilometerstand eintragen").performClick()
         compose.onNode(hasSetTextAction()).performTextClearance()
         compose.onNode(hasSetTextAction()).performTextInput("24000")

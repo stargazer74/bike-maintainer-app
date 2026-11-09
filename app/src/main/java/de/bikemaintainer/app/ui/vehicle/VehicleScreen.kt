@@ -3,6 +3,8 @@ package de.bikemaintainer.app.ui.vehicle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,7 +32,16 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.coroutines.launch
+import de.bikemaintainer.app.ui.logmaintenance.LogResult
+import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -54,8 +65,32 @@ import de.bikemaintainer.app.ui.common.statusColor
 import de.bikemaintainer.app.ui.common.vehicleLoadMessageRes
 
 @Composable
-fun VehicleScreen(viewModel: VehicleViewModel, onBack: () -> Unit, onLogMaintenance: () -> Unit) {
+fun VehicleScreen(
+    viewModel: VehicleViewModel,
+    onBack: () -> Unit,
+    onLogMaintenance: () -> Unit,
+    logResult: StateFlow<String?>,
+    onLogResultShown: () -> Unit,
+) {
     val state by viewModel.state.collectAsState()
+    val result by logResult.collectAsState()
+    val snackbarHost = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val currentShown by rememberUpdatedState(onLogResultShown)
+    // The messages are resolved up front: stringResource is not available inside the effect.
+    val saved = stringResource(R.string.log_saved)
+    val savedMileageFailed = stringResource(R.string.log_saved_mileage_failed)
+    LaunchedEffect(result) {
+        val message = when (result) {
+            LogResult.SAVED.name -> saved
+            LogResult.SAVED_MILEAGE_FAILED.name -> savedMileageFailed
+            else -> null
+        } ?: return@LaunchedEffect
+        // Consume first (the effect restarts when the value changes, so the snackbar runs in its own scope):
+        // the message is shown once even if the screen is recreated while the snackbar is visible.
+        currentShown()
+        scope.launch { snackbarHost.showSnackbar(message) }
+    }
 
     // Reload when returning to the app; the ViewModel skips the first resume (it loaded in init).
     LifecycleResumeEffect(viewModel) {
@@ -68,6 +103,7 @@ fun VehicleScreen(viewModel: VehicleViewModel, onBack: () -> Unit, onLogMaintena
         onBack = onBack,
         onRefresh = viewModel::refresh,
         onRetry = viewModel::refresh,
+        snackbarHost = snackbarHost,
         actions = VehicleActions(
             onOpenMileage = viewModel::openMileageDialog,
             onMileageInput = viewModel::onMileageInput,
@@ -86,7 +122,7 @@ data class VehicleActions(
     val onLogMaintenance: () -> Unit,
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun VehicleContent(
     state: VehicleUiState,
@@ -94,8 +130,10 @@ fun VehicleContent(
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
     actions: VehicleActions,
+    snackbarHost: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
                 title = { Text(state.vehicle?.name.orEmpty()) },
@@ -141,7 +179,10 @@ fun VehicleContent(
                     else -> {
                         item { VehicleHeader(vehicle) }
                         item {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
                                 OutlinedButton(onClick = actions.onOpenMileage) {
                                     Text(stringResource(R.string.mileage_enter))
                                 }

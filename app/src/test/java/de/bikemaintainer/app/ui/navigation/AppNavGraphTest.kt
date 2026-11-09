@@ -3,7 +3,11 @@ package de.bikemaintainer.app.ui.navigation
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -18,6 +22,7 @@ import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.network.SessionStatus
 import de.bikemaintainer.app.data.storage.StoredSettings
 import de.bikemaintainer.app.domain.AppError
+import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.ServerMode
 import de.bikemaintainer.app.domain.TaskStatus
@@ -149,5 +154,58 @@ class AppNavGraphTest {
         compose.waitForIdle()
         assertEquals(true, current().contains("Login"))
         assertEquals(1, stack().size)
+    }
+
+    private fun openLog() {
+        maintenance.tasksResult = Outcome.Success(listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE)))
+        show(VehiclesRoute)
+        compose.onNodeWithText("Africa Twin").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Wartung erfassen").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("VehiclesRoute", "VehicleRoute", "LogMaintenanceRoute"), stack())
+    }
+
+    private fun task(id: Long, name: String, status: TaskStatus) =
+        MaintenanceTask(id, 7, name, false, true, status, null, null, null, null, null, null)
+
+    @Test fun loggingReturnsToDetailAndReloads() {
+        vehicles.updateMileageResult = Outcome.Success(vehicle)
+        openLog()
+        val calls = vehicles.vehicleCalls.size
+        compose.onNodeWithText("Speichern").performScrollTo().performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("VehiclesRoute", "VehicleRoute"), stack())
+        compose.onNodeWithText("Wartung gespeichert.").assertExists()
+        assertEquals(1, maintenance.logCalls.size)
+        assertEquals(true, vehicles.vehicleCalls.size > calls)
+    }
+
+    @Test fun raiseFailureShowsSavedMileageFailed() {
+        vehicles.updateMileageResult = Outcome.Failure(AppError.Network)
+        openLog()
+        compose.onNode(hasSetTextAction() and hasText("Kilometerstand (km)")).performTextClearance()
+        compose.onNode(hasSetTextAction() and hasText("Kilometerstand (km)")).performTextInput("12400")
+        compose.onNodeWithText("Speichern").performScrollTo().performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("VehiclesRoute", "VehicleRoute"), stack())
+        compose.onNodeWithText("Wartung gespeichert, aber der Kilometerstand konnte nicht angehoben werden.").assertExists()
+        assertEquals(1, maintenance.logCalls.size)
+    }
+
+    @Test fun backFromLogReturnsToDetailWithoutSaving() {
+        openLog()
+        compose.onNodeWithContentDescription("Zurück").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("VehiclesRoute", "VehicleRoute"), stack())
+        assertEquals(0, maintenance.logCalls.size)
+        compose.onNodeWithText("Wartung gespeichert.").assertDoesNotExist()
+    }
+
+    @Test fun loginRequiredOnLogMaintenanceRedirects() {
+        openLog()
+        session.require(SessionStatus.LOGIN_REQUIRED)
+        compose.waitForIdle()
+        assertEquals(listOf("LoginRoute"), stack())
     }
 }
