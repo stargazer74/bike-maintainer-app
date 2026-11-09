@@ -9,9 +9,11 @@ import de.bikemaintainer.app.domain.ServerMode
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import de.bikemaintainer.app.data.storage.FakeTokenCipher
+import de.bikemaintainer.app.data.storage.StoredSettings
 import de.bikemaintainer.app.data.storage.TokenCipher
 import java.io.IOException
 import java.security.GeneralSecurityException
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import org.junit.After
@@ -106,6 +108,55 @@ class AuthRepositoryTest {
         assertEquals(Outcome.Failure(AppError.Unauthorized), runBlocking { repo.profiles(env.url) })
         assertEquals(listOf("/api/v1/profiles"), env.requests.map { it.url.encodedPath })
         assertEquals("tok", runBlocking { env.tokens.get() })
+    }
+
+    /** Lets [writesLeft] DataStore writes through, then fails every further one like a full disk. */
+    private val writesLeft = AtomicInteger(Int.MAX_VALUE)
+
+    private fun limitedWrites(real: DataStore<Preferences>) = object : DataStore<Preferences> {
+        override val data = real.data
+        override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences {
+            if (writesLeft.getAndDecrement() <= 0) throw IOException("disk full")
+            return real.updateData(transform)
+        }
+    }
+
+    @Test
+    fun selectProfileStoresEverythingInOneWrite() {
+        val repo = setUp(wrap = ::limitedWrites) { json(user) }
+        runBlocking {
+            env.settings.setServer("https://previous.example/", ServerMode.PORTAL)
+            env.tokens.set("tok")
+            env.settings.setProfileId(5)
+        }
+        writesLeft.set(1)
+        assertEquals(Outcome.Success(Unit), runBlocking { repo.selectProfile(env.url, 7) })
+        assertEquals(StoredSettings(env.url, ServerMode.HOUSEHOLD, null, 7), runBlocking { env.settings.current() })
+    }
+
+    @Test
+    fun deviceLoginStoresEverythingInOneWrite() {
+        val repo = setUp(wrap = ::limitedWrites) { json("""{"user":$user,"deviceToken":"tok"}""") }
+        runBlocking {
+            env.settings.setServer("http://192.168.0.2:8080/", ServerMode.HOUSEHOLD)
+            env.settings.setProfileId(5)
+        }
+        writesLeft.set(1)
+        assertEquals(Outcome.Success(Unit), runBlocking { repo.deviceLogin(env.url, "a@b.de", "pw", "Pixel") })
+        assertEquals(StoredSettings(env.url, ServerMode.PORTAL, "enc:tok", null), runBlocking { env.settings.current() })
+    }
+
+    @Test
+    fun failedSelectProfileWriteKeepsPreviousState() {
+        val repo = setUp(wrap = ::limitedWrites) { json(user) }
+        runBlocking {
+            env.settings.setServer("https://previous.example/", ServerMode.HOUSEHOLD)
+            env.settings.setProfileId(5)
+        }
+        val before = runBlocking { env.settings.current() }
+        writesLeft.set(0)
+        assertEquals(Outcome.Failure(AppError.Storage), runBlocking { repo.selectProfile(env.url, 7) })
+        assertEquals(before, runBlocking { env.settings.current() })
     }
 
     @Test

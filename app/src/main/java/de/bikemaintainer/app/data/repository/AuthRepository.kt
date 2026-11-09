@@ -9,7 +9,6 @@ import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Profile
 import de.bikemaintainer.app.domain.ServerConfig
-import de.bikemaintainer.app.domain.ServerMode
 import java.io.IOException
 import java.security.GeneralSecurityException
 import kotlinx.coroutines.sync.withLock
@@ -28,21 +27,21 @@ class AuthRepository(
     suspend fun fetchConfig(serverUrl: String): Outcome<ServerConfig> =
         withApis(serverUrl) { apis -> call { apis.config.getAppConfig() }.map { it.toDomain() } }
 
-    /** Stores server, mode and token only if the login succeeded. */
+    /** Stores server, mode and token (in one write) only if the login succeeded. */
     suspend fun deviceLogin(serverUrl: String, email: String, password: String, deviceName: String): Outcome<Unit> {
         val base = ApiProvider.normalizeOrNull(serverUrl) ?: return Outcome.Failure(AppError.InvalidAddress)
         val result = call { provider.apisFor(serverUrl).auth.deviceLogin(DeviceLoginRequest(email, password, deviceName)) }
         if (result !is Outcome.Success) return Outcome.Failure((result as Outcome.Failure).error)
         return state.lock.withLock {
+            // One write: on failure nothing has changed (in particular no new token next to an old server).
             try {
-                tokens.set(result.value.deviceToken)
-                settings.setServer(base.toString(), ServerMode.PORTAL)
+                tokens.saveLogin(base.toString(), result.value.deviceToken)
                 state.sessionStarted()
                 Outcome.Success(Unit)
             } catch (_: GeneralSecurityException) {
-                discardPartialLogin()
+                Outcome.Failure(AppError.Storage)
             } catch (_: IOException) {
-                discardPartialLogin()
+                Outcome.Failure(AppError.Storage)
             }
         }
     }
@@ -55,9 +54,9 @@ class AuthRepository(
         val result = call { provider.apisFor(serverUrl).profiles.selectProfile(id) }
         if (result is Outcome.Failure) return result
         return state.lock.withLock {
+            // One write: a failure must not leave the previous person's profile id next to the new server.
             try {
-                settings.setServer(base.toString(), ServerMode.HOUSEHOLD)
-                settings.setProfileId(id)
+                settings.saveHouseholdProfile(base.toString(), id)
                 state.sessionStarted()
                 Outcome.Success(Unit)
             } catch (_: IOException) {
@@ -106,15 +105,5 @@ class AuthRepository(
     private suspend fun <T> withApis(serverUrl: String, block: suspend (ApiProvider.Apis) -> Outcome<T>): Outcome<T> {
         if (ApiProvider.normalizeOrNull(serverUrl) == null) return Outcome.Failure(AppError.InvalidAddress)
         return block(provider.apisFor(serverUrl))
-    }
-
-    /** Best effort: no token without a stored server. */
-    private suspend fun discardPartialLogin(): Outcome<Unit> {
-        try {
-            settings.clearSession()
-        } catch (_: IOException) {
-            // Storage is broken anyway; the caller is told so.
-        }
-        return Outcome.Failure(AppError.Storage)
     }
 }

@@ -38,6 +38,11 @@ class DeviceTokenStore(private val settings: SettingsStore, private val cipher: 
         settings.setEncryptedDeviceToken(cipher.encrypt(token))
     }
 
+    /** Stores [serverUrl] (portal mode) together with the encrypted [token] in one write. */
+    suspend fun saveLogin(serverUrl: String, token: String) {
+        settings.savePortalLogin(serverUrl, cipher.encrypt(token))
+    }
+
     suspend fun clear() {
         settings.setEncryptedDeviceToken(null)
     }

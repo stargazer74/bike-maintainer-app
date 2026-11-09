@@ -36,6 +36,29 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    /**
+     * A portal login in one write: server, mode and (encrypted) device token; a household profile id is removed.
+     * Use [DeviceTokenStore.saveLogin], which encrypts the token.
+     */
+    suspend fun savePortalLogin(url: String, encryptedDeviceToken: String) {
+        dataStore.edit {
+            it[SERVER_URL] = url
+            it[SERVER_MODE] = ServerMode.PORTAL.name
+            it[DEVICE_TOKEN_ENC] = encryptedDeviceToken
+            it.remove(PROFILE_ID)
+        }
+    }
+
+    /** A household profile selection in one write: server, mode and profile id; a device token is removed. */
+    suspend fun saveHouseholdProfile(url: String, profileId: Long) {
+        dataStore.edit {
+            it[SERVER_URL] = url
+            it[SERVER_MODE] = ServerMode.HOUSEHOLD.name
+            it[PROFILE_ID] = profileId
+            it.remove(DEVICE_TOKEN_ENC)
+        }
+    }
+
     suspend fun setEncryptedDeviceToken(value: String?) {
         dataStore.edit { if (value == null) it.remove(DEVICE_TOKEN_ENC) else it[DEVICE_TOKEN_ENC] = value }
     }

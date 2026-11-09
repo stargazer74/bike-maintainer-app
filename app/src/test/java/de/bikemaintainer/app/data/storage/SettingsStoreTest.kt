@@ -43,6 +43,17 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun portalLoginReplacesHouseholdProfile() = runTest {
+        val store = store()
+        store.saveHouseholdProfile("http://192.168.0.2:8080/", 7)
+        assertEquals(StoredSettings("http://192.168.0.2:8080/", ServerMode.HOUSEHOLD, null, 7), store.current())
+        store.savePortalLogin("https://bm.example/", "tok")
+        assertEquals(StoredSettings("https://bm.example/", ServerMode.PORTAL, "tok", null), store.current())
+        store.saveHouseholdProfile("http://192.168.0.2:8080/", 8)
+        assertEquals(StoredSettings("http://192.168.0.2:8080/", ServerMode.HOUSEHOLD, null, 8), store.current())
+    }
+
+    @Test
     fun clearAllRemovesEverything() = runTest {
         val store = store()
         store.setServer("https://bm.example", ServerMode.PORTAL)
