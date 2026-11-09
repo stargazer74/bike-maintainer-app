@@ -1,17 +1,26 @@
 package de.bikemaintainer.app.ui.logmaintenance
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.state.ToggleableState
+import androidx.lifecycle.SavedStateHandle
+import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TaskStatus
@@ -49,7 +58,7 @@ class LogMaintenanceScreenTest {
         maintenance.tasksResult = Outcome.Success(
             listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE), task(2, "Kette", TaskStatus.DUE_SOON)),
         )
-        val vm = LogMaintenanceViewModel(3, vehicles, maintenance) { today }
+        val vm = LogMaintenanceViewModel(3, vehicles, maintenance, SavedStateHandle()) { today }
         compose.setContent { LogMaintenanceScreen(vm, onBack = {}, onDone = { done += it }) }
     }
 
@@ -94,12 +103,49 @@ class LogMaintenanceScreenTest {
         assertEquals(Role.Checkbox, node.fetchSemanticsNode().config[SemanticsProperties.Role])
     }
 
-    @Test fun onDoneIsCalledOnceEvenWhenRecomposed() {
+    @Test fun onDoneIsCalledOnceEvenWhenTheScreenIsRecreated() {
+        vehicles.vehicleResult = Outcome.Success(vehicle)
+        maintenance.tasksResult = Outcome.Success(listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE)))
+        val vm = LogMaintenanceViewModel(3, vehicles, maintenance, SavedStateHandle()) { today }
+        var generation by mutableIntStateOf(0)
+        compose.setContent {
+            // A new key drops the old composition and builds a fresh one around the same ViewModel (like a rotation).
+            key(generation) { LogMaintenanceScreen(vm, onBack = {}, onDone = { done += it }) }
+        }
+        compose.onNodeWithText("Speichern").performScrollTo().performClick()
+        compose.waitForIdle()
+        assertEquals(listOf(LogResult.SAVED), done)
+        generation++
+        compose.waitForIdle()
+        assertEquals(listOf(LogResult.SAVED), done)
+    }
+
+    @Test fun formIsLockedAfterSaving() {
         show()
         compose.onNodeWithText("Speichern").performScrollTo().performClick()
         compose.waitForIdle()
-        compose.runOnUiThread { }
-        compose.waitForIdle()
-        assertEquals(listOf(LogResult.SAVED), done)
+        compose.onNode(hasText("Ölwechsel")).assertIsNotEnabled()
+        compose.onNodeWithText("Notiz (optional)").assertIsNotEnabled()
+    }
+
+    @Test fun vehicleDeletedOnSaveShowsNotFoundWithBack() {
+        show()
+        maintenance.logResult = Outcome.Failure(AppError.NotFound)
+        compose.onNodeWithText("Speichern").performScrollTo().performClick()
+        compose.onNodeWithText("Das Fahrzeug wurde nicht gefunden.").assertExists()
+        compose.onNodeWithText("Zurück").assertExists()
+        compose.onNodeWithText("Speichern").assertDoesNotExist()
+    }
+
+    @Test fun datePickerSurvivesStateRestoration() {
+        vehicles.vehicleResult = Outcome.Success(vehicle)
+        maintenance.tasksResult = Outcome.Success(listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE)))
+        val vm = LogMaintenanceViewModel(3, vehicles, maintenance, SavedStateHandle()) { today }
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { LogMaintenanceScreen(vm, onBack = {}, onDone = {}) }
+        compose.onNode(hasText("Datum", substring = true) and hasClickAction()).performClick()
+        compose.onNodeWithText("Abbrechen").assertExists()
+        restoration.emulateSavedInstanceStateRestore()
+        compose.onNodeWithText("Abbrechen").assertExists()
     }
 }

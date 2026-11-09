@@ -1,5 +1,6 @@
 package de.bikemaintainer.app.ui.logmaintenance
 
+import androidx.lifecycle.SavedStateHandle
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Outcome
@@ -31,18 +32,21 @@ class LogMaintenanceViewModelTest {
     private fun task(id: Long, status: TaskStatus, active: Boolean = true) =
         MaintenanceTask(id, 3, "T$id", false, active, status, null, null, null, null, null, null)
 
-    private fun viewModel(): LogMaintenanceViewModel {
+    private val allTasks = listOf(
+        task(1, TaskStatus.OVERDUE),
+        task(2, TaskStatus.DUE_SOON),
+        task(3, TaskStatus.OK),
+        task(4, TaskStatus.OVERDUE, active = false),
+    )
+
+    private fun viewModel(
+        savedState: SavedStateHandle = SavedStateHandle(),
+        tasks: List<MaintenanceTask> = allTasks,
+    ): LogMaintenanceViewModel {
         if (vehicles.vehicleResult == null) vehicles.vehicleResult = Outcome.Success(vehicle)
         if (vehicles.updateMileageResult == null) vehicles.updateMileageResult = Outcome.Success(vehicle)
-        maintenance.tasksResult = Outcome.Success(
-            listOf(
-                task(1, TaskStatus.OVERDUE),
-                task(2, TaskStatus.DUE_SOON),
-                task(3, TaskStatus.OK),
-                task(4, TaskStatus.OVERDUE, active = false),
-            ),
-        )
-        return LogMaintenanceViewModel(3, vehicles, maintenance) { today }
+        maintenance.tasksResult = Outcome.Success(tasks)
+        return LogMaintenanceViewModel(3, vehicles, maintenance, savedState) { today }
     }
 
     @Test fun prefillsTodayMileageAndDueTasks() {
@@ -189,5 +193,108 @@ class LogMaintenanceViewModelTest {
         assertEquals(LogResult.SAVED, vm.state.value.done)
         vm.consumeDone()
         assertNull(vm.state.value.done)
+    }
+
+    @Test fun formStaysLockedAfterSuccess() {
+        val vm = viewModel()
+        vm.save()
+        assertEquals(LogResult.SAVED, vm.state.value.done)
+        vm.consumeDone()
+        // The screen is still composed during the pop animation: a second tap must not send a second log.
+        vm.save()
+        assertEquals(1, maintenance.logCalls.size)
+        assertTrue(vm.state.value.finished)
+        vm.onNotes("late")
+        vm.toggleTask(1)
+        vm.onMileageInput("1")
+        assertEquals("", vm.state.value.notes)
+        assertEquals(setOf(1L, 2L), vm.state.value.selected)
+        assertEquals("24500", vm.state.value.mileageInput)
+    }
+
+    @Test fun formSurvivesProcessDeath() {
+        val handle = SavedStateHandle()
+        val first = viewModel(handle)
+        first.onNotes("Neues Öl")
+        first.toggleTask(2)
+        first.toggleTask(3)
+        first.onDate(today.minusDays(3))
+        first.onMileageInput("24800")
+        first.onRaiseMileage(false)
+        // A new ViewModel with the same handle stands for the restored process: the saved form wins over the prefill.
+        val state = viewModel(handle).state.value
+        assertEquals("Neues Öl", state.notes)
+        assertEquals(setOf(1L, 3L), state.selected)
+        assertEquals(today.minusDays(3), state.date)
+        assertEquals("24800", state.mileageInput)
+        assertFalse(state.raiseMileage)
+        assertEquals(vehicle, state.vehicle)
+    }
+
+    @Test fun restoredSelectionDropsTasksThatNoLongerExist() {
+        val handle = SavedStateHandle()
+        viewModel(handle).toggleTask(3)
+        val state = viewModel(handle, tasks = listOf(task(1, TaskStatus.OVERDUE), task(2, TaskStatus.DUE_SOON))).state.value
+        assertEquals(setOf(1L, 2L), state.selected)
+    }
+
+    @Test fun untouchedFormIsPrefilledFromServerAfterRestore() {
+        val handle = SavedStateHandle()
+        viewModel(handle)
+        vehicles.vehicleResult = Outcome.Success(vehicle.copy(currentMileage = 24600))
+        assertEquals("24500", viewModel(handle).state.value.mileageInput) // saved at the first prefill
+        assertEquals("24600", viewModel().state.value.mileageInput)
+    }
+
+    @Test fun restoredAfterSuccessStaysFinished() {
+        val handle = SavedStateHandle()
+        viewModel(handle).save()
+        val vm = viewModel(handle)
+        assertEquals(LogResult.SAVED, vm.state.value.done)
+        vm.save()
+        assertEquals(1, maintenance.logCalls.size)
+    }
+
+    @Test fun notesCapDoesNotSplitAnEmoji() {
+        val vm = viewModel()
+        vm.onNotes("x".repeat(999) + "\uD83D\uDE00" + "y")
+        assertEquals("x".repeat(999), vm.state.value.notes)
+        vm.onNotes("x".repeat(998) + "\uD83D\uDE00" + "y")
+        assertEquals("x".repeat(998) + "\uD83D\uDE00", vm.state.value.notes)
+    }
+
+    @Test fun rejectedInputReloadsTasksAndKeepsTheForm() {
+        val vm = viewModel()
+        maintenance.logResult = Outcome.Failure(AppError.Http(400, null))
+        vm.onNotes("hello")
+        vm.onMileageInput("24800")
+        vm.onDate(today.minusDays(1))
+        vm.toggleTask(3)
+        // Task 2 was deleted in the web app meanwhile, task 5 is new.
+        maintenance.tasksResult = Outcome.Success(listOf(task(1, TaskStatus.OVERDUE), task(3, TaskStatus.OK), task(5, TaskStatus.OVERDUE)))
+        vehicles.vehicleResult = Outcome.Success(vehicle.copy(currentMileage = 24700))
+        vm.save()
+        val state = vm.state.value
+        assertEquals(2, maintenance.tasksCalls.size)
+        assertEquals(listOf(1L, 5L, 3L), state.tasks.map { it.id })
+        assertEquals(setOf(1L, 3L), state.selected)
+        assertEquals("hello", state.notes)
+        assertEquals("24800", state.mileageInput)
+        assertEquals(today.minusDays(1), state.date)
+        assertEquals(24700, state.vehicle!!.currentMileage)
+        assertEquals(LogError.Save(AppError.Http(400, null)), state.error)
+        assertFalse(state.saving)
+    }
+
+    @Test fun vehicleDeletedBeforeSaveShowsNotFound() {
+        val vm = viewModel()
+        maintenance.logResult = Outcome.Failure(AppError.NotFound)
+        vm.save()
+        val state = vm.state.value
+        assertEquals(AppError.NotFound, state.loadError)
+        assertNull(state.vehicle)
+        assertFalse(state.saving)
+        vm.retryLoad()
+        assertEquals(1, vehicles.vehicleCalls.size) // terminal: only "Back" is offered
     }
 }

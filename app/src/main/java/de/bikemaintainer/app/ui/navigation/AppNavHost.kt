@@ -6,6 +6,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.dropUnlessResumed
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -18,10 +19,10 @@ import de.bikemaintainer.app.data.network.SessionStatus
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
-import de.bikemaintainer.app.ui.logmaintenance.LogMaintenanceScreen
-import de.bikemaintainer.app.ui.logmaintenance.LogMaintenanceViewModel
 import de.bikemaintainer.app.ui.login.LoginScreen
 import de.bikemaintainer.app.ui.login.LoginViewModel
+import de.bikemaintainer.app.ui.logmaintenance.LogMaintenanceScreen
+import de.bikemaintainer.app.ui.logmaintenance.LogMaintenanceViewModel
 import de.bikemaintainer.app.ui.notifications.NotificationPermissionScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesViewModel
@@ -129,7 +130,9 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
             val back = navController.popBackOnce()
             val viewModel: LogMaintenanceViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { LogMaintenanceViewModel(route.vehicleId, deps.vehicles, deps.maintenance) }
+                    initializer {
+                        LogMaintenanceViewModel(route.vehicleId, deps.vehicles, deps.maintenance, createSavedStateHandle())
+                    }
                 },
             )
             LogMaintenanceScreen(

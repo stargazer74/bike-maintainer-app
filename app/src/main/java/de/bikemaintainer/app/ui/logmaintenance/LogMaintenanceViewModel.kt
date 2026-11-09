@@ -1,5 +1,6 @@
 package de.bikemaintainer.app.ui.logmaintenance
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
@@ -11,6 +12,7 @@ import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
 import de.bikemaintainer.app.domain.parseMileage
+import de.bikemaintainer.app.ui.common.isNotFound
 import java.time.LocalDate
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -46,7 +48,12 @@ data class LogMaintenanceUiState(
     val saving: Boolean = false,
     val error: LogError? = null,
     val done: LogResult? = null,
+    /** The log is saved; the form stays locked until the screen is gone (also while [done] has been consumed). */
+    val finished: Boolean = false,
 ) {
+    /** No edits and no save: a save is running or the log is already saved. */
+    val locked: Boolean get() = saving || finished
+
     /** A valid mileage above the vehicle's current one can be written back to the vehicle. */
     val offerRaise: Boolean
         get() {
@@ -60,12 +67,20 @@ class LogMaintenanceViewModel(
     private val vehicleId: Long,
     private val vehicles: VehicleRepository,
     private val maintenance: MaintenanceRepository,
+    /** Keeps the form (and a finished save) across process death; only what the user can see or typed, never logged. */
+    private val savedState: SavedStateHandle,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     /** The latest selectable day. */
     val latestDate: LocalDate get() = today()
 
-    private val _state = MutableStateFlow(LogMaintenanceUiState(date = today()))
+    private val _state = MutableStateFlow(
+        LogMaintenanceUiState(date = today()).let { initial ->
+            val result = savedState.get<String>(KEY_RESULT)?.let { name -> LogResult.entries.firstOrNull { it.name == name } }
+            // Restored after the log was saved: hand the result on again instead of offering a second save.
+            if (result == null) initial else initial.copy(done = result, finished = true)
+        },
+    )
     val state: StateFlow<LogMaintenanceUiState> = _state.asStateFlow()
 
     private var loading = false
@@ -75,36 +90,39 @@ class LogMaintenanceViewModel(
     }
 
     fun retryLoad() {
-        if (loading || _state.value.vehicle != null) return
+        if (loading || _state.value.vehicle != null || _state.value.loadError?.isNotFound() == true) return
         loading = true
         _state.update { it.copy(loadError = null) }
         viewModelScope.launch {
             try {
-                val result = coroutineScope {
-                    val v = async { vehicles.vehicle(vehicleId) }
-                    val t = async { maintenance.tasks(vehicleId) }
-                    val vehicle = v.await()
-                    val tasks = t.await()
-                    when {
-                        vehicle is Outcome.Failure -> vehicle
-                        tasks is Outcome.Failure -> tasks
-                        else -> Outcome.Success((vehicle as Outcome.Success).value to (tasks as Outcome.Success).value)
-                    }
-                }
-                when (result) {
+                when (val result = fetchForm()) {
                     is Outcome.Failure -> _state.update { it.copy(loadError = result.error) }
                     is Outcome.Success -> {
-                        val (vehicle, all) = result.value
-                        val tasks = all.forDisplay()
+                        val (vehicle, tasks) = result.value
+                        val ids = tasks.map { it.id }.toSet()
                         _state.update {
-                            it.copy(
-                                vehicle = vehicle,
-                                tasks = tasks,
-                                selected = tasks.filter { t -> t.status.isDue() }.map { t -> t.id }.toSet(),
-                                mileageInput = vehicle.currentMileage.toString(),
-                                date = today(),
-                            )
+                            if (savedState.contains(KEY_SELECTED)) {
+                                // Restored: the user's form wins over the prefill; deleted tasks drop out.
+                                it.copy(
+                                    vehicle = vehicle,
+                                    tasks = tasks,
+                                    selected = savedState.get<LongArray>(KEY_SELECTED)?.toSet().orEmpty() intersect ids,
+                                    mileageInput = savedState.get<String>(KEY_MILEAGE).orEmpty(),
+                                    date = savedState.get<Long>(KEY_DATE)?.let(LocalDate::ofEpochDay) ?: today(),
+                                    notes = savedState.get<String>(KEY_NOTES).orEmpty(),
+                                    raiseMileage = savedState.get<Boolean>(KEY_RAISE) ?: true,
+                                )
+                            } else {
+                                it.copy(
+                                    vehicle = vehicle,
+                                    tasks = tasks,
+                                    selected = tasks.filter { t -> t.status.isDue() }.map { t -> t.id }.toSet(),
+                                    mileageInput = vehicle.currentMileage.toString(),
+                                    date = today(),
+                                )
+                            }
                         }
+                        persist()
                     }
                 }
             } finally {
@@ -122,14 +140,14 @@ class LogMaintenanceViewModel(
 
     fun toggleTask(id: Long) = edit { it.copy(selected = if (id in it.selected) it.selected - id else it.selected + id) }
 
-    fun onNotes(text: String) = edit { it.copy(notes = text.take(MAX_NOTES_LENGTH)) }
+    fun onNotes(text: String) = edit { it.copy(notes = text.capNotes()) }
 
     fun onRaiseMileage(raise: Boolean) = edit { it.copy(raiseMileage = raise) }
 
     fun save() {
         val s = _state.value
         val vehicle = s.vehicle ?: return
-        if (s.saving) return
+        if (s.locked) return
         val km = parseMileage(s.mileageInput)
         when {
             km == null -> _state.update { it.copy(error = LogError.InvalidMileage) }
@@ -139,8 +157,7 @@ class LogMaintenanceViewModel(
                 val raise = s.offerRaise && s.raiseMileage
                 viewModelScope.launch {
                     when (val result = maintenance.logMaintenance(vehicleId, s.date, km, s.selected, s.notes.ifBlank { null })) {
-                        is Outcome.Failure ->
-                            _state.update { it.copy(saving = false, error = LogError.Save(result.error)) }
+                        is Outcome.Failure -> onSaveFailed(result.error)
                         is Outcome.Success -> {
                             // The log exists now; a failing raise must never lead to sending it again.
                             val done = if (raise && vehicles.updateMileage(vehicle, km) is Outcome.Failure) {
@@ -148,7 +165,8 @@ class LogMaintenanceViewModel(
                             } else {
                                 LogResult.SAVED
                             }
-                            _state.update { it.copy(saving = false, done = done) }
+                            savedState[KEY_RESULT] = done.name
+                            _state.update { it.copy(saving = false, finished = true, done = done) }
                         }
                     }
                 }
@@ -156,10 +174,78 @@ class LogMaintenanceViewModel(
         }
     }
 
+    private suspend fun onSaveFailed(error: AppError) {
+        when {
+            // Deleted meanwhile: the same terminal state as when loading (message and Back, no form).
+            error.isNotFound() -> showNotFound()
+            // Rejected input is often a task deleted in the web app meanwhile: reload the tasks (still locked), keep
+            // the input and drop selected tasks that no longer exist.
+            error is AppError.Http && error.status == 400 -> {
+                when (val reload = fetchForm()) {
+                    is Outcome.Failure -> if (reload.error.isNotFound()) {
+                        showNotFound()
+                        return
+                    }
+                    is Outcome.Success -> {
+                        val (vehicle, tasks) = reload.value
+                        val ids = tasks.map { it.id }.toSet()
+                        _state.update { it.copy(vehicle = vehicle, tasks = tasks, selected = it.selected intersect ids) }
+                        persist()
+                    }
+                }
+                _state.update { it.copy(saving = false, error = LogError.Save(error)) }
+            }
+            else -> _state.update { it.copy(saving = false, error = LogError.Save(error)) }
+        }
+    }
+
+    private fun showNotFound() = _state.update {
+        it.copy(vehicle = null, tasks = emptyList(), loadError = AppError.NotFound, saving = false, error = null)
+    }
+
+    private suspend fun fetchForm(): Outcome<Pair<Vehicle, List<MaintenanceTask>>> = coroutineScope {
+        val v = async { vehicles.vehicle(vehicleId) }
+        val t = async { maintenance.tasks(vehicleId) }
+        val vehicle = v.await()
+        val tasks = t.await()
+        when {
+            vehicle is Outcome.Failure -> vehicle
+            tasks is Outcome.Failure -> tasks
+            else -> Outcome.Success((vehicle as Outcome.Success).value to (tasks as Outcome.Success).value.forDisplay())
+        }
+    }
+
     private fun TaskStatus.isDue() = this == TaskStatus.OVERDUE || this == TaskStatus.DUE_SOON
 
-    /** A form edit; ignored while saving, and it clears the last error. */
+    /** A form edit; ignored while saving and after the log was saved, and it clears the last error. */
     private fun edit(change: (LogMaintenanceUiState) -> LogMaintenanceUiState) {
-        _state.update { if (it.saving) it else change(it).copy(error = null) }
+        if (_state.value.locked || _state.value.vehicle == null) return
+        _state.update { if (it.locked) it else change(it).copy(error = null) }
+        persist()
     }
+
+    private fun persist() {
+        val s = _state.value
+        savedState[KEY_SELECTED] = s.selected.toLongArray()
+        savedState[KEY_MILEAGE] = s.mileageInput
+        savedState[KEY_DATE] = s.date.toEpochDay()
+        savedState[KEY_NOTES] = s.notes
+        savedState[KEY_RAISE] = s.raiseMileage
+    }
+
+    private companion object {
+        const val KEY_SELECTED = "log_selected"
+        const val KEY_MILEAGE = "log_mileage"
+        const val KEY_DATE = "log_date"
+        const val KEY_NOTES = "log_notes"
+        const val KEY_RAISE = "log_raise"
+        const val KEY_RESULT = "log_done"
+    }
+}
+
+/** At most [MAX_NOTES_LENGTH] chars, without cutting an emoji (surrogate pair) in half. */
+private fun String.capNotes(): String {
+    if (length <= MAX_NOTES_LENGTH) return this
+    val end = if (this[MAX_NOTES_LENGTH - 1].isHighSurrogate()) MAX_NOTES_LENGTH - 1 else MAX_NOTES_LENGTH
+    return substring(0, end)
 }

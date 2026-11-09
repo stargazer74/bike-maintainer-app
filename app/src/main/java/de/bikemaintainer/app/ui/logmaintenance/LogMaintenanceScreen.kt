@@ -34,8 +34,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -145,13 +145,13 @@ private fun Form(state: LogMaintenanceUiState, today: LocalDate, actions: LogAct
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        DateField(state.date, today, enabled = !state.saving, onDate = actions.onDate)
+        DateField(state.date, today, enabled = !state.locked, onDate = actions.onDate)
         OutlinedTextField(
             value = state.mileageInput,
             onValueChange = actions.onMileage,
             label = { Text(stringResource(R.string.mileage_label)) },
             singleLine = true,
-            enabled = !state.saving,
+            enabled = !state.locked,
             isError = state.error == LogError.InvalidMileage,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
@@ -160,7 +160,7 @@ private fun Form(state: LogMaintenanceUiState, today: LocalDate, actions: LogAct
             val km = parseMileage(state.mileageInput) ?: 0
             CheckRow(
                 checked = state.raiseMileage,
-                enabled = !state.saving,
+                enabled = !state.locked,
                 onChange = actions.onRaise,
             ) {
                 Text(stringResource(R.string.log_raise_mileage, formatNumber(km)), Modifier.weight(1f))
@@ -168,7 +168,7 @@ private fun Form(state: LogMaintenanceUiState, today: LocalDate, actions: LogAct
         }
         Text(stringResource(R.string.log_tasks), style = MaterialTheme.typography.titleMedium)
         state.tasks.forEach { task ->
-            TaskRow(task, task.id in state.selected, !state.saving) { actions.onToggleTask(task.id) }
+            TaskRow(task, task.id in state.selected, !state.locked) { actions.onToggleTask(task.id) }
         }
         OutlinedTextField(
             value = state.notes,
@@ -181,7 +181,7 @@ private fun Form(state: LogMaintenanceUiState, today: LocalDate, actions: LogAct
                 )
             },
             minLines = 3,
-            enabled = !state.saving,
+            enabled = !state.locked,
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
@@ -195,8 +195,8 @@ private fun Form(state: LogMaintenanceUiState, today: LocalDate, actions: LogAct
             LogError.NoTask -> ErrorText(stringResource(R.string.error_no_task_selected))
             is LogError.Save -> ErrorText(stringResource(error.error.saveMessageRes()))
         }
-        Button(onClick = actions.onSave, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) {
-            if (state.saving) LoadingIndicator(small = true) else Text(stringResource(R.string.save))
+        Button(onClick = actions.onSave, enabled = !state.locked, modifier = Modifier.fillMaxWidth()) {
+            if (state.locked) LoadingIndicator(small = true) else Text(stringResource(R.string.save))
         }
     }
 }
@@ -236,7 +236,7 @@ private fun TaskRow(task: MaintenanceTask, checked: Boolean, enabled: Boolean, o
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DateField(date: LocalDate, today: LocalDate, enabled: Boolean, onDate: (LocalDate) -> Unit) {
-    var open by remember { mutableStateOf(false) }
+    var open by rememberSaveable { mutableStateOf(false) }
     val locale = LocalConfiguration.current.locales[0]
     val label = stringResource(R.string.log_date)
     OutlinedButton(
@@ -272,5 +272,5 @@ private fun DateField(date: LocalDate, today: LocalDate, enabled: Boolean, onDat
 }
 
 /** The picker works in UTC milliseconds regardless of the default time zone; only [today] and earlier days qualify. */
-fun isSelectableLogDate(utcMillis: Long, today: LocalDate): Boolean =
+internal fun isSelectableLogDate(utcMillis: Long, today: LocalDate): Boolean =
     Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate() <= today
