@@ -52,7 +52,11 @@ class DueTaskCheck(
         if (!remindersWanted(settings, notificationsAllowed)) return CheckResult.STOP
         val update = dueUpdates(settings.reportedDue.first(), current)
         update.toNotify.forEach(notifications::showDue)
+        // Completed, deleted or back to OK: the old notification would only mislead.
+        update.noneDue.forEach(notifications::cancelVehicle)
         settings.setReportedDue(update.newState)
+        // Everything loaded, so the session works: a pending "please sign in again" is obsolete.
+        notifications.cancelRelogin()
         return CheckResult.DONE
     }
 

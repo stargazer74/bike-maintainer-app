@@ -8,9 +8,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import de.bikemaintainer.app.notifications.notificationsAllowed
 import de.bikemaintainer.app.ui.navigation.AppDependencies
 import de.bikemaintainer.app.ui.navigation.AppNavHost
 import de.bikemaintainer.app.ui.navigation.readStartDestination
@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
                             container.sessionState.status,
                             container.reminderScheduler,
                             container.notifier,
-                            { NotificationManagerCompat.from(applicationContext).areNotificationsEnabled() },
+                            { notificationsAllowed(applicationContext) },
                             openVehicle.asStateFlow(),
                             { openVehicle.value = null },
                         )
@@ -61,12 +61,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun readVehicle(intent: Intent?) {
-        val id = intent?.getLongExtra(EXTRA_VEHICLE_ID, NO_VEHICLE) ?: NO_VEHICLE
-        if (id != NO_VEHICLE) openVehicle.value = id
+        readVehicleExtra(intent)?.let { openVehicle.value = it }
     }
 
     companion object {
         private const val NO_VEHICLE = -1L
+
+        /**
+         * The vehicle of a notification tap, or null. The extra is removed once read, and ignored when the app was
+         * relaunched from the Recents list (API 29/30 re-deliver the original intent then).
+         */
+        internal fun readVehicleExtra(intent: Intent?): Long? {
+            if (intent == null) return null
+            val id = intent.getLongExtra(EXTRA_VEHICLE_ID, NO_VEHICLE)
+            intent.removeExtra(EXTRA_VEHICLE_ID)
+            if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return null
+            return id.takeIf { it != NO_VEHICLE }
+        }
 
         /** Id of the vehicle a notification wants to open. */
         const val EXTRA_VEHICLE_ID = "de.bikemaintainer.app.VEHICLE_ID"

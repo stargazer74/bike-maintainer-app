@@ -86,9 +86,37 @@ class SettingsStoreTest {
     @Test
     fun reportedDueRoundTrip() = runTest {
         val store = store()
+        store.savePortalLogin("https://bm.example/", "tok")
         val map = mapOf(12L to TaskStatus.OVERDUE, 15L to TaskStatus.DUE_SOON)
         store.setReportedDue(map)
         assertEquals(map, store.reportedDue.first())
+    }
+
+    @Test
+    fun reportedDueIsNotWrittenWithoutLogin() = runTest {
+        val store = store()
+        store.setReportedDue(mapOf(12L to TaskStatus.OVERDUE))
+        assertEquals(emptyMap<Long, TaskStatus>(), store.reportedDue.first())
+    }
+
+    @Test
+    fun reportedDueIsWrittenForHouseholdProfile() = runTest {
+        val store = store()
+        store.saveHouseholdProfile("http://192.168.0.2:8080/", 7)
+        store.setReportedDue(mapOf(12L to TaskStatus.OVERDUE))
+        assertEquals(mapOf(12L to TaskStatus.OVERDUE), store.reportedDue.first())
+    }
+
+    @Test
+    fun newLoginDropsReportedDueOfThePreviousSession() = runTest {
+        val store = store()
+        store.savePortalLogin("https://bm.example/", "tok")
+        store.setReportedDue(mapOf(1L to TaskStatus.OVERDUE))
+        store.savePortalLogin("https://bm.example/", "tok2")
+        assertEquals(emptyMap<Long, TaskStatus>(), store.reportedDue.first())
+        store.setReportedDue(mapOf(1L to TaskStatus.OVERDUE))
+        store.saveHouseholdProfile("http://192.168.0.2:8080/", 7)
+        assertEquals(emptyMap<Long, TaskStatus>(), store.reportedDue.first())
     }
 
     @Test

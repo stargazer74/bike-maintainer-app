@@ -64,6 +64,7 @@ class AppNavGraphTest {
     private val maintenance = FakeMaintenanceRepository()
     private val session = SessionState()
     private val reminders = FakeReminderScheduler()
+    private val notifications = FakeDueNotifications()
     private val openVehicle = MutableStateFlow<Long?>(null)
     private var vehicleOpened = 0
     private lateinit var nav: TestNavHostController
@@ -73,7 +74,7 @@ class AppNavGraphTest {
             nav = TestNavHostController(LocalContext.current).apply { navigatorProvider.addNavigator(ComposeNavigator()) }
             AppNavHost(AppDependencies(
                     auth, vehicles, maintenance, session.status,
-                    reminders, FakeDueNotifications(), { true }, openVehicle, { vehicleOpened++; openVehicle.value = null },
+                    reminders, notifications, { true }, openVehicle, { vehicleOpened++; openVehicle.value = null },
                 ), start, nav)
         }
         compose.waitForIdle()
@@ -269,5 +270,15 @@ class AppNavGraphTest {
         compose.waitForIdle()
         assertEquals(listOf("VehiclesRoute"), stack())
         assertEquals(1, reminders.syncCalls)
+    }
+
+    @Test fun signInDropsNotificationsOfThePreviousSession() {
+        auth.deviceLoginResult = Outcome.Success(Unit)
+        show(LoginRoute("https://h", relogin = true))
+        compose.onNodeWithText("E-Mail").performTextInput("a@b.de")
+        compose.onNodeWithText("Passwort").performTextInput("pw")
+        compose.onNodeWithText("Anmelden").performClick()
+        compose.waitForIdle()
+        assertEquals(1, notifications.cancelAllCalls)
     }
 }

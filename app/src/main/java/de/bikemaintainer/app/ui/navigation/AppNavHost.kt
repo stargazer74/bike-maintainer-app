@@ -60,6 +60,8 @@ class AppDependencies(
 fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostController = rememberNavController()) {
     val scope = rememberCoroutineScope()
     val signedIn: () -> Unit = {
+        // Drops the "sign in again" hint and vehicle notifications of the previous account/session.
+        deps.notifications.cancelAll()
         scope.launch {
             navController.navigateAfterSignIn(deps.auth)
             // A new login (or profile) starts the daily check.

@@ -32,6 +32,17 @@ suspend fun ReminderScheduler.syncQuietly() {
     }
 }
 
+/** [ReminderScheduler.cancel] that never crashes the caller (it only logs the type). */
+fun ReminderScheduler.cancelQuietly() {
+    try {
+        cancel()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w("ReminderScheduler", "Cancelling the reminder schedule failed: ${e.javaClass.simpleName}")
+    }
+}
+
 class WorkManagerReminderScheduler(
     context: Context,
     private val settings: SettingsStore,

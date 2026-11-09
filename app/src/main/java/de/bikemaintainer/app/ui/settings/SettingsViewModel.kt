@@ -8,6 +8,8 @@ import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.ServerMode
 import de.bikemaintainer.app.notifications.DueNotifications
 import de.bikemaintainer.app.notifications.ReminderScheduler
+import de.bikemaintainer.app.notifications.cancelQuietly
+import de.bikemaintainer.app.notifications.syncQuietly
 import de.bikemaintainer.app.ui.navigation.LoginRoute
 import de.bikemaintainer.app.ui.navigation.ProfilesRoute
 import de.bikemaintainer.app.ui.navigation.SetupRoute
@@ -71,7 +73,7 @@ class SettingsViewModel(
             auth.setNotificationsEnabled(enabled)
             lastAllowed = notificationsAllowed()
             updateBlocked()
-            reminders.sync()
+            reminders.syncQuietly()
         }
     }
 
@@ -84,7 +86,7 @@ class SettingsViewModel(
         val allowed = notificationsAllowed()
         if (allowed != lastAllowed) {
             lastAllowed = allowed
-            viewModelScope.launch { reminders.sync() }
+            viewModelScope.launch { reminders.syncQuietly() }
         }
     }
 
@@ -112,7 +114,7 @@ class SettingsViewModel(
 
     /** No more reminders for the account that is gone, and no vehicle names left in the status bar. */
     private fun stopReminders() {
-        reminders.cancel()
+        reminders.cancelQuietly()
         notifications.cancelAll()
     }
 

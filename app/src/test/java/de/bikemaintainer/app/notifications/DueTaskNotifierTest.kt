@@ -84,6 +84,62 @@ class DueTaskNotifierTest {
         assertEquals(3L, intent.getLongExtra(MainActivity.EXTRA_VEHICLE_ID, -1))
     }
 
+    @Test fun listsNewTasksFirstThenStillDueOnes() {
+        val mixed = VehicleDue(
+            3,
+            "Africa Twin",
+            listOf(DueTask(2, "Kette schmieren", TaskStatus.DUE_SOON)),
+            listOf(DueTask(1, "Ölwechsel", TaskStatus.OVERDUE)),
+        )
+        DueTaskNotifier(app).showDue(mixed)
+        assertEquals(
+            "Kette schmieren bald fällig, Ölwechsel überfällig",
+            entry("vehicle", 3).extras.getCharSequence(Notification.EXTRA_BIG_TEXT).toString(),
+        )
+    }
+
+    @Test fun vehicleNotificationIsAReminder() {
+        DueTaskNotifier(app).showDue(due)
+        assertEquals(Notification.CATEGORY_REMINDER, entry("vehicle", 3).category)
+    }
+
+    @Test fun cancelVehicleRemovesOnlyThatVehicle() {
+        val notifier = DueTaskNotifier(app)
+        notifier.showDue(due)
+        notifier.showDue(due.copy(vehicleId = 4))
+        notifier.cancelVehicle(3)
+        assertEquals(1, posted().size)
+        assertNotNull(entry("vehicle", 4))
+    }
+
+    @Test fun cancelReloginRemovesOnlyRelogin() {
+        val notifier = DueTaskNotifier(app)
+        notifier.showDue(due)
+        notifier.showRelogin()
+        notifier.cancelRelogin()
+        assertEquals(1, posted().size)
+        assertNotNull(entry("vehicle", 3))
+    }
+
+    @Test fun disabledChannelIsNotAllowed() {
+        DueTaskNotifier(app)
+        assertTrue(notificationsAllowed(app))
+        manager.deleteNotificationChannel("due_maintenance")
+        manager.createNotificationChannel(
+            android.app.NotificationChannel("due_maintenance", "x", NotificationManager.IMPORTANCE_NONE),
+        )
+        assertFalse(notificationsAllowed(app))
+    }
+
+    @Test fun missingChannelIsAllowed() {
+        assertTrue(notificationsAllowed(app))
+    }
+
+    @Test fun disabledNotificationsAreNotAllowed() {
+        shadowOf(manager).setNotificationsEnabled(false)
+        assertFalse(notificationsAllowed(app))
+    }
+
     @Test fun reloginNotification() {
         DueTaskNotifier(app).showRelogin()
         val n = entry("relogin", 0)

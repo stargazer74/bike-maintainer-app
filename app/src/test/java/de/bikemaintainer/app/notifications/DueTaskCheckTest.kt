@@ -27,6 +27,8 @@ class FakeDueNotifications : DueNotifications {
     val shown = mutableListOf<VehicleDue>()
     var reloginShown = 0
     var cancelAllCalls = 0
+    var cancelReloginCalls = 0
+    val cancelledVehicles = mutableListOf<Long>()
 
     override fun showDue(due: VehicleDue) {
         shown += due
@@ -34,6 +36,14 @@ class FakeDueNotifications : DueNotifications {
 
     override fun showRelogin() {
         reloginShown++
+    }
+
+    override fun cancelRelogin() {
+        cancelReloginCalls++
+    }
+
+    override fun cancelVehicle(vehicleId: Long) {
+        cancelledVehicles += vehicleId
     }
 
     override fun cancelAll() {
@@ -107,6 +117,47 @@ class DueTaskCheckTest {
         notifications.shown.clear()
         assertEquals(CheckResult.DONE, check(settings).run())
         assertTrue(notifications.shown.isEmpty())
+    }
+
+    @Test
+    fun secondRunWithOneNewTaskListsTheOlderDueTaskToo() = runTest {
+        val settings = store()
+        vehicles.vehiclesResult = Outcome.Success(listOf(vehicle(1, "A")))
+        maintenance = PerVehicleMaintenance(mapOf(1L to Outcome.Success(listOf(task(10, 1, TaskStatus.OVERDUE)))))
+        check(settings).run()
+        notifications.shown.clear()
+        maintenance = PerVehicleMaintenance(
+            mapOf(1L to Outcome.Success(listOf(task(10, 1, TaskStatus.OVERDUE), task(11, 1, TaskStatus.DUE_SOON)))),
+        )
+        check(settings).run()
+        val shown = notifications.shown.single()
+        assertEquals(listOf(DueTask(11, "Task 11", TaskStatus.DUE_SOON)), shown.tasks)
+        assertEquals(listOf(11L, 10L), shown.all.map { it.id })
+    }
+
+    @Test
+    fun vehicleWithoutDueTasksLeftIsCancelled() = runTest {
+        val settings = store()
+        twoVehicles(Outcome.Success(listOf(task(20, 2, TaskStatus.OK))))
+        assertEquals(CheckResult.DONE, check(settings).run())
+        assertEquals(listOf(2L), notifications.cancelledVehicles)
+    }
+
+    @Test
+    fun successfulRunCancelsReloginNotification() = runTest {
+        val settings = store()
+        twoVehicles(Outcome.Success(emptyList()))
+        check(settings).run()
+        assertEquals(1, notifications.cancelReloginCalls)
+    }
+
+    @Test
+    fun failedRunCancelsNothing() = runTest {
+        val settings = store()
+        twoVehicles(Outcome.Failure(AppError.Network))
+        check(settings).run()
+        assertTrue(notifications.cancelledVehicles.isEmpty())
+        assertEquals(0, notifications.cancelReloginCalls)
     }
 
     @Test

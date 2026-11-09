@@ -38,8 +38,16 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     /** Due tasks already reported (task id to status), see `dueUpdates`. */
     val reportedDue: Flow<Map<Long, TaskStatus>> = dataStore.data.map { prefs -> decodeReportedDue(prefs[REPORTED_DUE]) }
 
+    /**
+     * Stores the reported state only while a login (token or profile) is still stored, checked in the same write:
+     * a check that finishes after the logout must not leave state of the old account behind.
+     */
     suspend fun setReportedDue(map: Map<Long, TaskStatus>) {
-        dataStore.edit { it[REPORTED_DUE] = map.entries.joinToString(",") { (id, status) -> "$id:${status.name}" } }
+        dataStore.edit {
+            if (it[DEVICE_TOKEN_ENC] != null || it[PROFILE_ID] != null) {
+                it[REPORTED_DUE] = map.entries.joinToString(",") { (id, status) -> "$id:${status.name}" }
+            }
+        }
     }
 
     /** The user's wish; survives [clearSession]. */
@@ -71,6 +79,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             it[DEVICE_TOKEN_ENC] = encryptedDeviceToken
             it.remove(PROFILE_ID)
             it.remove(RELOGIN_NOTIFIED)
+            it.remove(REPORTED_DUE) // state of a previous (expired) session must not suppress or leak
         }
     }
 
@@ -82,6 +91,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             it[PROFILE_ID] = profileId
             it.remove(DEVICE_TOKEN_ENC)
             it.remove(RELOGIN_NOTIFIED)
+            it.remove(REPORTED_DUE)
         }
     }
 

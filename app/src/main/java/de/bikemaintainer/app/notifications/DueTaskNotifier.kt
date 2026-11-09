@@ -17,6 +17,10 @@ import de.bikemaintainer.app.domain.VehicleDue
 interface DueNotifications {
     fun showDue(due: VehicleDue)
     fun showRelogin()
+    fun cancelRelogin()
+
+    /** Removes the notification of one vehicle (nothing due there any more). */
+    fun cancelVehicle(vehicleId: Long)
     fun cancelAll()
 }
 
@@ -33,7 +37,7 @@ class DueTaskNotifier(private val context: Context) : DueNotifications {
     }
 
     override fun showDue(due: VehicleDue) {
-        val text = due.tasks.joinToString(", ") {
+        val text = due.all.joinToString(", ") {
             val format = if (it.status == TaskStatus.OVERDUE) R.string.notif_task_overdue else R.string.notif_task_due_soon
             context.getString(format, it.name)
         }
@@ -46,6 +50,7 @@ class DueTaskNotifier(private val context: Context) : DueNotifications {
             .setContentTitle(due.vehicleName)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion)
             .setContentIntent(openApp(due.vehicleId.toInt()) { putExtra(MainActivity.EXTRA_VEHICLE_ID, due.vehicleId) })
@@ -64,6 +69,10 @@ class DueTaskNotifier(private val context: Context) : DueNotifications {
             .build()
         notify(TAG_RELOGIN, 0, notification)
     }
+
+    override fun cancelRelogin() = manager.cancel(TAG_RELOGIN, 0)
+
+    override fun cancelVehicle(vehicleId: Long) = manager.cancel(TAG_VEHICLE, vehicleId.toInt())
 
     override fun cancelAll() = manager.cancelAll()
 
@@ -86,9 +95,19 @@ class DueTaskNotifier(private val context: Context) : DueNotifications {
         }
     }
 
-    private companion object {
+    internal companion object {
         const val CHANNEL_ID = "due_maintenance"
         const val TAG_VEHICLE = "vehicle"
         const val TAG_RELOGIN = "relogin"
     }
+}
+
+/**
+ * Whether reminders can be shown: notifications are on for the app and the reminder channel was not switched off
+ * in the system settings (a missing channel is created on first use, so it counts as allowed).
+ */
+fun notificationsAllowed(context: Context): Boolean {
+    if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
+    val channel = NotificationManagerCompat.from(context).getNotificationChannel(DueTaskNotifier.CHANNEL_ID)
+    return channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE
 }
