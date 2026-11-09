@@ -72,5 +72,6 @@ internal fun AppConfigResponse.toDomain() = ServerConfig(
         OperatingMode.PORTAL -> ServerMode.PORTAL
         OperatingMode.HOUSEHOLD -> ServerMode.HOUSEHOLD
     },
-    websiteUrl = websiteUrl?.toString(),
+    // Opened in the browser: anything but http(s) (javascript:, file:, intent:, …) counts as not configured.
+    websiteUrl = websiteUrl?.takeIf { it.scheme.equals("http", true) || it.scheme.equals("https", true) }?.toString(),
 )

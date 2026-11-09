@@ -24,6 +24,9 @@
     <string name="login_error_account_disabled">Dein Konto wurde gesperrt.</string>
     <string name="login_error_email_not_verified">Deine E-Mail-Adresse ist noch nicht bestätigt.</string>
     <string name="login_error_too_many_attempts">Zu viele Versuche, bitte später erneut.</string>
+    <string name="login_error_device_name_required">Bitte gib einen Gerätenamen ein.</string>
+    <string name="error_storage_login">Die Anmeldung konnte auf diesem Gerät nicht gespeichert werden.</string>
+    <string name="loading">Lädt…</string>
     <string name="login_error_unknown">Anmeldung fehlgeschlagen, bitte später erneut versuchen.</string>
     <string name="profiles_title">Wer bist du?</string>
     <string name="profiles_subtitle">Wähle deine Person, um deine Fahrzeuge zu sehen.</string>

@@ -47,7 +47,7 @@ class ProfilesViewModelTest {
         assertEquals(listOf(2L), auth.selectProfileCalls)
         assertTrue(vm.state.value.done)
         assertNull(vm.state.value.selecting)
-        assertFalse(vm.state.value.error)
+        assertNull(vm.state.value.error)
     }
 
     @Test fun secondSelectIsIgnoredWhileSelecting() {
@@ -69,7 +69,7 @@ class ProfilesViewModelTest {
         auth.selectProfileResult = Outcome.Failure(AppError.NotFound)
         auth.profilesResult = Outcome.Success(listOf(max))
         vm.select(2)
-        assertTrue(vm.state.value.error)
+        assertEquals(ProfilesError.SELECT_FAILED, vm.state.value.error)
         assertFalse(vm.state.value.done)
         assertNull(vm.state.value.selecting)
         assertEquals(listOf(max), vm.state.value.profiles)
@@ -81,7 +81,16 @@ class ProfilesViewModelTest {
         val vm = ProfilesViewModel(auth, "https://h")
         auth.selectProfileResult = Outcome.Failure(AppError.Network)
         vm.select(1)
-        assertTrue(vm.state.value.error)
+        assertEquals(ProfilesError.SELECT_FAILED, vm.state.value.error)
         assertEquals(1, auth.profilesCalls)
+    }
+
+    @Test fun storageFailureHasItsOwnError() {
+        auth.profilesResult = Outcome.Success(listOf(max))
+        val vm = ProfilesViewModel(auth, "https://h")
+        auth.selectProfileResult = Outcome.Failure(AppError.Storage)
+        vm.select(1)
+        assertEquals(ProfilesError.STORAGE, vm.state.value.error)
+        assertFalse(vm.state.value.done)
     }
 }

@@ -27,6 +27,8 @@ data class SetupUiState(
 
 const val DEFAULT_SERVER = "https://app.bike-maintainer.de"
 
+private const val HTTP_SERVER_ERROR = 500
+
 /** Checks the server address; nothing is stored here, that happens at login / profile selection. */
 class SetupViewModel(private val auth: AuthRepository) : ViewModel() {
     private val _state = MutableStateFlow(SetupUiState())
@@ -88,6 +90,8 @@ class SetupViewModel(private val auth: AuthRepository) : ViewModel() {
         AppError.Network -> SetupError.NOT_REACHABLE
         AppError.CleartextNotAllowed -> SetupError.CLEARTEXT_NOT_ALLOWED
         AppError.InvalidAddress -> SetupError.INVALID_ADDRESS
+        // A server error (or a proxy whose backend is down) says nothing about what runs there.
+        is AppError.Http -> if (status >= HTTP_SERVER_ERROR) SetupError.NOT_REACHABLE else SetupError.NOT_BIKE_MAINTAINER
         else -> SetupError.NOT_BIKE_MAINTAINER
     }
 }

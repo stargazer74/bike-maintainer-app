@@ -9,7 +9,8 @@ object ServerAddress {
 
     /**
      * Trims, adds a missing `https://`, lowercases the scheme and ends the address with exactly one `/`.
-     * Returns `null` if the result is not a usable http(s) address.
+     * Returns `null` if the result is not a usable http(s) address, including one with credentials (`user:pass@host`):
+     * they would be sent along with every request, and `user@host` is a typical phishing disguise.
      */
     fun normalize(input: String): String? {
         val trimmed = input.trim()
@@ -21,7 +22,8 @@ object ServerAddress {
         if (rest.isEmpty() || rest.any { it.isWhitespace() }) return null
         val url = "$schemeName://$rest/"
         return try {
-            if (URI(url).host.isNullOrEmpty()) null else url
+            val uri = URI(url)
+            if (uri.host.isNullOrEmpty() || uri.rawUserInfo != null) null else url
         } catch (_: URISyntaxException) {
             null
         }

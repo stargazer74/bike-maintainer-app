@@ -37,6 +37,7 @@ class FakeAuthRepository : AuthRepository {
     val selectProfileCalls = mutableListOf<Long>()
 
     var logoutResult: Outcome<Unit> = Outcome.Success(Unit)
+    var logoutGate: CompletableDeferred<Unit>? = null
     var logoutCalls = 0
 
     var switchServerResult: Outcome<Unit> = Outcome.Success(Unit)
@@ -78,6 +79,7 @@ class FakeAuthRepository : AuthRepository {
 
     override suspend fun logout(): Outcome<Unit> {
         logoutCalls++
+        logoutGate?.await()
         return logoutResult
     }
 

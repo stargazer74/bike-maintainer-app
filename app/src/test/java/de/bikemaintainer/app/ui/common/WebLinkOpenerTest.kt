@@ -22,6 +22,14 @@ class WebLinkOpenerTest {
         assertTrue(ShadowToast.showedToast(context.getString(de.bikemaintainer.app.R.string.no_browser_found)))
     }
 
+    @Test fun securityExceptionWhenOpeningLinkDoesNotCrash() {
+        val refusing = object : android.content.ContextWrapper(context) {
+            override fun startActivity(intent: Intent?) = throw SecurityException("not exported")
+        }
+        assertFalse(openWebLink(refusing, "https://h"))
+        assertTrue(ShadowToast.showedToast(context.getString(de.bikemaintainer.app.R.string.no_browser_found)))
+    }
+
     @Test fun openingLinkStartsViewIntent() {
         assertTrue(openWebLink(context, "https://h"))
         val started = shadowOf(context as android.app.Application).nextStartedActivity

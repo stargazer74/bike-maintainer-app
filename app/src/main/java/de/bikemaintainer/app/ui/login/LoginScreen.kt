@@ -7,14 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -33,6 +31,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import de.bikemaintainer.app.R
+import de.bikemaintainer.app.ui.common.ErrorText
+import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
 import de.bikemaintainer.app.ui.common.WebLinks
 
@@ -111,26 +111,14 @@ fun LoginContent(
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = { onSubmit() }),
         )
-        state.error?.let {
-            Text(
-                text = stringResource(it.messageRes()),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
+        state.error?.let { ErrorText(stringResource(it.messageRes())) }
         Button(
             onClick = onSubmit,
             enabled = !state.loading,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (state.loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                }
+                if (state.loading) LoadingIndicator(small = true, color = MaterialTheme.colorScheme.onPrimary)
                 Text(stringResource(R.string.login_submit))
             }
         }
@@ -148,11 +136,13 @@ fun LoginContent(
 
 private fun LoginError.messageRes(): Int = when (this) {
     LoginError.REQUIRED -> R.string.login_error_required
+    LoginError.DEVICE_NAME_REQUIRED -> R.string.login_error_device_name_required
     LoginError.INVALID_CREDENTIALS -> R.string.login_error_invalid_credentials
     LoginError.ACCOUNT_DISABLED -> R.string.login_error_account_disabled
     LoginError.EMAIL_NOT_VERIFIED -> R.string.login_error_email_not_verified
     LoginError.TOO_MANY_ATTEMPTS -> R.string.login_error_too_many_attempts
     LoginError.NOT_REACHABLE -> R.string.error_server_not_reachable
     LoginError.CLEARTEXT_NOT_ALLOWED -> R.string.error_cleartext_not_allowed
+    LoginError.STORAGE -> R.string.error_storage_login
     LoginError.UNKNOWN -> R.string.login_error_unknown
 }

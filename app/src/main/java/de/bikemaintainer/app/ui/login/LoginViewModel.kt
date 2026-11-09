@@ -13,12 +13,15 @@ import kotlinx.coroutines.launch
 
 enum class LoginError {
     REQUIRED,
+    DEVICE_NAME_REQUIRED,
     INVALID_CREDENTIALS,
     ACCOUNT_DISABLED,
     EMAIL_NOT_VERIFIED,
     TOO_MANY_ATTEMPTS,
     NOT_REACHABLE,
     CLEARTEXT_NOT_ALLOWED,
+    /** The login succeeded, but the device token could not be stored (Keystore, disk). */
+    STORAGE,
     UNKNOWN,
 }
 
@@ -31,7 +34,14 @@ data class LoginUiState(
     val reloginHint: Boolean,
     /** Set once after a successful login; the NavHost navigates on it. */
     val done: Boolean = false,
-)
+) {
+    /** Without password, email and device name, so a logged or printed state never leaks them. */
+    override fun toString(): String =
+        "LoginUiState(email=${mask(email)}, password=${mask(password)}, deviceName=${mask(deviceName)}, " +
+            "loading=$loading, error=$error, reloginHint=$reloginHint, done=$done)"
+
+    private fun mask(value: String) = if (value.isEmpty()) "" else "***"
+}
 
 private const val MAX_DEVICE_NAME = 100
 
@@ -59,8 +69,12 @@ class LoginViewModel(
         if (current.loading || current.done) return
         val email = current.email.trim()
         val deviceName = current.deviceName.trim()
-        if (email.isEmpty() || current.password.isEmpty() || deviceName.isEmpty()) {
+        if (email.isEmpty() || current.password.isEmpty()) {
             _state.update { it.copy(error = LoginError.REQUIRED) }
+            return
+        }
+        if (deviceName.isEmpty()) {
+            _state.update { it.copy(error = LoginError.DEVICE_NAME_REQUIRED) }
             return
         }
         val password = current.password
@@ -80,6 +94,7 @@ class LoginViewModel(
         AppError.Unauthorized -> LoginError.INVALID_CREDENTIALS
         AppError.Network -> LoginError.NOT_REACHABLE
         AppError.CleartextNotAllowed -> LoginError.CLEARTEXT_NOT_ALLOWED
+        AppError.Storage -> LoginError.STORAGE
         is AppError.Http -> when {
             status == 401 -> LoginError.INVALID_CREDENTIALS
             status == 403 && code == "ACCOUNT_DISABLED" -> LoginError.ACCOUNT_DISABLED

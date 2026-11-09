@@ -38,6 +38,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
 import de.bikemaintainer.app.R
+import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.WebLinks
 import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
 
@@ -97,6 +98,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate:
                 enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             ) { Text(stringResource(R.string.settings_switch_server)) }
+            if (state.busy) LoadingIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
 
             state.websiteUrl?.let { site ->
                 Section(R.string.settings_legal)

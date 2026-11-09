@@ -24,6 +24,9 @@
     <string name="login_error_account_disabled">Your account has been disabled.</string>
     <string name="login_error_email_not_verified">Your email address has not been verified yet.</string>
     <string name="login_error_too_many_attempts">Too many attempts, please try again later.</string>
+    <string name="login_error_device_name_required">Please enter a device name.</string>
+    <string name="error_storage_login">Could not save the login on this device.</string>
+    <string name="loading">Loading…</string>
     <string name="login_error_unknown">Login failed, please try again later.</string>
     <string name="profiles_title">Who are you?</string>
     <string name="profiles_subtitle">Pick your profile to see your vehicles.</string>

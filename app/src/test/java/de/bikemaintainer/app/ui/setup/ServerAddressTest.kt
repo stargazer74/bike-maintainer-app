@@ -20,6 +20,12 @@ class ServerAddressTest {
     }
 
     @Test
+    fun addressWithUserInfoIsInvalid() {
+        listOf("user@h", "user:pass@h", "https://user@h", "http://user:pass@192.168.0.2:8080/")
+            .forEach { assertNull(it, ServerAddress.normalize(it)) }
+    }
+
+    @Test
     fun cleartextIsDetected() {
         assertTrue(ServerAddress.isCleartext("http://192.168.178.20:8080/"))
         assertFalse(ServerAddress.isCleartext("https://app.bike-maintainer.de/"))

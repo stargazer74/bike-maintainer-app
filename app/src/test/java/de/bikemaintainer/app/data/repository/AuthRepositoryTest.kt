@@ -145,6 +145,21 @@ class AuthRepositoryTest {
     }
 
     @Test
+    fun nonHttpWebsiteUrlIsTreatedAsAbsent() {
+        for (site in listOf("javascript:alert(1)", "file:///etc/passwd", "intent://x#Intent;end", "ftp://w")) {
+            env = RepositoryTestEnv(tmp.newFile(), handler = { json("""{"mode":"portal","websiteUrl":"$site"}""") })
+            val repo = ApiAuthRepository(env.provider, env.settings, env.tokens, env.state)
+            assertEquals(site, Outcome.Success(ServerConfig(ServerMode.PORTAL, null)), runBlocking { repo.fetchConfig(env.url) })
+            env.close()
+        }
+        val repo = setUp { json("""{"mode":"portal","websiteUrl":"HTTP://w.example"}""") }
+        assertEquals(
+            Outcome.Success(ServerConfig(ServerMode.PORTAL, "HTTP://w.example")),
+            runBlocking { repo.fetchConfig(env.url) },
+        )
+    }
+
+    @Test
     fun deviceLoginStoresServerModeAndToken() {
         val repo = setUp(handler = withConfig { json("""{"user":$user,"deviceToken":"tok"}""") })
         val generation = env.state.generation

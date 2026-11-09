@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -14,7 +14,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -25,10 +24,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import de.bikemaintainer.app.R
+import de.bikemaintainer.app.ui.common.LoadingIndicator
 
 /** Stateful entry point: hands the navigation target over once and then clears it. */
 @Composable
@@ -73,7 +76,14 @@ fun SetupContent(
             label = { Text(stringResource(R.string.setup_server_address)) },
             singleLine = true,
             isError = state.error != null,
-            supportingText = state.error?.let { { Text(stringResource(it.messageRes())) } },
+            supportingText = state.error?.let {
+                {
+                    Text(
+                        stringResource(it.messageRes()),
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
+            },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = { onContinue() }),
         )
@@ -82,13 +92,9 @@ fun SetupContent(
             enabled = !state.loading,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
         ) {
-            if (state.loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                )
-            } else {
+            // The label stays next to the spinner, so the button keeps its name for screen readers (as on login).
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (state.loading) LoadingIndicator(small = true, color = MaterialTheme.colorScheme.onPrimary)
                 Text(stringResource(R.string.setup_continue))
             }
         }

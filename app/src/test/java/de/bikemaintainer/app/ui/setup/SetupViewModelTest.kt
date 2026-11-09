@@ -80,6 +80,18 @@ class SetupViewModelTest {
     }
 
     @Test
+    fun serverErrorMeansNotReachable() {
+        for (status in listOf(500, 502, 503)) {
+            auth.fetchConfigResult = Outcome.Failure(AppError.Http(status, null))
+            viewModel.onContinue()
+            assertEquals("$status", SetupError.NOT_REACHABLE, viewModel.state.value.error)
+        }
+        auth.fetchConfigResult = Outcome.Failure(AppError.Http(-1, null)) // 2xx with a foreign body
+        viewModel.onContinue()
+        assertEquals(SetupError.NOT_BIKE_MAINTAINER, viewModel.state.value.error)
+    }
+
+    @Test
     fun cleartextToPublicAddressShowsError() {
         auth.fetchConfigResult = Outcome.Failure(AppError.CleartextNotAllowed)
         viewModel.onAddressChange("http://example.org")

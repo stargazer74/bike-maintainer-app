@@ -43,11 +43,32 @@ class LoginViewModelTest {
         vm.fill(email = "  ", password = "x")
         vm.onSubmit()
         assertEquals(LoginError.REQUIRED, vm.state.value.error)
+        assertEquals(0, auth.deviceLoginCalls.size)
+    }
+
+    @Test fun blankDeviceNameHasItsOwnError() {
+        val vm = viewModel()
         vm.fill()
         vm.onDeviceNameChange("   ")
         vm.onSubmit()
-        assertEquals(LoginError.REQUIRED, vm.state.value.error)
+        assertEquals(LoginError.DEVICE_NAME_REQUIRED, vm.state.value.error)
         assertEquals(0, auth.deviceLoginCalls.size)
+    }
+
+    @Test fun missingCredentialsWinOverMissingDeviceName() {
+        val vm = viewModel()
+        vm.onDeviceNameChange("")
+        vm.onSubmit()
+        assertEquals(LoginError.REQUIRED, vm.state.value.error)
+    }
+
+    @Test fun toStringDoesNotContainThePassword() {
+        val vm = viewModel()
+        vm.fill(password = "geheim-123")
+        val text = vm.state.value.toString()
+        assertFalse(text, text.contains("geheim-123"))
+        assertFalse(text, text.contains("max@example.org"))
+        assertTrue(text, text.contains("loading=false"))
     }
 
     @Test fun errorsAreMappedLikeTheWebApp() {
@@ -60,6 +81,7 @@ class LoginViewModelTest {
             AppError.Http(500, null) to LoginError.UNKNOWN,
             AppError.Network to LoginError.NOT_REACHABLE,
             AppError.CleartextNotAllowed to LoginError.CLEARTEXT_NOT_ALLOWED,
+            AppError.Storage to LoginError.STORAGE,
         )
         for ((error, expected) in cases) {
             auth.deviceLoginResult = Outcome.Failure(error)
