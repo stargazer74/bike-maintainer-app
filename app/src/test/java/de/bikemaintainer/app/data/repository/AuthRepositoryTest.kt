@@ -229,6 +229,14 @@ class AuthRepositoryTest {
     }
 
     @Test
+    fun markNotificationsAskedSwallowsStorageFailure() {
+        writesLeft.set(0)
+        val repo = setUp(wrap = ::limitedWrites)
+        runBlocking { repo.markNotificationsAsked() } // must not throw
+        assertEquals(false, runBlocking { repo.settings.first() }.notificationsAsked)
+    }
+
+    @Test
     fun currentAccountMapsEmailAndDisplayName() {
         val repo = setUp { req ->
             assertEquals("/api/v1/auth/me", req.url.encodedPath)

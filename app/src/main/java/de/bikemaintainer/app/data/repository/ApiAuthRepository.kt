@@ -110,8 +110,13 @@ class ApiAuthRepository(
     override suspend fun currentAccount(): Outcome<Account> =
         provider.callStored { it.auth.getCurrentUser() }.map { Account(it.email, it.displayName) }
 
+    /** A storage failure is swallowed: worst case the question is asked again next time. */
     override suspend fun markNotificationsAsked() {
-        store.setNotificationsAsked()
+        try {
+            store.setNotificationsAsked()
+        } catch (_: IOException) {
+            // intentionally ignored
+        }
     }
 
     private suspend fun <T> withApis(serverUrl: String, block: suspend (ApiProvider.Apis) -> Outcome<T>): Outcome<T> {
