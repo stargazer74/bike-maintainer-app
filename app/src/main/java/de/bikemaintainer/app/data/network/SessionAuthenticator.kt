@@ -7,6 +7,7 @@ import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.SettingsStore
 import de.bikemaintainer.app.domain.ServerMode
 import java.io.IOException
+import java.security.GeneralSecurityException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -50,11 +51,15 @@ class SessionAuthenticator(
                     // Someone else has renewed the session meanwhile: just retry, no second exchange.
                     retry(request)
                 } else {
+                    // Nothing but IOException may leave an authenticator: for async calls OkHttp would rethrow anything
+                    // else on its dispatcher thread and crash the app. A failure here just means "no renewal".
                     try {
                         renew(request)
                     } catch (_: IOException) {
                         null
-                    } catch (_: SerializationException) {
+                    } catch (_: GeneralSecurityException) {
+                        null
+                    } catch (_: RuntimeException) {
                         null
                     }
                 }
@@ -84,16 +89,23 @@ class SessionAuthenticator(
         if (result.code() != HTTP_OK) return null
         // Same as above: the old token is used up; presenting it again would look like a copied token.
         val newToken = result.body()?.deviceToken ?: return rejectExchange()
-        // Store the new token before the new session can be used.
-        tokens.set(newToken)
+        // Store the new token before the new session can be used. If that fails, the old one is used up all the same.
+        try {
+            tokens.set(newToken)
+        } catch (_: GeneralSecurityException) {
+            return rejectExchange()
+        } catch (_: RuntimeException) {
+            return rejectExchange()
+        }
         state.sessionStarted()
         return retry(request)
     }
 
     /** The device token is invalid or used up: forget it, the user has to log in again. */
     private suspend fun rejectExchange(): Request? {
-        tokens.clear()
+        // Status first: should clearing the token fail as well, the user is still sent to the login.
         state.require(SessionStatus.LOGIN_REQUIRED)
+        tokens.clear()
         return null
     }
 

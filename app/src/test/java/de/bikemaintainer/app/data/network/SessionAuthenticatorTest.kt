@@ -8,6 +8,8 @@ import de.bikemaintainer.app.api.infrastructure.Serializer
 import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.FakeTokenCipher
 import de.bikemaintainer.app.data.storage.SettingsStore
+import de.bikemaintainer.app.data.storage.TokenCipher
+import java.security.GeneralSecurityException
 import de.bikemaintainer.app.domain.ServerMode
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
@@ -63,6 +65,7 @@ class SessionAuthenticatorTest {
     private fun setUp(
         mode: ServerMode = ServerMode.PORTAL,
         token: String? = "alt",
+        cipher: TokenCipher = FakeTokenCipher(),
         profileId: Long? = null,
         handler: (RecordedRequest) -> MockResponse,
     ) {
@@ -76,10 +79,10 @@ class SessionAuthenticatorTest {
         settings = SettingsStore(
             PreferenceDataStoreFactory.create(scope = storeScope) { tmpFolder.newFile("t.preferences_pb") },
         )
-        tokens = DeviceTokenStore(settings, FakeTokenCipher())
+        tokens = DeviceTokenStore(settings, cipher)
         runBlocking {
             settings.setServer(server.url("/").toString(), mode)
-            if (token != null) tokens.set(token)
+            if (token != null) DeviceTokenStore(settings, FakeTokenCipher()).set(token)
             settings.setProfileId(profileId)
         }
         state = SessionState()
@@ -256,6 +259,31 @@ class SessionAuthenticatorTest {
         get(VEHICLES).use { assertEquals(401, it.code) }
         assertEquals(SessionStatus.LOGIN_REQUIRED, state.status.value)
         assertNull(runBlocking { tokens.get() })
+        assertEquals(1, count(DEVICE_SESSION))
+        assertEquals(1, count(VEHICLES))
+        assertEquals(0L, state.generation)
+    }
+
+    @Test
+    fun tokenStoreFailureAfterExchangeRequiresLogin() {
+        // Reads the stored token, but cannot store a new one (e.g. Keystore failure).
+        val cipher = object : TokenCipher {
+            private val readable = FakeTokenCipher()
+            override fun encrypt(plain: String): String = throw GeneralSecurityException("keystore unavailable")
+            override fun decrypt(encrypted: String): String = readable.decrypt(encrypted)
+        }
+        setUp(cipher = cipher) { req ->
+            when (req.url.encodedPath) {
+                VEHICLES -> if (req.hasNewSession()) json("[]") else status(401)
+                DEVICE_SESSION -> exchanged()
+                else -> status(500)
+            }
+        }
+        // Retrofit suspend call (async in OkHttp): an exception escaping the authenticator would surface here.
+        val vehicles = retrofit(client).create(VehiclesApi::class.java)
+        assertEquals(401, runBlocking { vehicles.listVehicles() }.code())
+        assertEquals(SessionStatus.LOGIN_REQUIRED, state.status.value)
+        assertNull(runBlocking { settings.current() }.encryptedDeviceToken)
         assertEquals(1, count(DEVICE_SESSION))
         assertEquals(1, count(VEHICLES))
         assertEquals(0L, state.generation)
