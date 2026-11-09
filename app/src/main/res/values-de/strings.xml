@@ -98,4 +98,11 @@
     <string name="error_mileage_invalid">Bitte eine ganze Zahl eingeben.</string>
     <string name="error_mileage_too_low">Darf nicht kleiner sein als bisher (%1$s km).</string>
     <string name="log_title">Wartung erfassen</string>
+    <string name="log_date">Datum</string>
+    <string name="log_tasks">Durchgeführte Aufgaben</string>
+    <string name="log_notes">Notiz (optional)</string>
+    <string name="log_notes_counter">%1$d / 1000</string>
+    <string name="log_costs_hint">Material und Kosten in der Web-App ergänzen.</string>
+    <string name="log_raise_mileage">Kilometerstand des Fahrzeugs auf %1$s km anheben</string>
+    <string name="error_no_task_selected">Bitte mindestens eine Aufgabe auswählen.</string>
 </resources>

@@ -98,4 +98,11 @@
     <string name="error_mileage_invalid">Please enter a whole number.</string>
     <string name="error_mileage_too_low">Must not be lower than before (%1$s km).</string>
     <string name="log_title">Log maintenance</string>
+    <string name="log_date">Date</string>
+    <string name="log_tasks">Tasks performed</string>
+    <string name="log_notes">Note (optional)</string>
+    <string name="log_notes_counter">%1$d / 1000</string>
+    <string name="log_costs_hint">Add materials and costs in the web app.</string>
+    <string name="log_raise_mileage">Raise the vehicle\'s mileage to %1$s km</string>
+    <string name="error_no_task_selected">Please select at least one task.</string>
 </resources>
