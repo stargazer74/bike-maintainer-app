@@ -6,6 +6,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import de.bikemaintainer.app.ui.navigation.AppDependencies
 import de.bikemaintainer.app.ui.navigation.AppNavHost
 import de.bikemaintainer.app.ui.navigation.readStartDestination
@@ -25,15 +26,15 @@ class MainActivity : AppCompatActivity() {
                     val start by produceState<Any?>(initialValue = null) {
                         value = readStartDestination { container.settings.current() }
                     }
-                    start?.let { AppNavHost(
-                        deps = AppDependencies(
+                    val deps = remember(container) {
+                        AppDependencies(
                             container.authRepository,
                             container.vehicleRepository,
                             container.maintenanceRepository,
                             container.sessionState.status,
-                        ),
-                        start = it,
-                    ) }
+                        )
+                    }
+                    start?.let { AppNavHost(deps = deps, start = it) }
                 }
             }
         }

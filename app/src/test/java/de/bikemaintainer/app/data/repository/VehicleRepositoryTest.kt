@@ -7,8 +7,11 @@ import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
+import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.domain.VehicleType
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.time.LocalDate
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -166,6 +169,23 @@ class VehicleRepositoryTest {
     }
 
     @Test
+    fun summariesReportTheFirstFailureInVehicleOrderNotTheFastest() {
+        val secondAnswered = CountDownLatch(1)
+        val repo = setUp { req ->
+            when (req.url.encodedPath) {
+                "/api/v1/vehicles" -> json("[${vehicleJson(1)},${vehicleJson(2)}]")
+                "/api/v1/vehicles/1/maintenance-tasks" -> {
+                    secondAnswered.await(5, TimeUnit.SECONDS) // vehicle 1 fails last
+                    json("""{"code":"FIRST","status":500}""", 500)
+                }
+                else -> json("""{"code":"SECOND","status":502}""", 502).also { secondAnswered.countDown() }
+            }
+        }
+        assertEquals(Outcome.Failure(AppError.Http(500, "FIRST")), runBlocking { repo.summaries() })
+        assertEquals(0L, secondAnswered.count)
+    }
+
+    @Test
     fun summariesFailWhenVehiclesFail() {
         val repo = setUp(configured = false) { json("[]") }
         assertEquals(Outcome.Failure(AppError.NotConfigured), runBlocking { repo.summaries() })
@@ -174,7 +194,7 @@ class VehicleRepositoryTest {
     @Test
     fun summariesOfNoVehiclesAreEmpty() {
         val repo = setUp { json("[]") }
-        assertEquals(Outcome.Success(emptyList<Any>()), runBlocking { repo.summaries() })
+        assertEquals(Outcome.Success(emptyList<VehicleSummary>()), runBlocking { repo.summaries() })
         assertEquals(1, env!!.requests.size)
     }
 }

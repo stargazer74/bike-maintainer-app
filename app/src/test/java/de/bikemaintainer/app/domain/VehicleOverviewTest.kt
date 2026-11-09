@@ -11,7 +11,7 @@ class VehicleOverviewTest {
     @Test fun overallStatusPrefersOverdue() {
         val tasks = listOf(task(TaskStatus.OK), task(TaskStatus.DUE_SOON), task(TaskStatus.OVERDUE))
         assertEquals(TaskStatus.OVERDUE, tasks.overallStatus())
-        assertEquals(TaskStatus.DUE_SOON, tasks.drop(0).filter { it.status != TaskStatus.OVERDUE }.overallStatus())
+        assertEquals(TaskStatus.DUE_SOON, tasks.filter { it.status != TaskStatus.OVERDUE }.overallStatus())
     }
 
     @Test fun overallStatusIgnoresInactiveTasks() {

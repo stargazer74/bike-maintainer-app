@@ -3,36 +3,36 @@ package de.bikemaintainer.app.ui.navigation
 import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import de.bikemaintainer.app.ui.notifications.NotificationPermissionScreen
-import de.bikemaintainer.app.ui.settings.SettingsScreen
-import de.bikemaintainer.app.ui.settings.SettingsViewModel
-import androidx.compose.runtime.Stable
-import androidx.navigation.NavHostController
 import de.bikemaintainer.app.data.network.SessionStatus
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
-import kotlinx.coroutines.flow.StateFlow
 import de.bikemaintainer.app.ui.login.LoginScreen
 import de.bikemaintainer.app.ui.login.LoginViewModel
+import de.bikemaintainer.app.ui.notifications.NotificationPermissionScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesViewModel
+import de.bikemaintainer.app.ui.settings.SettingsScreen
+import de.bikemaintainer.app.ui.settings.SettingsViewModel
 import de.bikemaintainer.app.ui.setup.SetupScreen
 import de.bikemaintainer.app.ui.setup.SetupViewModel
 import de.bikemaintainer.app.ui.vehicle.VehicleScreen
 import de.bikemaintainer.app.ui.vehicle.VehicleViewModel
 import de.bikemaintainer.app.ui.vehicles.VehiclesScreen
 import de.bikemaintainer.app.ui.vehicles.VehiclesViewModel
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /** Everything the navigation graph needs, so tests can pass fakes instead of the real container. */
 @Stable
@@ -53,7 +53,6 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
         navController.redirectOnSessionChanges(deps.sessionStatus, deps.auth.settings)
     }
     NavHost(navController = navController, startDestination = start) {
-        // Placeholders until the screens of the following tasks are wired in.
         composable<SetupRoute> {
             val viewModel: SetupViewModel = viewModel(
                 factory = viewModelFactory { initializer { SetupViewModel(deps.auth) } },

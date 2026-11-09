@@ -69,10 +69,6 @@ class SessionNavigationTest {
         assertEquals(true, s.single().contains("Notification"))
     }
 
-
-
-
-
     @Test fun settingsBackPopsOnlyOnce() {
         show(VehiclesRoute)
         compose.runOnUiThread { nav.navigate(SettingsRoute) }
@@ -84,5 +80,4 @@ class SessionNavigationTest {
         compose.waitForIdle()
         assertEquals(listOf("VehiclesRoute"), stack())
     }
-
 }
