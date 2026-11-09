@@ -17,9 +17,9 @@ class CsrfInterceptor(private val cookieJar: InMemoryCookieJar) : Interceptor {
         return chain.proceed(request.newBuilder().header(HEADER_NAME, token).build())
     }
 
-    private companion object {
+    internal companion object {
         const val COOKIE_NAME = "XSRF-TOKEN"
-        const val HEADER_NAME = "X-XSRF-TOKEN"
-        val STATE_CHANGING = setOf("POST", "PUT", "PATCH", "DELETE")
+        private const val HEADER_NAME = "X-XSRF-TOKEN"
+        private val STATE_CHANGING = setOf("POST", "PUT", "PATCH", "DELETE")
     }
 }

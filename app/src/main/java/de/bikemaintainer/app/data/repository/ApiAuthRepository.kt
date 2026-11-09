@@ -35,6 +35,7 @@ class ApiAuthRepository(
     /** Stores server, mode and token (in one write) only if the login succeeded. */
     override suspend fun deviceLogin(serverUrl: String, email: String, password: String, deviceName: String): Outcome<Unit> {
         val base = ApiProvider.normalizeOrNull(serverUrl) ?: return Outcome.Failure(AppError.InvalidAddress)
+        ensureCsrfCookie(serverUrl)?.let { return it }
         val result = call { provider.apisFor(serverUrl).auth.deviceLogin(DeviceLoginRequest(email, password, deviceName)) }
         if (result !is Outcome.Success) return Outcome.Failure((result as Outcome.Failure).error)
         return state.lock.withLock {
@@ -56,6 +57,7 @@ class ApiAuthRepository(
 
     override suspend fun selectProfile(serverUrl: String, id: Long): Outcome<Unit> {
         val base = ApiProvider.normalizeOrNull(serverUrl) ?: return Outcome.Failure(AppError.InvalidAddress)
+        ensureCsrfCookie(serverUrl)?.let { return it }
         val result = call { provider.apisFor(serverUrl).profiles.selectProfile(id) }
         if (result is Outcome.Failure) return result
         return state.lock.withLock {
@@ -117,6 +119,16 @@ class ApiAuthRepository(
         } catch (_: IOException) {
             // intentionally ignored
         }
+    }
+
+    /**
+     * The backend rejects a POST without the CSRF cookie/header pair. Login and profile selection can be the first
+     * request to an address (e.g. after logout, which drops all cookies), so the cookie is fetched via GET /config
+     * first if missing. Returns the failure of that GET, or null if the cookie is there.
+     */
+    private suspend fun ensureCsrfCookie(serverUrl: String): Outcome.Failure? {
+        if (provider.hasCsrfCookie(serverUrl)) return null
+        return call { provider.apisFor(serverUrl).config.getAppConfig() } as? Outcome.Failure
     }
 
     private suspend fun <T> withApis(serverUrl: String, block: suspend (ApiProvider.Apis) -> Outcome<T>): Outcome<T> {
