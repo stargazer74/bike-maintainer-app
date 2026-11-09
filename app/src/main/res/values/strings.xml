@@ -3,6 +3,8 @@
     <string name="error_no_connection">No connection.</string>
     <string name="error_server_not_responding">The server does not respond.</string>
     <string name="error_vehicle_not_found">The vehicle was not found.</string>
+    <string name="error_input_rejected">The server rejected the input.</string>
+    <string name="error_save_failed">Could not be saved.</string>
     <string name="error_load_failed">Data could not be loaded.</string>
     <string name="status_overdue">Overdue</string>
     <string name="status_due_soon">Due soon</string>
