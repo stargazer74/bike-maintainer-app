@@ -4,6 +4,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
 import okhttp3.Interceptor
 import okhttp3.Response
 
@@ -19,6 +20,13 @@ data class SessionGeneration(val value: Long)
 class SessionState(initial: SessionStatus = SessionStatus.ACTIVE) {
     private val _status = MutableStateFlow(initial)
     val status: StateFlow<SessionStatus> = _status.asStateFlow()
+
+    /**
+     * Serialises everything that stores credentials and starts a new session: the authenticator's token exchange as
+     * well as login, profile selection and logout. An in-flight exchange of an old token thus cannot overwrite a
+     * fresh login (and vice versa).
+     */
+    val lock = Mutex()
 
     private val _generation = AtomicLong()
     val generation: Long get() = _generation.get()

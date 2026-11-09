@@ -9,7 +9,6 @@ import de.bikemaintainer.app.domain.ServerMode
 import java.io.IOException
 import java.security.GeneralSecurityException
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerializationException
 import okhttp3.Authenticator
@@ -35,9 +34,7 @@ class SessionAuthenticator(
     private val state: SessionState,
     private val sessionApis: () -> Pair<AuthApi, ProfilesApi>,
 ) : Authenticator {
-    private val mutex = Mutex()
-
-    // OkHttp calls this on its own (blocking) thread, never on one holding the mutex.
+    // OkHttp calls this on its own (blocking) thread, never on one holding the lock.
     override fun authenticate(route: Route?, response: Response): Request? {
         val request = response.request
         val path = request.url.encodedPath
@@ -46,7 +43,7 @@ class SessionAuthenticator(
         // Untagged requests (should not exist) count as sent in the current generation.
         val sentGeneration = request.tag(SessionGeneration::class)?.value ?: state.generation
         return runBlocking {
-            mutex.withLock {
+            state.lock.withLock {
                 if (state.generation != sentGeneration) {
                     // Someone else has renewed the session meanwhile: just retry, no second exchange.
                     retry(request)
