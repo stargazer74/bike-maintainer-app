@@ -22,7 +22,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "de")
+@Config(qualifiers = "de")
 class DueTaskNotifierTest {
     private val app = ApplicationProvider.getApplicationContext<Application>()
     private val manager = app.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

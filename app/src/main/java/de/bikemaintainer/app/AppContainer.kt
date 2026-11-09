@@ -2,6 +2,7 @@ package de.bikemaintainer.app
 
 import android.content.Context
 import android.util.Log
+import androidx.core.app.NotificationManagerCompat
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.repository.ApiAuthRepository
@@ -14,6 +15,11 @@ import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.KeystoreTokenCipher
 import de.bikemaintainer.app.data.storage.SettingsStore
 import de.bikemaintainer.app.data.storage.settingsDataStore
+import de.bikemaintainer.app.notifications.DueNotifications
+import de.bikemaintainer.app.notifications.DueTaskCheck
+import de.bikemaintainer.app.notifications.DueTaskNotifier
+import de.bikemaintainer.app.notifications.ReminderScheduler
+import de.bikemaintainer.app.notifications.WorkManagerReminderScheduler
 import java.io.File
 
 /**
@@ -37,4 +43,9 @@ class AppContainer(context: Context) {
     val authRepository: AuthRepository = ApiAuthRepository(provider, settings, tokens, sessionState)
     val vehicleRepository: VehicleRepository = ApiVehicleRepository(provider)
     val maintenanceRepository: MaintenanceRepository = ApiMaintenanceRepository(provider)
+
+    private val notificationsAllowed = { NotificationManagerCompat.from(context).areNotificationsEnabled() }
+    val notifier: DueNotifications = DueTaskNotifier(context)
+    val reminderScheduler: ReminderScheduler = WorkManagerReminderScheduler(context, settings, notificationsAllowed)
+    val dueTaskCheck = DueTaskCheck(vehicleRepository, maintenanceRepository, settings, notifier, notificationsAllowed)
 }

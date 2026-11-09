@@ -39,6 +39,18 @@
                 android:name="autoStoreLocales"
                 android:value="true" />
         </service>
+
+        <!-- WorkManager is initialised on demand by BikeMaintainerApp (Configuration.Provider with its own factory). -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
     </application>
 
 </manifest>
