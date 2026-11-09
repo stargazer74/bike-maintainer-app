@@ -1,18 +1,19 @@
 package de.bikemaintainer.app.ui.navigation
 
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextClearance
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.navigation.compose.ComposeNavigator
@@ -35,6 +36,7 @@ import de.bikemaintainer.app.ui.FakeVehicleRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -179,6 +181,22 @@ class AppNavGraphTest {
         compose.onNodeWithText("Wartung gespeichert.").assertExists()
         assertEquals(1, maintenance.logCalls.size)
         assertEquals(true, vehicles.vehicleCalls.size > calls)
+        // Consumed: the message is not shown again when the detail is recreated.
+        assertNull(nav.currentBackStackEntry!!.savedStateHandle.get<String>(LOG_RESULT_KEY))
+    }
+
+    @Test fun doubleTapOnLogOpensOneScreen() {
+        maintenance.tasksResult = Outcome.Success(listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE)))
+        show(VehiclesRoute)
+        compose.onNodeWithText("Africa Twin").performClick()
+        compose.waitForIdle()
+        val click = compose.onNodeWithText("Wartung erfassen").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
+        compose.runOnUiThread {
+            click()
+            click()
+        }
+        compose.waitForIdle()
+        assertEquals(listOf("VehiclesRoute", "VehicleRoute", "LogMaintenanceRoute"), stack())
     }
 
     @Test fun raiseFailureShowsSavedMileageFailed() {
