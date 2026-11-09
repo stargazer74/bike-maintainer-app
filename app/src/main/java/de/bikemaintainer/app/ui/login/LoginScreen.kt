@@ -56,7 +56,6 @@ fun LoginScreen(
         onPasswordChange = viewModel::onPasswordChange,
         onDeviceNameChange = viewModel::onDeviceNameChange,
         onSubmit = viewModel::onSubmit,
-        onRegister = { openLink(WebLinks.register(serverUrl)) },
         onForgotPassword = { openLink(WebLinks.forgotPassword(serverUrl)) },
         onOtherServer = onOtherServer,
     )
@@ -69,7 +68,6 @@ fun LoginContent(
     onPasswordChange: (String) -> Unit,
     onDeviceNameChange: (String) -> Unit,
     onSubmit: () -> Unit,
-    onRegister: () -> Unit,
     onForgotPassword: () -> Unit,
     onOtherServer: () -> Unit,
 ) {
@@ -121,9 +119,6 @@ fun LoginContent(
                 if (state.loading) LoadingIndicator(small = true, color = MaterialTheme.colorScheme.onPrimary)
                 Text(stringResource(R.string.login_submit))
             }
-        }
-        TextButton(onClick = onRegister, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text(stringResource(R.string.login_register))
         }
         TextButton(onClick = onForgotPassword, modifier = Modifier.heightIn(min = 48.dp)) {
             Text(stringResource(R.string.login_forgot_password))

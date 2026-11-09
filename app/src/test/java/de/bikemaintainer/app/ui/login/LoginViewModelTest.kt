@@ -140,7 +140,6 @@ class LoginViewModelTest {
     }
 
     @Test fun webLinksUseServerAndLanguage() {
-        assertEquals("https://h/registrieren", WebLinks.register("https://h/"))
         assertEquals("https://h/passwort-vergessen", WebLinks.forgotPassword("https://h"))
         assertEquals("https://w/en/legal-notice/", WebLinks.imprint("https://w", false))
         assertEquals("https://w/impressum/", WebLinks.imprint("https://w/", true))

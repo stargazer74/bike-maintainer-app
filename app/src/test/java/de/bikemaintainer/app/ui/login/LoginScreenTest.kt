@@ -3,6 +3,7 @@ package de.bikemaintainer.app.ui.login
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -11,6 +12,7 @@ import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.ui.FakeAuthRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,5 +49,12 @@ class LoginScreenTest {
         compose.onNodeWithText("Anmelden").assertIsEnabled().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Anmelden").assertIsNotEnabled()
+    }
+
+    /** The app offers sign-in only; registration (and a later subscription) stays on the web. */
+    @Test fun offersNoRegistration() {
+        show()
+        compose.onNodeWithText("Passwort vergessen?").assertExists()
+        assertTrue(compose.onAllNodesWithText("Konto", substring = true).fetchSemanticsNodes().isEmpty())
     }
 }

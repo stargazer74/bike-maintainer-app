@@ -15,7 +15,6 @@
     <string name="login_password">Passwort</string>
     <string name="login_device_name">Gerätename</string>
     <string name="login_submit">Anmelden</string>
-    <string name="login_register">Noch kein Konto? Konto anlegen</string>
     <string name="login_forgot_password">Passwort vergessen?</string>
     <string name="login_other_server">Anderer Server</string>
     <string name="login_relogin_hint">Bitte melde dich erneut an.</string>

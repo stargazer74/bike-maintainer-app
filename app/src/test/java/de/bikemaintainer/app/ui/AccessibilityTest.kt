@@ -54,7 +54,7 @@ class AccessibilityTest {
             LoginContent(
                 state = LoginUiState(deviceName = "", reloginHint = false, loading = true, error = LoginError.STORAGE),
                 onEmailChange = {}, onPasswordChange = {}, onDeviceNameChange = {}, onSubmit = {},
-                onRegister = {}, onForgotPassword = {}, onOtherServer = {},
+                onForgotPassword = {}, onOtherServer = {},
             )
         }
         compose.onNodeWithText("Could not save the login on this device.").assert(politeLiveRegion)

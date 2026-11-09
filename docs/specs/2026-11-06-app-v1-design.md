@@ -23,8 +23,8 @@ eintragen, Wartungen erfassen und an fällige Wartungen erinnert werden. Sie ver
   mit Fälligkeitsstatus, Fahrzeug-Detail mit Wartungsaufgaben, Kilometerstand eintragen, Wartung erfassen (Aufgaben,
   Datum, Kilometerstand, Notiz), Benachrichtigungen, Einstellungen, de/en, hell/dunkel.
 - **Nicht in Version 1 (Web-App bzw. später):** Fahrzeuge und Aufgaben anlegen, bearbeiten, löschen; Material und
-  Kosten; Kostenübersicht; PDF-Bericht und Checkliste; Registrierung, Passwort vergessen, Konto löschen (Links in die
-  Web-App); Offline-Nutzung (siehe „Später“).
+  Kosten; Kostenübersicht; PDF-Bericht und Checkliste; Passwort vergessen, Konto löschen (Links in
+  die Web-App); Offline-Nutzung (siehe „Später“).
 - **Verteilung:** zunächst nur für den Betreiber (Android Studio bzw. Debug-APK). Die App wird so gebaut, dass F-Droid
   und Google Play später ohne Umbau möglich sind; Signatur, Store-Einträge und Release-Build folgen eigenen Tickets.
 
@@ -49,8 +49,9 @@ eintragen, Wartungen erfassen und an fällige Wartungen erinnert werden. Sie ver
 1. **Server-Adresse**, vorbelegt mit `https://app.bike-maintainer.de`. Die App ruft `GET /api/v1/config` auf; keine
    Antwort oder kein Bike-Maintainer-Server → verständliche Meldung. Bei `http://` einmaliger Hinweis: „Die Verbindung
    ist unverschlüsselt. Das ist nur im eigenen Heimnetz vertretbar.“ (Regel siehe „Netz und Sicherheit“).
-2. **Portal:** E-Mail, Passwort und Gerätename (vorbelegt mit dem Handymodell, änderbar) → `device-login`. Links
-   „Registrieren“ und „Passwort vergessen“ öffnen die Web-App im Browser. Fehler wie in der Web-App: falsche Daten,
+2. **Portal:** E-Mail, Passwort und Gerätename (vorbelegt mit dem Handymodell, änderbar) → `device-login`. Link
+   „Passwort vergessen“ öffnet die Web-App im Browser. Keine Registrierung in der App und kein Link dorthin: Die App
+   bietet nur die Anmeldung, ein späteres Abo wird ausschließlich im Web abgeschlossen. Fehler wie in der Web-App: falsche Daten,
    E-Mail nicht bestätigt, Konto deaktiviert, zu viele Versuche.
    **Haushalt:** Profilliste (`GET /profiles`), ein Tipp wählt das Profil (`POST /profiles/{id}/select`); die App
    merkt sich das Profil.
@@ -198,7 +199,8 @@ mit Spec-Checkout).
 - **Offline:** Die Repository-Schicht und eigene App-Modelle erlauben, Room als lokalen Speicher dazwischenzuschieben
   (zuerst Ansehen mit „Stand von …“, dann Eintragen mit Warteschlange). Für Offline-Eintragen wäre ein eigener
   Endpunkt nur für den Kilometerstand sicherer als `PUT` mit dem ganzen Fahrzeug.
-- Fahrzeuge/Aufgaben verwalten, Kosten und Material, PDF-Bericht, Registrierung/Passwort/Konto löschen in der App.
+- Fahrzeuge/Aufgaben verwalten, Kosten und Material, PDF-Bericht, Passwort/Konto löschen in der App (Registrierung
+  und Abo bleiben dauerhaft im Web).
 - Veröffentlichung: Release-Signatur, F-Droid (reproduzierbarer Build), Google Play (Datensicherheits-Angaben,
   Datenschutzerklärung mit App-Abschnitt).
 - ktlint.

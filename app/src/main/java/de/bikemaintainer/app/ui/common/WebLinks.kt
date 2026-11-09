@@ -1,9 +1,11 @@
 package de.bikemaintainer.app.ui.common
 
-/** Links into the web app (relative to the server address) and the portal website (per app language). */
+/**
+ * The app offers sign-in only: no registration and no link to it (a later subscription is taken out on the web only).
+ *
+ * Links into the web app (relative to the server address) and the portal website (per app language).
+ */
 object WebLinks {
-    fun register(serverUrl: String): String = "${serverUrl.trimEnd('/')}/registrieren"
-
     fun forgotPassword(serverUrl: String): String = "${serverUrl.trimEnd('/')}/passwort-vergessen"
 
     fun imprint(websiteUrl: String, german: Boolean): String =
