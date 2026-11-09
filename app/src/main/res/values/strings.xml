@@ -33,4 +33,22 @@
     <string name="profiles_open_web_app">Open web app</string>
     <string name="profiles_select_failed">This profile could not be selected. Please choose again.</string>
     <string name="no_browser_found">No browser found.</string>
+    <string name="back">Back</string>
+    <string name="notifications_title">Reminders</string>
+    <string name="notifications_text">Bike Maintainer reminds you of due maintenance.</string>
+    <string name="notifications_allow">Allow</string>
+    <string name="notifications_later">Later</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_system">System</string>
+    <string name="settings_language_german">Deutsch</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_connection">Connection</string>
+    <string name="settings_logout">Log out</string>
+    <string name="settings_logout_confirm">Do you want to log out on this device?</string>
+    <string name="settings_switch_server">Change server</string>
+    <string name="settings_switch_server_confirm">You will be logged out and can enter another server address.</string>
+    <string name="settings_legal">Legal</string>
+    <string name="legal_imprint">Legal notice</string>
+    <string name="legal_privacy">Privacy</string>
+    <string name="legal_website">Website</string>
 </resources>

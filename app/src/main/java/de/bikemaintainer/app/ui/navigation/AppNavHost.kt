@@ -1,15 +1,22 @@
 package de.bikemaintainer.app.ui.navigation
 
 import android.os.Build
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import de.bikemaintainer.app.ui.notifications.NotificationPermissionScreen
+import de.bikemaintainer.app.ui.settings.SettingsScreen
+import de.bikemaintainer.app.ui.settings.SettingsViewModel
 import de.bikemaintainer.app.AppContainer
 import de.bikemaintainer.app.ui.login.LoginScreen
 import de.bikemaintainer.app.ui.login.LoginViewModel
@@ -22,6 +29,23 @@ import de.bikemaintainer.app.ui.vehicles.VehiclesPlaceholderScreen
 @Composable
 fun AppNavHost(container: AppContainer, start: Any) {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
+    val signedIn: () -> Unit = { scope.launch { navController.navigateAfterSignIn(container.authRepository) } }
+
+    // Session cannot be renewed: send the user to login / profile selection from any screen. StateFlow only emits distinct status
+    // values and skips the navigation when that destination is already shown, so it cannot loop.
+    LaunchedEffect(Unit) {
+        container.sessionState.status.collect { status ->
+            val target = sessionRedirect(status, container.authRepository.settings.first()) ?: return@collect
+            val current = navController.currentBackStackEntry?.destination
+            val alreadyThere = when (target) {
+                is LoginRoute -> current?.hasRoute<LoginRoute>() == true
+                is ProfilesRoute -> current?.hasRoute<ProfilesRoute>() == true
+                else -> false
+            }
+            if (!alreadyThere) navController.navigate(target) { popUpTo(0) }
+        }
+    }
     NavHost(navController = navController, startDestination = start) {
         // Placeholders until the screens of the following tasks are wired in.
         composable<SetupRoute> {
@@ -42,7 +66,7 @@ fun AppNavHost(container: AppContainer, start: Any) {
             LoginScreen(
                 viewModel = viewModel,
                 serverUrl = route.serverUrl,
-                onSignedIn = { navController.navigateAfterSignIn() },
+                onSignedIn = signedIn,
                 onOtherServer = {
                     if (!navController.popBackStack(SetupRoute, inclusive = false)) navController.navigate(SetupRoute)
                 },
@@ -56,7 +80,7 @@ fun AppNavHost(container: AppContainer, start: Any) {
             ProfilesScreen(
                 viewModel = viewModel,
                 serverUrl = route.serverUrl,
-                onSignedIn = { navController.navigateAfterSignIn() },
+                onSignedIn = signedIn,
                 onOtherServer = {
                     if (!navController.popBackStack(SetupRoute, inclusive = false)) navController.navigate(SetupRoute)
                 },
@@ -65,6 +89,25 @@ fun AppNavHost(container: AppContainer, start: Any) {
         composable<VehiclesRoute> {
             VehiclesPlaceholderScreen(onOpenSettings = { navController.navigate(SettingsRoute) })
         }
-        composable<SettingsRoute> { Text("Settings") }
+        composable<NotificationPermissionRoute> {
+            NotificationPermissionScreen(
+                onDone = {
+                    scope.launch {
+                        container.authRepository.markNotificationsAsked()
+                        navController.navigate(VehiclesRoute) { popUpTo(0) }
+                    }
+                },
+            )
+        }
+        composable<SettingsRoute> {
+            val viewModel: SettingsViewModel = viewModel(
+                factory = viewModelFactory { initializer { SettingsViewModel(container.authRepository) } },
+            )
+            SettingsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onNavigate = { navController.navigate(it) { popUpTo(0) } },
+            )
+        }
     }
 }

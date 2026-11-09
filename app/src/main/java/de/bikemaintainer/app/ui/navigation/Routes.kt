@@ -11,3 +11,5 @@ import kotlinx.serialization.Serializable
 @Serializable object VehiclesRoute
 
 @Serializable object SettingsRoute
+
+@Serializable object NotificationPermissionRoute
