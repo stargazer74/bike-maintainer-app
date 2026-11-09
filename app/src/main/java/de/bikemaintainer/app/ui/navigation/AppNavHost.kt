@@ -19,6 +19,9 @@ import de.bikemaintainer.app.data.network.SessionStatus
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
+import de.bikemaintainer.app.notifications.DueNotifications
+import de.bikemaintainer.app.notifications.ReminderScheduler
+import de.bikemaintainer.app.notifications.syncQuietly
 import de.bikemaintainer.app.ui.login.LoginScreen
 import de.bikemaintainer.app.ui.login.LoginViewModel
 import de.bikemaintainer.app.ui.logmaintenance.LogMaintenanceScreen
@@ -45,12 +48,27 @@ class AppDependencies(
     val vehicles: VehicleRepository,
     val maintenance: MaintenanceRepository,
     val sessionStatus: StateFlow<SessionStatus>,
+    val reminders: ReminderScheduler,
+    val notifications: DueNotifications,
+    val notificationsAllowed: () -> Boolean,
+    /** Vehicle a tapped notification wants to open; reset via [onVehicleOpened] once handled or discarded. */
+    val openVehicle: StateFlow<Long?>,
+    val onVehicleOpened: () -> Unit,
 )
 
 @Composable
 fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostController = rememberNavController()) {
     val scope = rememberCoroutineScope()
-    val signedIn: () -> Unit = { scope.launch { navController.navigateAfterSignIn(deps.auth) } }
+    val signedIn: () -> Unit = {
+        // Drops the "sign in again" hint and vehicle notifications of the previous account/session.
+        deps.notifications.cancelAll()
+        scope.launch {
+            navController.navigateAfterSignIn(deps.auth)
+            // A new login (or profile) starts the daily check.
+            deps.reminders.syncQuietly()
+        }
+    }
+    OpenVehicleFromNotification(navController, deps.openVehicle, deps.onVehicleOpened)
 
     // Session cannot be renewed: send the user to login / profile selection from any screen (see the function).
     LaunchedEffect(Unit) {
@@ -153,6 +171,8 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                     scope.launch {
                         deps.auth.markNotificationsAsked()
                         navController.navigate(VehiclesRoute) { popUpTo(0) }
+                        // The permission may have been granted just now.
+                        deps.reminders.syncQuietly()
                     }
                 },
             )
@@ -160,7 +180,7 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
         composable<SettingsRoute> {
             val back = navController.popBackOnce()
             val viewModel: SettingsViewModel = viewModel(
-                factory = viewModelFactory { initializer { SettingsViewModel(deps.auth) } },
+                factory = viewModelFactory { initializer { SettingsViewModel(deps.auth, deps.reminders, deps.notifications, deps.notificationsAllowed) } },
             )
             SettingsScreen(
                 viewModel = viewModel,

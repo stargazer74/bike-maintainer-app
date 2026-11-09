@@ -112,6 +112,14 @@ class ApiAuthRepository(
     override suspend fun currentAccount(): Outcome<Account> =
         provider.callStored { it.auth.getCurrentUser() }.map { Account(it.email, it.displayName) }
 
+    override suspend fun setNotificationsEnabled(enabled: Boolean) {
+        try {
+            store.setNotificationsEnabled(enabled)
+        } catch (_: IOException) {
+            // intentionally ignored
+        }
+    }
+
     /** A storage failure is swallowed: worst case the question is asked again next time. */
     override suspend fun markNotificationsAsked() {
         try {

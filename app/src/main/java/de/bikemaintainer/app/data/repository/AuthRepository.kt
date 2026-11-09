@@ -27,6 +27,9 @@ interface AuthRepository {
     /** `GET auth/me` on the stored server. */
     suspend fun currentAccount(): Outcome<Account>
 
+    /** Saves the reminder switch; a storage failure is swallowed (the switch then simply keeps its old value). */
+    suspend fun setNotificationsEnabled(enabled: Boolean)
+
     /** Remembers that the notification permission has been requested (it is asked only once). */
     suspend fun markNotificationsAsked()
 }

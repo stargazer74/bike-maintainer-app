@@ -364,4 +364,19 @@ class AuthRepositoryTest {
         runBlocking { repo.markNotificationsAsked() }
         assertEquals(true, runBlocking { repo.settings.first() }.notificationsAsked)
     }
+
+    @Test
+    fun notificationsSwitchIsSavedAndExposed() {
+        val repo = setUp()
+        runBlocking { repo.setNotificationsEnabled(false) }
+        assertEquals(false, runBlocking { repo.settings.first() }.notificationsEnabled)
+    }
+
+    @Test
+    fun notificationsSwitchSwallowsStorageFailure() {
+        writesLeft.set(0)
+        val repo = setUp(wrap = ::limitedWrites)
+        runBlocking { repo.setNotificationsEnabled(false) } // must not throw
+        assertEquals(true, runBlocking { repo.settings.first() }.notificationsEnabled)
+    }
 }

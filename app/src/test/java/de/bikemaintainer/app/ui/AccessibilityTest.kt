@@ -76,7 +76,7 @@ class AccessibilityTest {
 
     @Test fun settingsShowProgressWhileLoggingOut() {
         val auth = FakeAuthRepository().apply { logoutGate = CompletableDeferred() }
-        val vm = SettingsViewModel(auth)
+        val vm = SettingsViewModel(auth, FakeReminderScheduler(), de.bikemaintainer.app.notifications.FakeDueNotifications()) { true }
         compose.setContent { SettingsScreen(viewModel = vm, onBack = {}, onNavigate = {}) }
         compose.onNodeWithContentDescription("Loading…").assertDoesNotExist()
         vm.logout()

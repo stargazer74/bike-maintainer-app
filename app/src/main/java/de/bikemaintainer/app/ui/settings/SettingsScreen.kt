@@ -1,15 +1,26 @@
 package de.bikemaintainer.app.ui.settings
 
+import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -19,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -27,20 +39,26 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import de.bikemaintainer.app.R
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.WebLinks
 import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
+import de.bikemaintainer.app.ui.theme.ThemeMode
+import de.bikemaintainer.app.ui.theme.ThemeSetting
 
 private enum class Confirm { LOGOUT, SWITCH_SERVER }
 
@@ -56,9 +74,20 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate:
     }
     var confirm by rememberSaveable { mutableStateOf<Confirm?>(null) }
     val openLink = rememberWebLinkOpener()
+    val context = LocalContext.current
+    // The permission can change in the system settings meanwhile.
+    LifecycleResumeEffect(Unit) {
+        viewModel.refreshPermission()
+        onPauseOrDispose {}
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        viewModel.refreshPermission()
+    }
     // The configuration locale follows setApplicationLocales, so this reacts to the picker below.
     val german = LocalConfiguration.current.locales[0]?.language == "de"
     val selected = AppCompatDelegate.getApplicationLocales().let { if (it.isEmpty) "" else it[0]?.language.orEmpty() }
+    // AppCompat recreates the activity on a change; the state only matters until then.
+    var theme by remember { mutableStateOf(ThemeMode.applied()) }
 
     Scaffold(
         topBar = {
@@ -80,9 +109,61 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate:
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Section(R.string.settings_language)
-            LanguageOption(R.string.settings_language_system, selected == "") { setLanguage("") }
-            LanguageOption(R.string.settings_language_german, selected == "de") { setLanguage("de") }
-            LanguageOption(R.string.settings_language_english, selected == "en") { setLanguage("en") }
+            RadioOption(R.string.settings_language_system, selected == "") { setLanguage("") }
+            RadioOption(R.string.settings_language_german, selected == "de") { setLanguage("de") }
+            RadioOption(R.string.settings_language_english, selected == "en") { setLanguage("en") }
+
+            Section(R.string.settings_theme)
+            ThemeMode.entries.forEach { mode ->
+                RadioOption(themeLabel(mode), theme == mode) {
+                    theme = mode
+                    ThemeSetting.set(context, mode)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(
+                        value = state.notificationsEnabled,
+                        role = Role.Switch,
+                        onValueChange = { on ->
+                            viewModel.setNotificationsEnabled(on)
+                            if (on && Build.VERSION.SDK_INT >= 33 &&
+                                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                                PackageManager.PERMISSION_GRANTED
+                            ) {
+                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        },
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.settings_notifications), modifier = Modifier.weight(1f))
+                Switch(checked = state.notificationsEnabled, onCheckedChange = null)
+            }
+            if (state.notificationsBlocked) {
+                Text(
+                    stringResource(R.string.settings_notifications_blocked),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TextButton(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        // Some devices have no such screen; then there is nothing more to offer.
+                        try {
+                            context.startActivity(intent)
+                        } catch (_: ActivityNotFoundException) {
+                            // intentionally ignored
+                        }
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text(stringResource(R.string.settings_open_system)) }
+            }
 
             Section(R.string.settings_connection)
             state.serverUrl?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
@@ -151,6 +232,12 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate:
     }
 }
 
+private fun themeLabel(mode: ThemeMode) = when (mode) {
+    ThemeMode.SYSTEM -> R.string.settings_theme_system
+    ThemeMode.LIGHT -> R.string.settings_theme_light
+    ThemeMode.DARK -> R.string.settings_theme_dark
+}
+
 private fun setLanguage(tag: String) =
     AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
 
@@ -165,7 +252,7 @@ private fun Section(title: Int) {
 }
 
 @Composable
-private fun LanguageOption(label: Int, selected: Boolean, onClick: () -> Unit) {
+private fun RadioOption(label: Int, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

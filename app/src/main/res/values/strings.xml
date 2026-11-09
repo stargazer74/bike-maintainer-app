@@ -58,6 +58,13 @@
     <string name="settings_language_system">System</string>
     <string name="settings_language_german">Deutsch</string>
     <string name="settings_language_english">English</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_notifications">Reminders for due maintenance</string>
+    <string name="settings_notifications_blocked">Notifications are turned off in the system settings.</string>
+    <string name="settings_open_system">Open system settings</string>
     <string name="settings_connection">Connection</string>
     <string name="settings_logout">Log out</string>
     <string name="settings_logout_confirm">Do you want to log out on this device?</string>
@@ -108,4 +115,11 @@
     <string name="ok">OK</string>
     <string name="log_saved">Maintenance logged.</string>
     <string name="log_saved_mileage_failed">Maintenance logged, but the mileage could not be raised.</string>
+    <string name="notif_channel_due">Due maintenance</string>
+    <string name="notif_channel_due_desc">Reminders about due and overdue maintenance</string>
+    <string name="notif_public_title">Maintenance due</string>
+    <string name="notif_task_overdue">%1$s overdue</string>
+    <string name="notif_task_due_soon">%1$s due soon</string>
+    <string name="notif_relogin_title">Please sign in again</string>
+    <string name="notif_relogin_text">Please sign in again, otherwise no reminders.</string>
 </resources>
