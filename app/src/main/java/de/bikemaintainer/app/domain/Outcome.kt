@@ -12,6 +12,12 @@ sealed interface AppError {
     /** Plain HTTP to an address outside the home network was refused. */
     data object CleartextNotAllowed : AppError
 
+    /** The server address typed by the user is not a valid http(s) URL. */
+    data object InvalidAddress : AppError
+
+    /** Local storage (settings, encrypted token) could not be read or written. */
+    data object Storage : AppError
+
     data object Unauthorized : AppError
 
     data object NotFound : AppError

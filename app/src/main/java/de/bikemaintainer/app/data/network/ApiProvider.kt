@@ -11,6 +11,7 @@ import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.SettingsStore
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -81,5 +82,8 @@ class ApiProvider(
     companion object {
         /** Trimmed, with exactly one trailing slash. Throws [IllegalArgumentException] for an invalid address. */
         fun normalize(url: String): HttpUrl = (url.trim().trimEnd('/') + "/").toHttpUrl()
+
+        /** Like [normalize], but null for an invalid address. */
+        fun normalizeOrNull(url: String): HttpUrl? = (url.trim().trimEnd('/') + "/").toHttpUrlOrNull()
     }
 }

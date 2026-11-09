@@ -27,7 +27,7 @@ class VehicleRepositoryTest {
     }
 
     private fun setUp(handler: (mockwebserver3.RecordedRequest) -> mockwebserver3.MockResponse): VehicleRepository {
-        val e = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), handler)
+        val e = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), handler = handler)
         env = e
         runBlocking { e.settings.setServer(e.url, de.bikemaintainer.app.domain.ServerMode.PORTAL) }
         return VehicleRepository(e.provider)

@@ -6,11 +6,18 @@ import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Profile
 import de.bikemaintainer.app.domain.ServerConfig
 import de.bikemaintainer.app.domain.ServerMode
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import de.bikemaintainer.app.data.storage.FakeTokenCipher
+import de.bikemaintainer.app.data.storage.TokenCipher
+import java.io.IOException
+import java.security.GeneralSecurityException
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -29,8 +36,12 @@ class AuthRepositoryTest {
     private val user = """{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"emailVerified":true,
         "createdAt":"2026-01-01T00:00:00Z"}"""
 
-    private fun setUp(handler: (mockwebserver3.RecordedRequest) -> MockResponse = { json("{}") }): AuthRepository {
-        env = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), handler)
+    private fun setUp(
+        cipher: TokenCipher = FakeTokenCipher(),
+        wrap: (DataStore<Preferences>) -> DataStore<Preferences> = { it },
+        handler: (mockwebserver3.RecordedRequest) -> MockResponse = { json("{}") },
+    ): AuthRepository {
+        env = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), cipher, wrap, handler)
         return AuthRepository(env.provider, env.settings, env.tokens, env.state)
     }
 
@@ -114,5 +125,41 @@ class AuthRepositoryTest {
         assertNull(stored.mode)
         assertNull(stored.encryptedDeviceToken)
         assertNotNull(env.requests.singleOrNull { it.url.encodedPath.endsWith("/logout") })
+    }
+
+    @Test
+    fun invalidServerAddressIsReported() {
+        val repo = setUp()
+        val bad = Outcome.Failure(AppError.InvalidAddress)
+        assertEquals(bad, runBlocking { repo.fetchConfig("not a url") })
+        assertEquals(bad, runBlocking { repo.deviceLogin("not a url", "a@b.de", "pw", "Pixel") })
+        assertEquals(bad, runBlocking { repo.profiles("") })
+        assertEquals(bad, runBlocking { repo.selectProfile("ftp://x", 1) })
+        assertEquals(0, env.requests.size)
+    }
+
+    @Test
+    fun storageFailureDuringLoginIsReported() {
+        val failing = object : TokenCipher {
+            override fun encrypt(plain: String): String = throw GeneralSecurityException("keystore")
+            override fun decrypt(encrypted: String): String = throw GeneralSecurityException("keystore")
+        }
+        val repo = setUp(cipher = failing) { json("""{"user":$user,"deviceToken":"tok"}""") }
+        assertEquals(Outcome.Failure(AppError.Storage), runBlocking { repo.deviceLogin(env.url, "a@b.de", "pw", "Pixel") })
+        assertNull(runBlocking { env.settings.current() }.serverUrl)
+    }
+
+    @Test
+    fun logoutResetsProviderEvenIfStorageFails() {
+        val repo = setUp(wrap = { real ->
+            object : DataStore<Preferences> {
+                override val data = real.data
+                override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences =
+                    throw IOException("disk full")
+            }
+        })
+        val before = env.provider.apisFor(env.url)
+        assertEquals(Outcome.Failure(AppError.Storage), runBlocking { repo.logout() })
+        assertNotSame(before, env.provider.apisFor(env.url))
     }
 }
