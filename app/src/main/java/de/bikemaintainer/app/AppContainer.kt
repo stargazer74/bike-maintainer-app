@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.network.SessionState
+import de.bikemaintainer.app.data.repository.ApiAuthRepository
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
@@ -33,7 +34,7 @@ class AppContainer(context: Context) {
         debugLog = if (BuildConfig.DEBUG) { message -> Log.d("BikeMaintainerHttp", message) } else null,
     )
 
-    val authRepository = AuthRepository(provider, settings, tokens, sessionState)
+    val authRepository: AuthRepository = ApiAuthRepository(provider, settings, tokens, sessionState)
     val vehicleRepository = VehicleRepository(provider)
     val maintenanceRepository = MaintenanceRepository(provider)
 }

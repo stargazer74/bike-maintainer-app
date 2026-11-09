@@ -1,6 +1,7 @@
 package de.bikemaintainer.app.data.repository
 
 import de.bikemaintainer.app.data.repository.RepositoryTestEnv.Companion.json
+import de.bikemaintainer.app.domain.Account
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Profile
@@ -14,6 +15,7 @@ import de.bikemaintainer.app.data.storage.TokenCipher
 import java.io.IOException
 import java.security.GeneralSecurityException
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import org.junit.After
@@ -42,9 +44,9 @@ class AuthRepositoryTest {
         cipher: TokenCipher = FakeTokenCipher(),
         wrap: (DataStore<Preferences>) -> DataStore<Preferences> = { it },
         handler: (mockwebserver3.RecordedRequest) -> MockResponse = { json("{}") },
-    ): AuthRepository {
+    ): ApiAuthRepository {
         env = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), cipher, wrap, handler)
-        return AuthRepository(env.provider, env.settings, env.tokens, env.state)
+        return ApiAuthRepository(env.provider, env.settings, env.tokens, env.state)
     }
 
     @Test
@@ -224,5 +226,39 @@ class AuthRepositoryTest {
         val before = env.provider.apisFor(env.url)
         assertEquals(Outcome.Failure(AppError.Storage), runBlocking { repo.logout() })
         assertNotSame(before, env.provider.apisFor(env.url))
+    }
+
+    @Test
+    fun currentAccountMapsEmailAndDisplayName() {
+        val repo = setUp { req ->
+            assertEquals("/api/v1/auth/me", req.url.encodedPath)
+            json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"emailVerified":true,
+                "createdAt":"2026-01-01T00:00:00Z","email":"a@b.de"}""")
+        }
+        runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
+        assertEquals(Outcome.Success(Account("a@b.de", null)), runBlocking { repo.currentAccount() })
+    }
+
+    @Test
+    fun currentAccountMapsDisplayNameInHouseholdMode() {
+        val repo = setUp {
+            json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"emailVerified":true,
+                "createdAt":"2026-01-01T00:00:00Z","displayName":"Chris"}""")
+        }
+        runBlocking { env.settings.setServer(env.url, ServerMode.HOUSEHOLD) }
+        assertEquals(Outcome.Success(Account(null, "Chris")), runBlocking { repo.currentAccount() })
+    }
+
+    @Test
+    fun currentAccountWithoutServerIsNotConfigured() {
+        val repo = setUp()
+        assertEquals(Outcome.Failure(AppError.NotConfigured), runBlocking { repo.currentAccount() })
+    }
+
+    @Test
+    fun markNotificationsAskedIsExposedInSettings() {
+        val repo = setUp()
+        runBlocking { repo.markNotificationsAsked() }
+        assertEquals(true, runBlocking { repo.settings.first() }.notificationsAsked)
     }
 }

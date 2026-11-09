@@ -62,4 +62,20 @@ class SettingsStoreTest {
         store.clearAll()
         assertEquals(StoredSettings(null, null, null, null), store.current())
     }
+
+    @Test
+    fun notificationsAskedSurvivesClearSession() = runTest {
+        val store = store()
+        store.setNotificationsAsked()
+        store.clearSession()
+        assertEquals(true, store.current().notificationsAsked)
+    }
+
+    @Test
+    fun clearAllResetsNotificationsAsked() = runTest {
+        val store = store()
+        store.setNotificationsAsked()
+        store.clearAll()
+        assertEquals(false, store.current().notificationsAsked)
+    }
 }
