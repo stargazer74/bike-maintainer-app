@@ -22,5 +22,7 @@ class MileageInputTest {
         assertNull(parseMileage("-5"))
         assertNull(parseMileage("1e3"))
         assertNull(parseMileage("10000000"))
+        assertNull(parseMileage("٢٤"))
+        assertNull(parseMileage("99999999999"))
     }
 }

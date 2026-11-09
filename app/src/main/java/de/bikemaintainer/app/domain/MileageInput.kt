@@ -8,6 +8,6 @@ const val MAX_MILEAGE = 9_999_999
  */
 fun parseMileage(text: String): Int? {
     val digits = text.trim()
-    if (digits.isEmpty() || digits.length > MAX_MILEAGE.toString().length || !digits.all(Char::isDigit)) return null
+    if (digits.isEmpty() || digits.length > MAX_MILEAGE.toString().length || !digits.all { it in '0'..'9' }) return null
     return digits.toIntOrNull()?.takeIf { it <= MAX_MILEAGE }
 }

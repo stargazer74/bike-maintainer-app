@@ -21,6 +21,7 @@ class LoadErrorsTest {
     @Test fun saveErrorsMapToMessages() {
         assertEquals(R.string.error_no_connection, AppError.Network.saveMessageRes())
         assertEquals(R.string.error_server_not_responding, AppError.Http(503, null).saveMessageRes())
+        assertEquals(R.string.error_server_not_responding, AppError.Http(500, null).saveMessageRes())
         assertEquals(R.string.error_cleartext_not_allowed, AppError.CleartextNotAllowed.saveMessageRes())
         assertEquals(R.string.error_vehicle_not_found, AppError.NotFound.saveMessageRes())
         assertEquals(R.string.error_input_rejected, AppError.Http(400, null).saveMessageRes())
