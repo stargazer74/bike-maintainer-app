@@ -2,7 +2,6 @@ package de.bikemaintainer.app.ui.navigation
 
 import android.os.Build
 import androidx.navigation.NavController
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import de.bikemaintainer.app.data.repository.AuthRepository
 import kotlinx.coroutines.flow.first
 
@@ -21,6 +20,7 @@ suspend fun NavController.navigateAfterSignIn(auth: AuthRepository) {
     val asked = auth.settings.first().notificationsAsked
     val target: Any = if (shouldAskNotifications(asked)) NotificationPermissionRoute else VehiclesRoute
     navigate(target) {
-        popUpTo(graph.findStartDestination().id) { inclusive = true }
+        // Clears everything: the start destination may be gone already (after logout or a session redirect).
+        popUpTo(0)
     }
 }

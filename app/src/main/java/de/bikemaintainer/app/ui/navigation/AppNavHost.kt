@@ -7,7 +7,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -32,19 +31,9 @@ fun AppNavHost(container: AppContainer, start: Any) {
     val scope = rememberCoroutineScope()
     val signedIn: () -> Unit = { scope.launch { navController.navigateAfterSignIn(container.authRepository) } }
 
-    // Session cannot be renewed: send the user to login / profile selection from any screen. StateFlow only emits distinct status
-    // values and skips the navigation when that destination is already shown, so it cannot loop.
+    // Session cannot be renewed: send the user to login / profile selection from any screen (see the function).
     LaunchedEffect(Unit) {
-        container.sessionState.status.collect { status ->
-            val target = sessionRedirect(status, container.authRepository.settings.first()) ?: return@collect
-            val current = navController.currentBackStackEntry?.destination
-            val alreadyThere = when (target) {
-                is LoginRoute -> current?.hasRoute<LoginRoute>() == true
-                is ProfilesRoute -> current?.hasRoute<ProfilesRoute>() == true
-                else -> false
-            }
-            if (!alreadyThere) navController.navigate(target) { popUpTo(0) }
-        }
+        navController.redirectOnSessionChanges(container.sessionState.status, container.authRepository.settings)
     }
     NavHost(navController = navController, startDestination = start) {
         // Placeholders until the screens of the following tasks are wired in.
