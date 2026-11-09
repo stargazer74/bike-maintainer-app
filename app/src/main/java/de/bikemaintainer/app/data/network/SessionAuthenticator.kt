@@ -27,6 +27,11 @@ import okhttp3.Route
  * exchange is serialised, happens at most once per session generation, and the new token is stored before anything
  * else may use the new session.
  *
+ * Accepted trade-off: if the exchange reaches the server but its response is lost (connection drops, timeout), the
+ * IOException leaves the stored token untouched although the server may already have rotated it. The next exchange
+ * then presents a used-up token and the server removes the device; the user has to log in again. Discarding the token
+ * on every IOException instead would force a new login on each network hiccup.
+ *
  * Renewal only happens for requests to [baseUrl] when it is the stored server address (normalised as in
  * [ApiProvider.normalize]); token and profile are never sent anywhere else.
  *

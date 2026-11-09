@@ -16,6 +16,10 @@ data class SessionGeneration(val value: Long)
 /**
  * In-memory state of the server session. Every new session (renewal by the authenticator, login, profile selection)
  * starts a new generation, so that a 401 from a request of an older generation does not trigger another renewal.
+ *
+ * [status] starts as ACTIVE and only reports what renewals found out (login or profile selection required); logout
+ * and switch server do not change it. The start destination therefore comes from
+ * [de.bikemaintainer.app.data.storage.SettingsStore.settings] (stored server, mode, token, profile), not from [status].
  */
 class SessionState(initial: SessionStatus = SessionStatus.ACTIVE) {
     private val _status = MutableStateFlow(initial)

@@ -21,6 +21,11 @@ sealed interface AppError {
     /** Local storage (settings, encrypted token) could not be read or written. */
     data object Storage : AppError
 
+    /**
+     * The server answered 401, even after a renewal attempt. UI navigation must follow
+     * [de.bikemaintainer.app.data.network.SessionState.status], not this error alone: a transient renewal failure
+     * (network, Keystore) also yields Unauthorized while the stored token or profile stays valid.
+     */
     data object Unauthorized : AppError
 
     data object NotFound : AppError
