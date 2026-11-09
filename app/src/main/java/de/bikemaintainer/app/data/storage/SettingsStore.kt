@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import de.bikemaintainer.app.domain.ServerMode
+import de.bikemaintainer.app.domain.TaskStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -17,6 +18,8 @@ data class StoredSettings(
     val encryptedDeviceToken: String?,
     val profileId: Long?,
     val notificationsAsked: Boolean = false,
+    val notificationsEnabled: Boolean = true,
+    val reloginNotified: Boolean = false,
 )
 
 class SettingsStore(private val dataStore: DataStore<Preferences>) {
@@ -27,7 +30,25 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             encryptedDeviceToken = prefs[DEVICE_TOKEN_ENC],
             profileId = prefs[PROFILE_ID],
             notificationsAsked = prefs[NOTIFICATIONS_ASKED] ?: false,
+            notificationsEnabled = prefs[NOTIFICATIONS_ENABLED] ?: true,
+            reloginNotified = prefs[RELOGIN_NOTIFIED] ?: false,
         )
+    }
+
+    /** Due tasks already reported (task id to status), see `dueUpdates`. */
+    val reportedDue: Flow<Map<Long, TaskStatus>> = dataStore.data.map { prefs -> decodeReportedDue(prefs[REPORTED_DUE]) }
+
+    suspend fun setReportedDue(map: Map<Long, TaskStatus>) {
+        dataStore.edit { it[REPORTED_DUE] = map.entries.joinToString(",") { (id, status) -> "$id:${status.name}" } }
+    }
+
+    /** The user's wish; survives [clearSession]. */
+    suspend fun setNotificationsEnabled(enabled: Boolean) {
+        dataStore.edit { it[NOTIFICATIONS_ENABLED] = enabled }
+    }
+
+    suspend fun setReloginNotified(value: Boolean) {
+        dataStore.edit { it[RELOGIN_NOTIFIED] = value }
     }
 
     suspend fun current(): StoredSettings = settings.first()
@@ -49,6 +70,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             it[SERVER_MODE] = ServerMode.PORTAL.name
             it[DEVICE_TOKEN_ENC] = encryptedDeviceToken
             it.remove(PROFILE_ID)
+            it.remove(RELOGIN_NOTIFIED)
         }
     }
 
@@ -59,6 +81,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             it[SERVER_MODE] = ServerMode.HOUSEHOLD.name
             it[PROFILE_ID] = profileId
             it.remove(DEVICE_TOKEN_ENC)
+            it.remove(RELOGIN_NOTIFIED)
         }
     }
 
@@ -75,6 +98,8 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         dataStore.edit {
             it.remove(DEVICE_TOKEN_ENC)
             it.remove(PROFILE_ID)
+            it.remove(REPORTED_DUE)
+            it.remove(RELOGIN_NOTIFIED)
         }
     }
 
@@ -88,6 +113,19 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     }
 
     private companion object {
+        val REPORTED_DUE = stringPreferencesKey("reported_due")
+        val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
+        val RELOGIN_NOTIFIED = booleanPreferencesKey("relogin_notified")
+
+        /** Parses `"12:OVERDUE,15:DUE_SOON"`; unreadable entries are skipped. */
+        fun decodeReportedDue(raw: String?): Map<Long, TaskStatus> =
+            raw.orEmpty().split(',').mapNotNull { entry ->
+                val (id, name) = entry.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
+                val status = TaskStatus.entries.firstOrNull { it.name == name }
+                if (id.toLongOrNull() == null || status == null || status !in DUE_STATES) null else id.toLong() to status
+            }.toMap()
+
+        val DUE_STATES = setOf(TaskStatus.OVERDUE, TaskStatus.DUE_SOON)
         val SERVER_URL = stringPreferencesKey("server_url")
         val SERVER_MODE = stringPreferencesKey("server_mode")
         val DEVICE_TOKEN_ENC = stringPreferencesKey("device_token_enc")
