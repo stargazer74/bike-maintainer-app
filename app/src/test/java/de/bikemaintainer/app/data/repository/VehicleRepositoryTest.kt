@@ -5,9 +5,13 @@ import androidx.datastore.preferences.core.Preferences
 import de.bikemaintainer.app.data.repository.RepositoryTestEnv.Companion.json
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
+import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
+import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.domain.VehicleType
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.time.LocalDate
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -37,7 +41,7 @@ class VehicleRepositoryTest {
         val e = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), handler = handler)
         env = e
         if (configured) runBlocking { e.settings.setServer(e.url, de.bikemaintainer.app.domain.ServerMode.PORTAL) }
-        return VehicleRepository(e.provider)
+        return ApiVehicleRepository(e.provider)
     }
 
     private val response = """{"id":3,"name":"Tenere","type":"MOTORCYCLE","make":"Yamaha","model":"XT","modelYear":2021,
@@ -71,7 +75,7 @@ class VehicleRepositoryTest {
             handler = { json("[]") },
         )
         env = e
-        assertEquals(Outcome.Failure(AppError.Storage), runBlocking { VehicleRepository(e.provider).vehicles() })
+        assertEquals(Outcome.Failure(AppError.Storage), runBlocking { ApiVehicleRepository(e.provider).vehicles() })
         assertEquals(0, e.requests.size)
     }
 
@@ -126,5 +130,71 @@ class VehicleRepositoryTest {
     fun unreadableBodyIsHttpMinusOne() {
         val repo = setUp { json("""{"unexpected":true}""") }
         assertEquals(Outcome.Failure(AppError.Http(-1, null)), runBlocking { repo.vehicle(1) })
+    }
+
+    private fun vehicleJson(id: Int) = """{"id":$id,"name":"V$id","type":"CAR","modelYear":2020,
+        "firstRegistrationDate":"2020-01-01","currentMileage":1000,
+        "createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"""
+
+    private fun taskJson(id: Int, vehicleId: Int, status: String, active: Boolean = true) =
+        """{"id":$id,"vehicleId":$vehicleId,"name":"T$id","oneTime":false,"active":$active,"status":"$status"}"""
+
+    @Test
+    fun summariesCombineVehiclesAndTasks() {
+        val repo = setUp { req ->
+            when (req.url.encodedPath) {
+                "/api/v1/vehicles" -> json("[${vehicleJson(2)},${vehicleJson(1)}]")
+                "/api/v1/vehicles/1/maintenance-tasks" -> json("[${taskJson(1, 1, "OK")}]")
+                "/api/v1/vehicles/2/maintenance-tasks" ->
+                    json("[${taskJson(2, 2, "OVERDUE")},${taskJson(3, 2, "DUE_SOON")},${taskJson(4, 2, "OVERDUE", false)}]")
+                else -> json("{}", 404)
+            }
+        }
+        val summaries = (runBlocking { repo.summaries() } as Outcome.Success).value
+        assertEquals(listOf(2L, 1L), summaries.map { it.vehicle.id })
+        assertEquals(listOf(TaskStatus.OVERDUE, TaskStatus.OK), summaries.map { it.status })
+        assertEquals(listOf(2, 0), summaries.map { it.dueCount })
+    }
+
+    @Test
+    fun summariesFailWhenOneTaskListFails() {
+        val repo = setUp { req ->
+            when (req.url.encodedPath) {
+                "/api/v1/vehicles" -> json("[${vehicleJson(1)},${vehicleJson(2)}]")
+                "/api/v1/vehicles/1/maintenance-tasks" -> json("[]")
+                else -> json("""{"code":"BOOM","status":500}""", 500)
+            }
+        }
+        assertEquals(Outcome.Failure(AppError.Http(500, "BOOM")), runBlocking { repo.summaries() })
+    }
+
+    @Test
+    fun summariesReportTheFirstFailureInVehicleOrderNotTheFastest() {
+        val secondAnswered = CountDownLatch(1)
+        val repo = setUp { req ->
+            when (req.url.encodedPath) {
+                "/api/v1/vehicles" -> json("[${vehicleJson(1)},${vehicleJson(2)}]")
+                "/api/v1/vehicles/1/maintenance-tasks" -> {
+                    secondAnswered.await(5, TimeUnit.SECONDS) // vehicle 1 fails last
+                    json("""{"code":"FIRST","status":500}""", 500)
+                }
+                else -> json("""{"code":"SECOND","status":502}""", 502).also { secondAnswered.countDown() }
+            }
+        }
+        assertEquals(Outcome.Failure(AppError.Http(500, "FIRST")), runBlocking { repo.summaries() })
+        assertEquals(0L, secondAnswered.count)
+    }
+
+    @Test
+    fun summariesFailWhenVehiclesFail() {
+        val repo = setUp(configured = false) { json("[]") }
+        assertEquals(Outcome.Failure(AppError.NotConfigured), runBlocking { repo.summaries() })
+    }
+
+    @Test
+    fun summariesOfNoVehiclesAreEmpty() {
+        val repo = setUp { json("[]") }
+        assertEquals(Outcome.Success(emptyList<VehicleSummary>()), runBlocking { repo.summaries() })
+        assertEquals(1, env!!.requests.size)
     }
 }

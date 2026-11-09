@@ -1,6 +1,18 @@
 <resources>
     <string name="app_name">Bike Maintainer</string>
-    <string name="vehicles_placeholder">Fahrzeuge folgen im nächsten Schritt.</string>
+    <string name="error_no_connection">Keine Verbindung.</string>
+    <string name="error_server_not_responding">Der Server antwortet nicht.</string>
+    <string name="error_vehicle_not_found">Das Fahrzeug wurde nicht gefunden.</string>
+    <string name="error_load_failed">Daten konnten nicht geladen werden.</string>
+    <string name="status_overdue">Überfällig</string>
+    <string name="status_due_soon">Bald fällig</string>
+    <string name="status_ok">OK</string>
+    <string name="status_done">Erledigt</string>
+    <string name="vehicle_all_up_to_date">Alles aktuell</string>
+    <string name="vehicle_no_tasks">Keine Wartungsaufgaben</string>
+    <string name="vehicle_due_count">Fällig: %1$d</string>
+    <string name="vehicle_mileage">%1$s km</string>
+    <string name="vehicles_empty">Noch keine Fahrzeuge erfasst. Lege sie in der Web-App an.</string>
     <string name="settings">Einstellungen</string>
     <string name="setup_server_address">Server-Adresse</string>
     <string name="setup_continue">Weiter</string>
@@ -30,9 +42,9 @@
     <string name="profiles_title">Wer bist du?</string>
     <string name="profiles_subtitle">Wähle deine Person, um deine Fahrzeuge zu sehen.</string>
     <string name="profiles_load_failed">Die Personen konnten nicht geladen werden.</string>
-    <string name="profiles_retry">Erneut versuchen</string>
+    <string name="retry">Erneut versuchen</string>
     <string name="profiles_empty">Noch keine Personen – lege sie in der Web-App an.</string>
-    <string name="profiles_open_web_app">Web-App öffnen</string>
+    <string name="open_web_app">Web-App öffnen</string>
     <string name="profiles_select_failed">Diese Person konnte nicht ausgewählt werden. Bitte wähle erneut.</string>
     <string name="no_browser_found">Kein Browser gefunden.</string>
     <string name="back">Zurück</string>
@@ -53,4 +65,29 @@
     <string name="legal_imprint">Impressum</string>
     <string name="legal_privacy">Datenschutz</string>
     <string name="legal_website">Website</string>
+    <string name="vehicle_tasks_empty">Noch keine Wartungsaufgaben angelegt.</string>
+    <string name="vehicle_subtitle">%1$s • Baujahr %2$d</string>
+    <string name="vehicle_subtitle_year">Baujahr %1$d</string>
+    <string name="task_overdue_km">Überfällig um %1$s km</string>
+    <string name="task_due_soon_km">Fällig in %1$s km</string>
+    <string name="task_first_due_km">Erstfällig in %1$s km</string>
+    <string name="task_ok_km">OK (%1$s km verbleibend)</string>
+    <string name="task_never_performed">Fällig (noch nie durchgeführt)</string>
+    <string name="task_done_on">Erledigt am %1$s</string>
+    <plurals name="task_overdue_days">
+        <item quantity="one">Überfällig seit %1$s Tag</item>
+        <item quantity="other">Überfällig seit %1$s Tagen</item>
+    </plurals>
+    <plurals name="task_due_soon_days">
+        <item quantity="one">Fällig in %1$s Tag</item>
+        <item quantity="other">Fällig in %1$s Tagen</item>
+    </plurals>
+    <plurals name="task_first_due_days">
+        <item quantity="one">Erstfällig in %1$s Tag</item>
+        <item quantity="other">Erstfällig in %1$s Tagen</item>
+    </plurals>
+    <plurals name="task_ok_days">
+        <item quantity="one">OK (%1$s Tag verbleibend)</item>
+        <item quantity="other">OK (%1$s Tage verbleibend)</item>
+    </plurals>
 </resources>

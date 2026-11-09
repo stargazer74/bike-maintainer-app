@@ -31,17 +31,17 @@ class MappersTest {
         val full = MaintenanceTaskResponse(
             id = 1, vehicleId = 3, name = "Oil", oneTime = false, active = true,
             status = MaintenanceTaskStatus.DUE_SOON, progress = 0.8, kmRemaining = 200, daysRemaining = 12,
-            lastServiceMileage = 20000, lastServiceDate = LocalDate.of(2026, 1, 2),
+            lastServiceMileage = 20000, lastServiceDate = LocalDate.of(2026, 1, 2), remainingFraction = -0.25,
         )
         assertEquals(
-            MaintenanceTask(1, 3, "Oil", false, true, TaskStatus.DUE_SOON, 0.8, 200, 12, 20000, LocalDate.of(2026, 1, 2)),
+            MaintenanceTask(1, 3, "Oil", false, true, TaskStatus.DUE_SOON, 0.8, 200, 12, 20000, LocalDate.of(2026, 1, 2), -0.25),
             full.toDomain(),
         )
         val sparse = MaintenanceTaskResponse(
             id = 2, vehicleId = 3, name = "Chain", oneTime = true, active = false, status = MaintenanceTaskStatus.DONE,
         )
         assertEquals(
-            MaintenanceTask(2, 3, "Chain", true, false, TaskStatus.DONE, null, null, null, null, null),
+            MaintenanceTask(2, 3, "Chain", true, false, TaskStatus.DONE, null, null, null, null, null, null),
             sparse.toDomain(),
         )
         MaintenanceTaskStatus.entries.forEach { assertEquals(it.name, it.toDomain().name) }

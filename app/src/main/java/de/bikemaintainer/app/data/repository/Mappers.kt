@@ -63,6 +63,7 @@ internal fun MaintenanceTaskResponse.toDomain() = MaintenanceTask(
     daysRemaining = daysRemaining,
     lastServiceMileage = lastServiceMileage,
     lastServiceDate = lastServiceDate,
+    remainingFraction = remainingFraction,
 )
 
 internal fun ProfileResponse.toDomain() = Profile(id, displayName)
