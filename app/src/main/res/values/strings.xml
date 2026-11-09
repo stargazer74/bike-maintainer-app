@@ -1,3 +1,5 @@
 <resources>
-    <string name="app_name">Bike maintainer</string>
+    <string name="app_name">Bike Maintainer</string>
+    <string name="vehicles_placeholder">Vehicles follow in the next step.</string>
+    <string name="settings">Settings</string>
 </resources>

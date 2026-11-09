@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Bike Maintainer</string>
+    <string name="vehicles_placeholder">Fahrzeuge folgen im nächsten Schritt.</string>
+    <string name="settings">Einstellungen</string>
+</resources>
