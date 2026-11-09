@@ -1,6 +1,18 @@
 <resources>
     <string name="app_name">Bike Maintainer</string>
-    <string name="vehicles_placeholder">Vehicles follow in the next step.</string>
+    <string name="error_no_connection">No connection.</string>
+    <string name="error_server_not_responding">The server does not respond.</string>
+    <string name="error_vehicle_not_found">The vehicle was not found.</string>
+    <string name="error_load_failed">Data could not be loaded.</string>
+    <string name="status_overdue">Overdue</string>
+    <string name="status_due_soon">Due soon</string>
+    <string name="status_ok">OK</string>
+    <string name="status_done">Done</string>
+    <string name="vehicle_all_up_to_date">All up to date</string>
+    <string name="vehicle_no_tasks">No maintenance tasks</string>
+    <string name="vehicle_due_count">Due: %1$d</string>
+    <string name="vehicle_mileage">%1$s km</string>
+    <string name="vehicles_empty">No vehicles recorded yet. Create them in the web app.</string>
     <string name="settings">Settings</string>
     <string name="setup_server_address">Server address</string>
     <string name="setup_continue">Continue</string>
