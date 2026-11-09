@@ -74,22 +74,27 @@ class SessionAuthenticator(
             state.require(SessionStatus.LOGIN_REQUIRED)
             return null
         }
-        val result = sessionApis().first.createDeviceSession(DeviceSessionRequest(token))
-        val newToken = result.body()?.deviceToken
-        return when {
-            result.code() == HTTP_OK && newToken != null -> {
-                // The old token is used up now: store the new one before the new session can be used.
-                tokens.set(newToken)
-                state.sessionStarted()
-                retry(request)
-            }
-            result.code() == HTTP_UNAUTHORIZED -> {
-                tokens.clear()
-                state.require(SessionStatus.LOGIN_REQUIRED)
-                null
-            }
-            else -> null
+        val result = try {
+            sessionApis().first.createDeviceSession(DeviceSessionRequest(token))
+        } catch (_: SerializationException) {
+            // A 200 whose body cannot be read: the server has already rotated the token, but we never got the new one.
+            return rejectExchange()
         }
+        if (result.code() == HTTP_UNAUTHORIZED) return rejectExchange()
+        if (result.code() != HTTP_OK) return null
+        // Same as above: the old token is used up; presenting it again would look like a copied token.
+        val newToken = result.body()?.deviceToken ?: return rejectExchange()
+        // Store the new token before the new session can be used.
+        tokens.set(newToken)
+        state.sessionStarted()
+        return retry(request)
+    }
+
+    /** The device token is invalid or used up: forget it, the user has to log in again. */
+    private suspend fun rejectExchange(): Request? {
+        tokens.clear()
+        state.require(SessionStatus.LOGIN_REQUIRED)
+        return null
     }
 
     private suspend fun reselectProfile(request: Request): Request? {

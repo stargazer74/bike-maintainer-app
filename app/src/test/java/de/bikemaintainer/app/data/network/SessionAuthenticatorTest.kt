@@ -244,6 +244,24 @@ class SessionAuthenticatorTest {
     }
 
     @Test
+    fun unreadableExchangeBodyRequiresLogin() {
+        setUp { req ->
+            when (req.url.encodedPath) {
+                VEHICLES -> status(401)
+                // 200, but without the new device token.
+                DEVICE_SESSION -> json("""{"user":$USER}""")
+                else -> status(500)
+            }
+        }
+        get(VEHICLES).use { assertEquals(401, it.code) }
+        assertEquals(SessionStatus.LOGIN_REQUIRED, state.status.value)
+        assertNull(runBlocking { tokens.get() })
+        assertEquals(1, count(DEVICE_SESSION))
+        assertEquals(1, count(VEHICLES))
+        assertEquals(0L, state.generation)
+    }
+
+    @Test
     fun failedExchangeKeepsTokenAndStatus() {
         setUp { req ->
             when (req.url.encodedPath) {
