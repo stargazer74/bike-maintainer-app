@@ -43,10 +43,13 @@ class DueTaskCheck(
         val current = mutableListOf<Pair<Vehicle, List<MaintenanceTask>>>()
         for (vehicle in list) {
             when (val result = maintenance.tasks(vehicle.id)) {
-                is Outcome.Failure -> return onFailure(result.error)
+                // Deleted between the list and this call: nothing to remind about.
+                is Outcome.Failure -> if (result.error != AppError.NotFound) return onFailure(result.error)
                 is Outcome.Success -> current += vehicle to result.value
             }
         }
+        // Logged out (or switched off) while loading: report nothing for a session that is gone.
+        if (!remindersWanted(settings, notificationsAllowed)) return CheckResult.STOP
         val update = dueUpdates(settings.reportedDue.first(), current)
         update.toNotify.forEach(notifications::showDue)
         settings.setReportedDue(update.newState)

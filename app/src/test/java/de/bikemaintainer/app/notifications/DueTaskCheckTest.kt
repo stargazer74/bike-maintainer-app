@@ -207,4 +207,32 @@ class DueTaskCheckTest {
         assertEquals(0, notifications.reloginShown)
         assertEquals(emptyMap<Long, TaskStatus>(), settings.reportedDue.first())
     }
+
+    @Test
+    fun vehicleDeletedMeanwhileIsSkipped() = runTest {
+        val settings = store()
+        twoVehicles(Outcome.Success(listOf(task(20, 2, TaskStatus.DUE_SOON))))
+        maintenance = PerVehicleMaintenance(
+            mapOf(1L to Outcome.Failure(AppError.NotFound), 2L to Outcome.Success(listOf(task(20, 2, TaskStatus.DUE_SOON)))),
+        )
+        assertEquals(CheckResult.DONE, check(settings).run())
+        assertEquals(listOf(VehicleDue(2, "B", listOf(DueTask(20, "Task 20", TaskStatus.DUE_SOON)))), notifications.shown)
+        assertEquals(mapOf(20L to TaskStatus.DUE_SOON), settings.reportedDue.first())
+    }
+
+    @Test
+    fun loggedOutWhileLoadingNotifiesAndStoresNothing() = runTest {
+        val settings = store()
+        vehicles.vehiclesResult = Outcome.Success(listOf(vehicle(1, "A")))
+        val repo = object : MaintenanceRepository by FakeMaintenanceRepository() {
+            override suspend fun tasks(vehicleId: Long): Outcome<List<MaintenanceTask>> {
+                settings.clearSession()
+                return Outcome.Success(listOf(task(10, 1, TaskStatus.OVERDUE)))
+            }
+        }
+        val result = DueTaskCheck(vehicles, repo, settings, notifications) { allowed }.run()
+        assertEquals(CheckResult.STOP, result)
+        assertTrue(notifications.shown.isEmpty())
+        assertEquals(emptyMap<Long, TaskStatus>(), settings.reportedDue.first())
+    }
 }

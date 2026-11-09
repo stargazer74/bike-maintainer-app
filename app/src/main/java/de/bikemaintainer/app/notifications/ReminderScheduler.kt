@@ -1,6 +1,7 @@
 package de.bikemaintainer.app.notifications
 
 import android.content.Context
+import android.util.Log
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -10,6 +11,7 @@ import de.bikemaintainer.app.data.storage.SettingsStore
 import java.time.Duration
 import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.cancellation.CancellationException
 
 /** Plans or cancels the daily due task check. */
 interface ReminderScheduler {
@@ -17,6 +19,17 @@ interface ReminderScheduler {
     suspend fun sync()
 
     fun cancel()
+}
+
+/** [ReminderScheduler.sync] for the app start: a failure there must never crash the app (it only logs the type). */
+suspend fun ReminderScheduler.syncQuietly() {
+    try {
+        sync()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w("ReminderScheduler", "Syncing the reminder schedule failed: ${e.javaClass.simpleName}")
+    }
 }
 
 class WorkManagerReminderScheduler(
