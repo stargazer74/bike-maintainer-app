@@ -1,47 +1,32 @@
 package de.bikemaintainer.app
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import de.bikemaintainer.app.ui.navigation.AppNavHost
+import de.bikemaintainer.app.ui.navigation.readStartDestination
+import de.bikemaintainer.app.ui.theme.AppSurface
 import de.bikemaintainer.app.ui.theme.BikeMaintainerTheme
 
-class MainActivity : ComponentActivity() {
+// AppCompatActivity: AppCompatDelegate.setApplicationLocales needs it below Android 13.
+class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val container = (application as BikeMaintainerApp).container
         setContent {
             BikeMaintainerTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                AppSurface {
+                    // Read once; until then only the background. Unreadable settings start at the setup.
+                    val start by produceState<Any?>(initialValue = null) {
+                        value = readStartDestination { container.settings.current() }
+                    }
+                    start?.let { AppNavHost(container = container, start = it) }
                 }
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    BikeMaintainerTheme {
-        Greeting("Android")
     }
 }

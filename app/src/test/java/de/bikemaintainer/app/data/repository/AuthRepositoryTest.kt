@@ -1,6 +1,7 @@
 package de.bikemaintainer.app.data.repository
 
 import de.bikemaintainer.app.data.repository.RepositoryTestEnv.Companion.json
+import de.bikemaintainer.app.domain.Account
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Profile
@@ -14,6 +15,7 @@ import de.bikemaintainer.app.data.storage.TokenCipher
 import java.io.IOException
 import java.security.GeneralSecurityException
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import org.junit.After
@@ -42,9 +44,89 @@ class AuthRepositoryTest {
         cipher: TokenCipher = FakeTokenCipher(),
         wrap: (DataStore<Preferences>) -> DataStore<Preferences> = { it },
         handler: (mockwebserver3.RecordedRequest) -> MockResponse = { json("{}") },
-    ): AuthRepository {
+    ): ApiAuthRepository {
         env = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), cipher, wrap, handler)
-        return AuthRepository(env.provider, env.settings, env.tokens, env.state)
+        return ApiAuthRepository(env.provider, env.settings, env.tokens, env.state)
+    }
+
+    /** Answers GET /config like the backend (sets the CSRF cookie); everything else goes to [handler]. */
+    private fun withConfig(
+        mode: String = "portal",
+        handler: (mockwebserver3.RecordedRequest) -> MockResponse,
+    ): (mockwebserver3.RecordedRequest) -> MockResponse = { req ->
+        if (req.url.encodedPath == "/api/v1/config") {
+            json("""{"mode":"$mode"}""").newBuilder().addHeader("Set-Cookie", "XSRF-TOKEN=csrf-1; Path=/").build()
+        } else {
+            handler(req)
+        }
+    }
+
+    /** Like Spring's csrf.spa(): a POST without the matching X-XSRF-TOKEN header is rejected with 403. */
+    private fun csrfChecked(handler: (mockwebserver3.RecordedRequest) -> MockResponse) = withConfig { req ->
+        if (req.method == "POST" && req.headers["X-XSRF-TOKEN"] != "csrf-1") {
+            json("""{"code":"FORBIDDEN"}""", 403)
+        } else {
+            handler(req)
+        }
+    }
+
+    @Test
+    fun deviceLoginAfterLogoutFetchesCsrfCookieFirst() {
+        val repo = setUp(handler = csrfChecked { req ->
+            if (req.url.encodedPath.endsWith("/logout")) MockResponse.Builder().code(204).build()
+            else json("""{"user":$user,"deviceToken":"tok"}""")
+        })
+        runBlocking {
+            env.settings.setServer(env.url, ServerMode.PORTAL)
+            assertEquals(Outcome.Success(ServerConfig(ServerMode.PORTAL, null)), repo.fetchConfig(env.url))
+            repo.logout() // resets the provider and with it the cookie jar
+        }
+        assertEquals(Outcome.Success(Unit), runBlocking { repo.deviceLogin(env.url, "a@b.de", "pw", "Pixel") })
+    }
+
+    @Test
+    fun deviceLoginWithoutPriorConfigFetchesCsrfCookie() {
+        val repo = setUp(handler = csrfChecked { json("""{"user":$user,"deviceToken":"tok"}""") })
+        assertEquals(Outcome.Success(Unit), runBlocking { repo.deviceLogin(env.url, "a@b.de", "pw", "Pixel") })
+        assertEquals(listOf("/api/v1/config", "/api/v1/auth/device-login"), env.requests.map { it.url.encodedPath })
+    }
+
+    @Test
+    fun deviceLoginReusesExistingCsrfCookie() {
+        val repo = setUp(handler = csrfChecked { json("""{"user":$user,"deviceToken":"tok"}""") })
+        runBlocking { repo.fetchConfig(env.url) }
+        assertEquals(Outcome.Success(Unit), runBlocking { repo.deviceLogin(env.url, "a@b.de", "pw", "Pixel") })
+        assertEquals(1, env.requests.count { it.url.encodedPath == "/api/v1/config" })
+    }
+
+    @Test
+    fun selectProfileAfterLogoutFetchesCsrfCookieFirst() {
+        val repo = setUp(handler = csrfChecked { req ->
+            if (req.url.encodedPath.endsWith("/logout")) MockResponse.Builder().code(204).build() else json(user)
+        })
+        runBlocking {
+            env.settings.setServer(env.url, ServerMode.HOUSEHOLD)
+            repo.fetchConfig(env.url)
+            repo.logout()
+        }
+        assertEquals(Outcome.Success(Unit), runBlocking { repo.selectProfile(env.url, 7) })
+        assertEquals(7L, runBlocking { env.settings.current() }.profileId)
+    }
+
+    @Test
+    fun csrfFetchFailureIsReportedLikeALoginFailure() {
+        val repo = setUp { MockResponse.Builder().code(503).build() }
+        assertEquals(
+            Outcome.Failure(AppError.Http(503, null)),
+            runBlocking { repo.deviceLogin(env.url, "a@b.de", "pw", "Pixel") },
+        )
+        assertEquals(
+            Outcome.Failure(AppError.Http(503, null)),
+            runBlocking { repo.selectProfile(env.url, 7) },
+        )
+        assertEquals(listOf("/api/v1/config", "/api/v1/config"), env.requests.map { it.url.encodedPath })
+        env.server.close()
+        assertEquals(Outcome.Failure(AppError.Network), runBlocking { repo.deviceLogin(env.url, "a@b.de", "pw", "Pixel") })
     }
 
     @Test
@@ -63,8 +145,23 @@ class AuthRepositoryTest {
     }
 
     @Test
+    fun nonHttpWebsiteUrlIsTreatedAsAbsent() {
+        for (site in listOf("javascript:alert(1)", "file:///etc/passwd", "intent://x#Intent;end", "ftp://w")) {
+            env = RepositoryTestEnv(tmp.newFile(), handler = { json("""{"mode":"portal","websiteUrl":"$site"}""") })
+            val repo = ApiAuthRepository(env.provider, env.settings, env.tokens, env.state)
+            assertEquals(site, Outcome.Success(ServerConfig(ServerMode.PORTAL, null)), runBlocking { repo.fetchConfig(env.url) })
+            env.close()
+        }
+        val repo = setUp { json("""{"mode":"portal","websiteUrl":"HTTP://w.example"}""") }
+        assertEquals(
+            Outcome.Success(ServerConfig(ServerMode.PORTAL, "HTTP://w.example")),
+            runBlocking { repo.fetchConfig(env.url) },
+        )
+    }
+
+    @Test
     fun deviceLoginStoresServerModeAndToken() {
-        val repo = setUp { json("""{"user":$user,"deviceToken":"tok"}""") }
+        val repo = setUp(handler = withConfig { json("""{"user":$user,"deviceToken":"tok"}""") })
         val generation = env.state.generation
         assertEquals(Outcome.Success(Unit), runBlocking { repo.deviceLogin(env.url, "a@b.de", "pw", "Pixel") })
         val stored = runBlocking { env.settings.current() }
@@ -76,7 +173,7 @@ class AuthRepositoryTest {
 
     @Test
     fun deviceLoginFailureStoresNothing() {
-        val repo = setUp { json("""{"code":"EMAIL_NOT_VERIFIED"}""", 403) }
+        val repo = setUp(handler = withConfig { json("""{"code":"EMAIL_NOT_VERIFIED"}""", 403) })
         assertEquals(
             Outcome.Failure(AppError.Http(403, "EMAIL_NOT_VERIFIED")),
             runBlocking { repo.deviceLogin(env.url, "a@b.de", "pw", "Pixel") },
@@ -87,9 +184,9 @@ class AuthRepositoryTest {
 
     @Test
     fun selectProfileStoresHouseholdProfile() {
-        val repo = setUp { req ->
+        val repo = setUp(handler = withConfig("household") { req ->
             if (req.url.encodedPath.endsWith("/select")) json(user) else json("""[{"id":7,"displayName":"Chris"}]""")
-        }
+        })
         assertEquals(Outcome.Success(listOf(Profile(7, "Chris"))), runBlocking { repo.profiles(env.url) })
         assertEquals(Outcome.Success(Unit), runBlocking { repo.selectProfile(env.url, 7) })
         val stored = runBlocking { env.settings.current() }
@@ -123,7 +220,7 @@ class AuthRepositoryTest {
 
     @Test
     fun selectProfileStoresEverythingInOneWrite() {
-        val repo = setUp(wrap = ::limitedWrites) { json(user) }
+        val repo = setUp(wrap = ::limitedWrites, handler = withConfig("household") { json(user) })
         runBlocking {
             env.settings.setServer("https://previous.example/", ServerMode.PORTAL)
             env.tokens.set("tok")
@@ -136,7 +233,7 @@ class AuthRepositoryTest {
 
     @Test
     fun deviceLoginStoresEverythingInOneWrite() {
-        val repo = setUp(wrap = ::limitedWrites) { json("""{"user":$user,"deviceToken":"tok"}""") }
+        val repo = setUp(wrap = ::limitedWrites, handler = withConfig { json("""{"user":$user,"deviceToken":"tok"}""") })
         runBlocking {
             env.settings.setServer("http://192.168.0.2:8080/", ServerMode.HOUSEHOLD)
             env.settings.setProfileId(5)
@@ -148,7 +245,7 @@ class AuthRepositoryTest {
 
     @Test
     fun failedSelectProfileWriteKeepsPreviousState() {
-        val repo = setUp(wrap = ::limitedWrites) { json(user) }
+        val repo = setUp(wrap = ::limitedWrites, handler = withConfig("household") { json(user) })
         runBlocking {
             env.settings.setServer("https://previous.example/", ServerMode.HOUSEHOLD)
             env.settings.setProfileId(5)
@@ -207,7 +304,7 @@ class AuthRepositoryTest {
             override fun encrypt(plain: String): String = throw GeneralSecurityException("keystore")
             override fun decrypt(encrypted: String): String = throw GeneralSecurityException("keystore")
         }
-        val repo = setUp(cipher = failing) { json("""{"user":$user,"deviceToken":"tok"}""") }
+        val repo = setUp(cipher = failing, handler = withConfig { json("""{"user":$user,"deviceToken":"tok"}""") })
         assertEquals(Outcome.Failure(AppError.Storage), runBlocking { repo.deviceLogin(env.url, "a@b.de", "pw", "Pixel") })
         assertNull(runBlocking { env.settings.current() }.serverUrl)
     }
@@ -224,5 +321,47 @@ class AuthRepositoryTest {
         val before = env.provider.apisFor(env.url)
         assertEquals(Outcome.Failure(AppError.Storage), runBlocking { repo.logout() })
         assertNotSame(before, env.provider.apisFor(env.url))
+    }
+
+    @Test
+    fun markNotificationsAskedSwallowsStorageFailure() {
+        writesLeft.set(0)
+        val repo = setUp(wrap = ::limitedWrites)
+        runBlocking { repo.markNotificationsAsked() } // must not throw
+        assertEquals(false, runBlocking { repo.settings.first() }.notificationsAsked)
+    }
+
+    @Test
+    fun currentAccountMapsEmailAndDisplayName() {
+        val repo = setUp { req ->
+            assertEquals("/api/v1/auth/me", req.url.encodedPath)
+            json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"emailVerified":true,
+                "createdAt":"2026-01-01T00:00:00Z","email":"a@b.de"}""")
+        }
+        runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
+        assertEquals(Outcome.Success(Account("a@b.de", null)), runBlocking { repo.currentAccount() })
+    }
+
+    @Test
+    fun currentAccountMapsDisplayNameInHouseholdMode() {
+        val repo = setUp {
+            json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"emailVerified":true,
+                "createdAt":"2026-01-01T00:00:00Z","displayName":"Chris"}""")
+        }
+        runBlocking { env.settings.setServer(env.url, ServerMode.HOUSEHOLD) }
+        assertEquals(Outcome.Success(Account(null, "Chris")), runBlocking { repo.currentAccount() })
+    }
+
+    @Test
+    fun currentAccountWithoutServerIsNotConfigured() {
+        val repo = setUp()
+        assertEquals(Outcome.Failure(AppError.NotConfigured), runBlocking { repo.currentAccount() })
+    }
+
+    @Test
+    fun markNotificationsAskedIsExposedInSettings() {
+        val repo = setUp()
+        runBlocking { repo.markNotificationsAsked() }
+        assertEquals(true, runBlocking { repo.settings.first() }.notificationsAsked)
     }
 }

@@ -2,6 +2,7 @@ package de.bikemaintainer.app.data.storage
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -15,6 +16,7 @@ data class StoredSettings(
     val mode: ServerMode?,
     val encryptedDeviceToken: String?,
     val profileId: Long?,
+    val notificationsAsked: Boolean = false,
 )
 
 class SettingsStore(private val dataStore: DataStore<Preferences>) {
@@ -24,6 +26,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             mode = prefs[SERVER_MODE]?.let { name -> ServerMode.entries.firstOrNull { it.name == name } },
             encryptedDeviceToken = prefs[DEVICE_TOKEN_ENC],
             profileId = prefs[PROFILE_ID],
+            notificationsAsked = prefs[NOTIFICATIONS_ASKED] ?: false,
         )
     }
 
@@ -75,6 +78,11 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    /** Survives [clearSession] (it belongs to the app, not the session); [clearAll] resets it. */
+    suspend fun setNotificationsAsked() {
+        dataStore.edit { it[NOTIFICATIONS_ASKED] = true }
+    }
+
     suspend fun clearAll() {
         dataStore.edit { it.clear() }
     }
@@ -84,5 +92,6 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         val SERVER_MODE = stringPreferencesKey("server_mode")
         val DEVICE_TOKEN_ENC = stringPreferencesKey("device_token_enc")
         val PROFILE_ID = longPreferencesKey("profile_id")
+        val NOTIFICATIONS_ASKED = booleanPreferencesKey("notifications_asked")
     }
 }

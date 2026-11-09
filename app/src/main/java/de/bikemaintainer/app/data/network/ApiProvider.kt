@@ -36,11 +36,20 @@ class ApiProvider(
         val logs: MaintenanceLogsApi,
     )
 
-    private val cache = HashMap<String, Apis>()
+    /** The APIs of one address with the cookie jar they share. */
+    private class Entry(val apis: Apis, val cookieJar: InMemoryCookieJar)
 
-    fun apisFor(serverUrl: String): Apis {
+    private val cache = HashMap<String, Entry>()
+
+    fun apisFor(serverUrl: String): Apis = entryFor(normalize(serverUrl)).apis
+
+    /**
+     * Whether the cookie jar of this address holds the CSRF cookie (XSRF-TOKEN). Without it a state-changing request
+     * is rejected by the server; any GET, e.g. the config, sets it.
+     */
+    fun hasCsrfCookie(serverUrl: String): Boolean {
         val base = normalize(serverUrl)
-        return synchronized(cache) { cache.getOrPut(base.toString()) { build(base) } }
+        return entryFor(base).cookieJar.valueOf(base, CsrfInterceptor.COOKIE_NAME) != null
     }
 
     /**
@@ -49,14 +58,16 @@ class ApiProvider(
      */
     suspend fun apis(): Apis? {
         val base = settings.current().serverUrl?.let(::normalizeOrNull) ?: return null
-        return synchronized(cache) { cache.getOrPut(base.toString()) { build(base) } }
+        return entryFor(base).apis
     }
+
+    private fun entryFor(base: HttpUrl): Entry = synchronized(cache) { cache.getOrPut(base.toString()) { build(base) } }
 
     fun reset() {
         synchronized(cache) { cache.clear() }
     }
 
-    private fun build(base: HttpUrl): Apis {
+    private fun build(base: HttpUrl): Entry {
         val cookieJar = InMemoryCookieJar()
         // The session client is built from the main client, which in turn needs the authenticator: hence the lazies.
         lateinit var client: OkHttpClient
@@ -66,7 +77,7 @@ class ApiProvider(
         }
         client = HttpClientFactory.create(cookieJar, authenticator, listOf(GenerationTagInterceptor(state)), debugLog)
         val retrofit = retrofit(client, base)
-        return Apis(
+        val apis = Apis(
             auth = retrofit.create(AuthApi::class.java),
             config = retrofit.create(ConfigApi::class.java),
             profiles = retrofit.create(ProfilesApi::class.java),
@@ -74,6 +85,7 @@ class ApiProvider(
             tasks = retrofit.create(MaintenanceTasksApi::class.java),
             logs = retrofit.create(MaintenanceLogsApi::class.java),
         )
+        return Entry(apis, cookieJar)
     }
 
     private fun retrofit(client: OkHttpClient, base: HttpUrl): Retrofit = Retrofit.Builder()
