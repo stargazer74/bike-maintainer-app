@@ -74,6 +74,7 @@ class SessionAuthenticatorTest {
         token: String? = "alt",
         cipher: TokenCipher = FakeTokenCipher(),
         profileId: Long? = null,
+        storedServer: String? = null,
         handler: (RecordedRequest) -> MockResponse,
     ) {
         server.dispatcher = object : Dispatcher() {
@@ -88,14 +89,14 @@ class SessionAuthenticatorTest {
         )
         tokens = DeviceTokenStore(settings, cipher)
         runBlocking {
-            settings.setServer(server.url("/").toString(), mode)
+            settings.setServer(storedServer ?: server.url("/").toString(), mode)
             if (token != null) DeviceTokenStore(settings, FakeTokenCipher()).set(token)
             settings.setProfileId(profileId)
         }
         state = SessionState()
         cookieJar = InMemoryCookieJar()
         lateinit var built: OkHttpClient
-        val authenticator = SessionAuthenticator(settings, tokens, state) {
+        val authenticator = SessionAuthenticator(server.url("/"), settings, tokens, state) {
             val retrofit = retrofit(SessionAuthenticator.sessionClient(built))
             retrofit.create(AuthApi::class.java) to retrofit.create(ProfilesApi::class.java)
         }
@@ -384,6 +385,35 @@ class SessionAuthenticatorTest {
     }
 
     @Test
+    fun tokenIsNeverSentToAnotherServer() {
+        // The stored token belongs to another server; the client talks to a candidate address (e.g. during setup).
+        setUp(storedServer = "https://stored.example/") { req ->
+            when (req.url.encodedPath) {
+                PROFILES -> status(401)
+                DEVICE_SESSION -> exchanged()
+                else -> status(500)
+            }
+        }
+        get(PROFILES).use { assertEquals(401, it.code) }
+        assertEquals(0, count(DEVICE_SESSION))
+        assertEquals("enc:alt", runBlocking { settings.current() }.encryptedDeviceToken)
+        assertEquals(SessionStatus.ACTIVE, state.status.value)
+    }
+
+    @Test
+    fun profileIsNeverReselectedOnAnotherServer() {
+        setUp(mode = ServerMode.HOUSEHOLD, token = null, profileId = 3, storedServer = "http://192.168.0.2:8080/") { req ->
+            when (req.url.encodedPath) {
+                VEHICLES -> status(401)
+                else -> json(USER)
+            }
+        }
+        get(VEHICLES).use { assertEquals(401, it.code) }
+        assertEquals(listOf("GET $VEHICLES"), seen.toList())
+        assertEquals(3L, runBlocking { settings.current() }.profileId)
+    }
+
+    @Test
     fun householdReselectsProfile() {
         setUp(mode = ServerMode.HOUSEHOLD, token = null, profileId = 3) { req ->
             when (req.url.encodedPath) {
@@ -421,6 +451,7 @@ class SessionAuthenticatorTest {
 
     private companion object {
         const val VEHICLES = "/api/v1/vehicles"
+        const val PROFILES = "/api/v1/profiles"
         const val DEVICE_SESSION = "/api/v1/auth/device-session"
         const val DEVICE_LOGIN = "/api/v1/auth/device-login"
         const val USER = """{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,

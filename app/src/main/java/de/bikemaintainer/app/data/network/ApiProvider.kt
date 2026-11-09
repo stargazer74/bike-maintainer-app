@@ -58,7 +58,7 @@ class ApiProvider(
         // The session client is built from the main client, which in turn needs the authenticator: hence the lazies.
         lateinit var client: OkHttpClient
         val sessionRetrofit by lazy { retrofit(SessionAuthenticator.sessionClient(client), base) }
-        val authenticator = SessionAuthenticator(settings, tokens, state) {
+        val authenticator = SessionAuthenticator(base, settings, tokens, state) {
             sessionRetrofit.create(AuthApi::class.java) to sessionRetrofit.create(ProfilesApi::class.java)
         }
         client = HttpClientFactory.create(cookieJar, authenticator, listOf(GenerationTagInterceptor(state)), debugLog)

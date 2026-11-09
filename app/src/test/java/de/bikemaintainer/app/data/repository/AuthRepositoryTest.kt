@@ -97,6 +97,18 @@ class AuthRepositoryTest {
     }
 
     @Test
+    fun candidateServerNeverReceivesStoredToken() {
+        val repo = setUp { MockResponse.Builder().code(401).build() }
+        runBlocking {
+            env.settings.setServer("https://stored.example/", ServerMode.PORTAL)
+            env.tokens.set("tok")
+        }
+        assertEquals(Outcome.Failure(AppError.Unauthorized), runBlocking { repo.profiles(env.url) })
+        assertEquals(listOf("/api/v1/profiles"), env.requests.map { it.url.encodedPath })
+        assertEquals("tok", runBlocking { env.tokens.get() })
+    }
+
+    @Test
     fun logoutClearsSessionEvenWhenOffline() {
         val repo = setUp { json("{}") }
         runBlocking {

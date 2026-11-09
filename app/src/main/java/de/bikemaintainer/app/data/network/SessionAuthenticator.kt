@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerializationException
 import okhttp3.Authenticator
 import okhttp3.Dispatcher
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -26,9 +27,13 @@ import okhttp3.Route
  * exchange is serialised, happens at most once per session generation, and the new token is stored before anything
  * else may use the new session.
  *
+ * Renewal only happens for requests to [baseUrl] when it is the stored server address (normalised as in
+ * [ApiProvider.normalize]); token and profile are never sent anywhere else.
+ *
  * [sessionApis] must call through a client without this authenticator (see [sessionClient]).
  */
 class SessionAuthenticator(
+    private val baseUrl: HttpUrl,
     private val settings: SettingsStore,
     private val tokens: DeviceTokenStore,
     private val state: SessionState,
@@ -64,10 +69,17 @@ class SessionAuthenticator(
         }
     }
 
-    private suspend fun renew(request: Request): Request? = when (settings.current().mode) {
-        ServerMode.PORTAL -> exchangeDeviceToken(request)
-        ServerMode.HOUSEHOLD -> reselectProfile(request)
-        null -> null
+    private suspend fun renew(request: Request): Request? {
+        val stored = settings.current()
+        // Token and profile belong to the stored server. A client for any other address (a candidate during setup or
+        // "switch server") must never send them there: a hostile server would get a valid device token.
+        val storedBase = stored.serverUrl?.let(ApiProvider::normalizeOrNull)
+        if (storedBase != baseUrl) return null
+        return when (stored.mode) {
+            ServerMode.PORTAL -> exchangeDeviceToken(request)
+            ServerMode.HOUSEHOLD -> reselectProfile(request)
+            null -> null
+        }
     }
 
     private suspend fun exchangeDeviceToken(request: Request): Request? {
