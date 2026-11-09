@@ -1,6 +1,7 @@
 package de.bikemaintainer.app.data.repository
 
 import de.bikemaintainer.app.data.repository.RepositoryTestEnv.Companion.json
+import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.ServerMode
 import java.time.LocalDate
@@ -29,9 +30,9 @@ class MaintenanceRepositoryTest {
         env.close()
     }
 
-    private fun setUp(): MaintenanceRepository {
+    private fun setUp(configured: Boolean = true): MaintenanceRepository {
         env = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), handler = { json(LOG, 201) })
-        runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
+        if (configured) runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
         return MaintenanceRepository(env.provider)
     }
 
@@ -40,6 +41,15 @@ class MaintenanceRepositoryTest {
     }
 
     private fun body() = Json.parseToJsonElement(env.requests.single().body!!.utf8()).jsonObject
+
+    @Test
+    fun withoutStoredServerNotConfiguredIsReported() {
+        val repo = setUp(configured = false)
+        val notConfigured = Outcome.Failure(AppError.NotConfigured)
+        assertEquals(notConfigured, runBlocking { repo.tasks(3) })
+        assertEquals(notConfigured, runBlocking { repo.logMaintenance(3, LocalDate.of(2026, 11, 9), 1, setOf(1L), null) })
+        assertEquals(0, env.requests.size)
+    }
 
     @Test
     fun logMaintenanceSendsPerformedTaskIds() {

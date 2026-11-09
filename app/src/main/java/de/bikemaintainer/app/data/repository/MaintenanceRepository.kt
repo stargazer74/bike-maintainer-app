@@ -8,7 +8,7 @@ import java.time.LocalDate
 
 class MaintenanceRepository(private val provider: ApiProvider) {
     suspend fun tasks(vehicleId: Long): Outcome<List<MaintenanceTask>> =
-        call { provider.apis().tasks.listMaintenanceTasks(vehicleId) }.map { list -> list.map { it.toDomain() } }
+        provider.callStored { it.tasks.listMaintenanceTasks(vehicleId) }.map { list -> list.map { it.toDomain() } }
 
     /** Blank [notes] are not sent (the spec requires at least one character). */
     suspend fun logMaintenance(
@@ -24,6 +24,6 @@ class MaintenanceRepository(private val provider: ApiProvider) {
             notes = notes?.trim()?.takeIf { it.isNotEmpty() },
             performedTaskIds = taskIds,
         )
-        return call { provider.apis().logs.createMaintenanceLog(vehicleId, request) }.map { }
+        return provider.callStored { it.logs.createMaintenanceLog(vehicleId, request) }.map { }
     }
 }

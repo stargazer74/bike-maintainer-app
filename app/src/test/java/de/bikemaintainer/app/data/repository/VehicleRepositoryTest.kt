@@ -1,11 +1,15 @@
 package de.bikemaintainer.app.data.repository
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import de.bikemaintainer.app.data.repository.RepositoryTestEnv.Companion.json
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleType
+import java.io.IOException
 import java.time.LocalDate
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -26,16 +30,50 @@ class VehicleRepositoryTest {
         env?.close()
     }
 
-    private fun setUp(handler: (mockwebserver3.RecordedRequest) -> mockwebserver3.MockResponse): VehicleRepository {
+    private fun setUp(
+        configured: Boolean = true,
+        handler: (mockwebserver3.RecordedRequest) -> mockwebserver3.MockResponse,
+    ): VehicleRepository {
         val e = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), handler = handler)
         env = e
-        runBlocking { e.settings.setServer(e.url, de.bikemaintainer.app.domain.ServerMode.PORTAL) }
+        if (configured) runBlocking { e.settings.setServer(e.url, de.bikemaintainer.app.domain.ServerMode.PORTAL) }
         return VehicleRepository(e.provider)
     }
 
     private val response = """{"id":3,"name":"Tenere","type":"MOTORCYCLE","make":"Yamaha","model":"XT","modelYear":2021,
         "firstRegistrationDate":"2021-05-04","currentMileage":24000,
         "createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"""
+
+    @Test
+    fun withoutStoredServerNotConfiguredIsReported() {
+        val repo = setUp(configured = false) { json("[]") }
+        val vehicle = Vehicle(3, "Tenere", VehicleType.MOTORCYCLE, "Yamaha", "XT", 2021, LocalDate.of(2021, 5, 4), 23000)
+        val notConfigured = Outcome.Failure(AppError.NotConfigured)
+        assertEquals(notConfigured, runBlocking { repo.vehicles() })
+        assertEquals(notConfigured, runBlocking { repo.vehicle(3) })
+        assertEquals(notConfigured, runBlocking { repo.updateMileage(vehicle, 24000) })
+        assertEquals(0, env!!.requests.size)
+    }
+
+    @Test
+    fun unreadableSettingsAreReportedAsStorage() {
+        val e = RepositoryTestEnv(
+            tmp.newFile("s.preferences_pb"),
+            dataStoreWrap = { real ->
+                object : DataStore<Preferences> {
+                    override val data = flow<Preferences> {
+                        throw IOException("unreadable")
+                    }
+                    override suspend fun updateData(transform: suspend (Preferences) -> Preferences) =
+                        real.updateData(transform)
+                }
+            },
+            handler = { json("[]") },
+        )
+        env = e
+        assertEquals(Outcome.Failure(AppError.Storage), runBlocking { VehicleRepository(e.provider).vehicles() })
+        assertEquals(0, e.requests.size)
+    }
 
     @Test
     fun updateMileageKeepsOtherFields() {

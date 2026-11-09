@@ -15,6 +15,9 @@ sealed interface AppError {
     /** The server address typed by the user is not a valid http(s) URL. */
     data object InvalidAddress : AppError
 
+    /** No server is stored (yet, or any more after logout/switch server): set up a server first. */
+    data object NotConfigured : AppError
+
     /** Local storage (settings, encrypted token) could not be read or written. */
     data object Storage : AppError
 

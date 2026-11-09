@@ -1,5 +1,6 @@
 package de.bikemaintainer.app.data.repository
 
+import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.network.CleartextNotAllowedException
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
@@ -13,6 +14,19 @@ import retrofit2.Response
 
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_NOT_FOUND = 404
+
+/**
+ * Like [call], on the APIs of the stored server: [AppError.NotConfigured] if none is stored, [AppError.Storage] if the
+ * settings cannot be read.
+ */
+internal suspend fun <T : Any> ApiProvider.callStored(block: suspend (ApiProvider.Apis) -> Response<T>): Outcome<T> {
+    val apis = try {
+        apis()
+    } catch (_: IOException) {
+        return Outcome.Failure(AppError.Storage)
+    } ?: return Outcome.Failure(AppError.NotConfigured)
+    return call { block(apis) }
+}
 
 /** Runs one API call and maps every outcome, including transport errors, to an [Outcome]. */
 internal suspend fun <T : Any> call(block: suspend () -> Response<T>): Outcome<T> {

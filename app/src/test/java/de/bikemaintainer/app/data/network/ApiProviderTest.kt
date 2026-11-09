@@ -13,8 +13,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -52,9 +52,9 @@ class ApiProviderTest {
     }
 
     @Test
-    fun apisUsesStoredServerOrFails() {
+    fun apisUsesStoredServerOrIsNull() {
         val (provider, settings) = provider()
-        assertThrows(IllegalStateException::class.java) { runBlocking { provider.apis() } }
+        assertNull(runBlocking { provider.apis() })
         runBlocking { settings.setServer("https://host:8443/", ServerMode.PORTAL) }
         assertSame(provider.apisFor("https://host:8443"), runBlocking { provider.apis() })
     }

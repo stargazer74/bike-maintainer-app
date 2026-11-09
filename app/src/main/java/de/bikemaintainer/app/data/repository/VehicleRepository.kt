@@ -7,10 +7,10 @@ import de.bikemaintainer.app.domain.Vehicle
 
 class VehicleRepository(private val provider: ApiProvider) {
     suspend fun vehicles(): Outcome<List<Vehicle>> =
-        call { provider.apis().vehicles.listVehicles() }.map { list -> list.map { it.toDomain() } }
+        provider.callStored { it.vehicles.listVehicles() }.map { list -> list.map { it.toDomain() } }
 
     suspend fun vehicle(id: Long): Outcome<Vehicle> =
-        call { provider.apis().vehicles.getVehicle(id) }.map { it.toDomain() }
+        provider.callStored { it.vehicles.getVehicle(id) }.map { it.toDomain() }
 
     /** PUT replaces the whole vehicle, so all other fields are taken from [vehicle] (the last loaded state). */
     suspend fun updateMileage(vehicle: Vehicle, newMileage: Int): Outcome<Vehicle> {
@@ -23,6 +23,6 @@ class VehicleRepository(private val provider: ApiProvider) {
             make = vehicle.make,
             model = vehicle.model,
         )
-        return call { provider.apis().vehicles.updateVehicle(vehicle.id, request) }.map { it.toDomain() }
+        return provider.callStored { it.vehicles.updateVehicle(vehicle.id, request) }.map { it.toDomain() }
     }
 }

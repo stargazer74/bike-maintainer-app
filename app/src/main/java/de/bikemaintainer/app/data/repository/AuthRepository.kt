@@ -76,7 +76,7 @@ class AuthRepository(
         } catch (_: IOException) {
             false
         }
-        val post = if (hasServer) call { provider.apis().auth.logout() } else Outcome.Success(Unit)
+        val post = if (hasServer) provider.callStored { it.auth.logout() } else Outcome.Success(Unit)
         return state.lock.withLock {
             try {
                 settings.clearSession()

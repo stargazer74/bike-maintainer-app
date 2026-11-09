@@ -43,10 +43,13 @@ class ApiProvider(
         return synchronized(cache) { cache.getOrPut(base.toString()) { build(base) } }
     }
 
-    /** The APIs of the stored server address; fails if none is stored. */
-    suspend fun apis(): Apis {
-        val url = checkNotNull(settings.current().serverUrl) { "No server address stored" }
-        return apisFor(url)
+    /**
+     * The APIs of the stored server address, or null if none (or no valid one) is stored.
+     * @throws java.io.IOException if the settings cannot be read.
+     */
+    suspend fun apis(): Apis? {
+        val base = settings.current().serverUrl?.let(::normalizeOrNull) ?: return null
+        return synchronized(cache) { cache.getOrPut(base.toString()) { build(base) } }
     }
 
     fun reset() {
