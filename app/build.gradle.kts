@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.openapi.generator)
+    alias(libs.plugins.kover)
 }
 
 // The API client is generated from the OpenAPI spec in the sibling repo bike-maintainer-api (contract-first); the
@@ -137,4 +138,25 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+// Coverage gate: data and domain layers need >= 90 % line coverage; generated API code and the Keystore-bound cipher
+// (needs real Android Keystore, no JVM unit test possible) are excluded.
+kover {
+    reports {
+        filters {
+            includes {
+                packages("de.bikemaintainer.app.data", "de.bikemaintainer.app.domain")
+            }
+            excludes {
+                packages("de.bikemaintainer.app.api")
+                classes("*KeystoreTokenCipher*")
+            }
+        }
+        verify {
+            rule {
+                minBound(90)
+            }
+        }
+    }
 }
