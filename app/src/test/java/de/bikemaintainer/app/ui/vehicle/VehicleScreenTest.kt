@@ -1,6 +1,9 @@
 package de.bikemaintainer.app.ui.vehicle
 
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import de.bikemaintainer.app.domain.AppError
@@ -23,8 +26,15 @@ class VehicleScreenTest {
 
     private val vehicle = Vehicle(7, "Africa Twin", VehicleType.MOTORCYCLE, "Honda", "CRF1100", 2020, LocalDate.of(2020, 5, 1), 12345)
 
-    private fun task(id: Long, name: String, status: TaskStatus, km: Int? = null, days: Int? = null, progress: Double? = null) =
-        MaintenanceTask(id, 7, name, false, true, status, progress, km, days, null, null, null)
+    private fun task(
+        id: Long,
+        name: String,
+        status: TaskStatus,
+        km: Int? = null,
+        days: Int? = null,
+        progress: Double? = null,
+        lastDate: LocalDate? = null,
+    ) = MaintenanceTask(id, 7, name, false, true, status, progress, km, days, null, lastDate, null)
 
     private fun show(state: VehicleUiState, onBack: () -> Unit = {}, onRetry: () -> Unit = {}) {
         compose.setContent { VehicleContent(state = state, onBack = onBack, onRefresh = {}, onRetry = onRetry) }
@@ -34,7 +44,6 @@ class VehicleScreenTest {
         show(
             VehicleUiState(
                 vehicle = vehicle,
-                loading = false,
                 tasks = listOf(
                     task(1, "Ölwechsel", TaskStatus.OVERDUE, km = -350, progress = 1.0),
                     task(2, "Kette", TaskStatus.OK, days = 1),
@@ -49,14 +58,37 @@ class VehicleScreenTest {
         compose.onNodeWithText("Fällig in 12 Tagen").assertExists()
     }
 
+    @Test fun statusIsReadOnceAndEachTaskIsOneStop() {
+        show(VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE, km = -350))))
+        compose.onAllNodesWithContentDescription("Überfällig").assertCountEquals(0)
+        compose.onNode(hasText("Ölwechsel") and hasText("Überfällig um 350 km")).assertExists()
+    }
+
+    @Test fun overdueByOneDayIsSingular() {
+        show(VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Kette", TaskStatus.OVERDUE, days = -1))))
+        compose.onNodeWithText("Überfällig seit 1 Tag").assertExists()
+    }
+
+    @Test fun doneOnDateInGerman() {
+        show(VehicleUiState(vehicle = vehicle, tasks = listOf(doneTask)))
+        compose.onNodeWithText("Erledigt am 20.10.2026").assertExists()
+    }
+
+    @Test @Config(qualifiers = "en") fun doneOnDateInEnglish() {
+        show(VehicleUiState(vehicle = vehicle, tasks = listOf(doneTask)))
+        compose.onNodeWithText("Done on Oct 20, 2026").assertExists()
+    }
+
+    private val doneTask get() = task(1, "Reifen", TaskStatus.DONE, lastDate = LocalDate.of(2026, 10, 20))
+
     @Test fun noTasksShowsHint() {
-        show(VehicleUiState(vehicle = vehicle, loading = false))
+        show(VehicleUiState(vehicle = vehicle))
         compose.onNodeWithText("Noch keine Wartungsaufgaben angelegt.").assertExists()
     }
 
     @Test fun errorOffersRetry() {
         var retried = 0
-        show(VehicleUiState(loading = false, error = AppError.Network), onRetry = { retried++ })
+        show(VehicleUiState(error = AppError.Network), onRetry = { retried++ })
         compose.onNodeWithText("Keine Verbindung.").assertExists()
         compose.onNodeWithText("Erneut versuchen").performClick()
         assertEquals(1, retried)
@@ -64,7 +96,7 @@ class VehicleScreenTest {
 
     @Test fun notFoundOffersBackInsteadOfRetry() {
         var back = 0
-        show(VehicleUiState(loading = false, error = AppError.NotFound), onBack = { back++ })
+        show(VehicleUiState(error = AppError.NotFound), onBack = { back++ })
         compose.onNodeWithText("Das Fahrzeug wurde nicht gefunden.").assertExists()
         compose.onNodeWithText("Erneut versuchen").assertDoesNotExist()
         compose.onNodeWithText("Zurück").performClick()

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import de.bikemaintainer.app.R
+import de.bikemaintainer.app.ui.common.AppCard
 import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
@@ -86,17 +86,17 @@ fun ProfilesContent(
             state.loadFailed -> {
                 ErrorText(stringResource(R.string.profiles_load_failed))
                 Button(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text(stringResource(R.string.profiles_retry))
+                    Text(stringResource(R.string.retry))
                 }
             }
             state.profiles.isEmpty() -> {
                 Text(text = stringResource(R.string.profiles_empty), style = MaterialTheme.typography.bodyLarge)
                 TextButton(onClick = onOpenWebApp, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text(stringResource(R.string.profiles_open_web_app))
+                    Text(stringResource(R.string.open_web_app))
                 }
             }
             else -> state.profiles.forEach { profile ->
-                Card(
+                AppCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable(enabled = state.selecting == null, role = Role.Button) { onSelect(profile.id) },

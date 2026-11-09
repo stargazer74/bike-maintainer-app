@@ -41,7 +41,6 @@ class VehicleViewModelTest {
         val state = viewModel().state.value
         assertEquals(vehicle, state.vehicle)
         assertEquals(listOf(2L, 1L), state.tasks.map { it.id })
-        assertFalse(state.loading)
         assertNull(state.error)
         assertEquals(listOf(7L), vehicles.vehicleCalls)
         assertEquals(listOf(7L), maintenance.tasksCalls)
@@ -59,7 +58,6 @@ class VehicleViewModelTest {
         val state = viewModel().state.value
         assertNull(state.vehicle)
         assertEquals(AppError.Network, state.error)
-        assertFalse(state.loading)
     }
 
     @Test fun firstErrorWins() {
@@ -118,7 +116,6 @@ class VehicleViewModelTest {
         maintenance.tasksGate = CompletableDeferred()
         vm.reloadSilently()
         assertFalse(vm.state.value.refreshing)
-        assertFalse(vm.state.value.loading)
         maintenance.tasksGate!!.complete(Unit)
     }
 
@@ -129,5 +126,45 @@ class VehicleViewModelTest {
         vm.reloadSilently()
         assertEquals(1, maintenance.tasksCalls.size)
         maintenance.tasksGate!!.complete(Unit)
+    }
+
+    @Test fun refreshAfterDeletionShowsNotFound() {
+        maintenance.tasksResult = Outcome.Success(listOf(task(1, TaskStatus.OK)))
+        val vm = viewModel()
+        vehicles.vehicleResult = Outcome.Failure(AppError.NotFound)
+        vm.refresh()
+        assertEquals(VehicleUiState(error = AppError.NotFound), vm.state.value)
+    }
+
+    @Test fun silentReloadAfterDeletionShowsNotFound() {
+        maintenance.tasksResult = Outcome.Success(listOf(task(1, TaskStatus.OK)))
+        val vm = viewModel()
+        vehicles.vehicleResult = Outcome.Failure(AppError.NotFound)
+        vm.reloadSilently()
+        assertEquals(VehicleUiState(error = AppError.NotFound), vm.state.value)
+    }
+
+    @Test fun firstResumeOnlyMarksLaterResumesReloadSilently() {
+        val vm = viewModel()
+        vm.onResume()
+        assertEquals(1, vehicles.vehicleCalls.size)
+        maintenance.tasksResult = Outcome.Failure(AppError.Network)
+        vm.onResume()
+        assertEquals(2, vehicles.vehicleCalls.size)
+        assertEquals(vehicle, vm.state.value.vehicle)
+        assertNull(vm.state.value.error) // silent
+    }
+
+    @Test fun refreshDuringSilentReloadBecomesVisible() {
+        val vm = viewModel()
+        maintenance.tasksGate = CompletableDeferred()
+        maintenance.tasksResult = Outcome.Failure(AppError.Network)
+        vm.reloadSilently()
+        vm.refresh()
+        assertEquals(2, maintenance.tasksCalls.size)
+        assertTrue(vm.state.value.refreshing)
+        maintenance.tasksGate!!.complete(Unit)
+        assertFalse(vm.state.value.refreshing)
+        assertEquals(AppError.Network, vm.state.value.error)
     }
 }

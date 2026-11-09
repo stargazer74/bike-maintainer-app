@@ -11,8 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import de.bikemaintainer.app.R
 import de.bikemaintainer.app.domain.TaskStatus
@@ -41,15 +39,13 @@ fun TaskStatus?.statusColor(): Color {
     }
 }
 
-/** Coloured dot; [description] is the accessibility text (null if the text next to it already says it). */
+/**
+ * Coloured dot, decoration only: it always stands next to a text that names the status, so screen readers skip it
+ * (otherwise TalkBack would read the status twice).
+ */
 @Composable
-fun StatusDot(color: Color, description: String?, modifier: Modifier = Modifier) {
-    Box(
-        modifier
-            .size(10.dp)
-            .background(color, CircleShape)
-            .semantics { if (description != null) contentDescription = description },
-    )
+fun StatusDot(color: Color, modifier: Modifier = Modifier) {
+    Box(modifier.size(10.dp).background(color, CircleShape))
 }
 
 /** A whole number grouped by the app language ("12.345" / "12,345"). */

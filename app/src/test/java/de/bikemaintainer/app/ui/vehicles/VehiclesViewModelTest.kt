@@ -38,7 +38,6 @@ class VehiclesViewModelTest {
         repo.summariesResult = Outcome.Success(listOf(summary))
         val state = viewModel().state.value
         assertEquals(listOf(summary), state.summaries)
-        assertFalse(state.loading)
         assertNull(state.error)
     }
 
@@ -46,7 +45,6 @@ class VehiclesViewModelTest {
         repo.summariesResult = Outcome.Failure(AppError.Network)
         val state = viewModel().state.value
         assertNull(state.summaries)
-        assertFalse(state.loading)
         assertEquals(AppError.Network, state.error)
     }
 
@@ -77,7 +75,6 @@ class VehiclesViewModelTest {
         vm.reloadSilently()
         assertEquals(2, repo.summariesCalls) // the reload is really in flight
         assertEquals(listOf(summary), vm.state.value.summaries)
-        assertFalse(vm.state.value.loading)
         assertFalse(vm.state.value.refreshing)
         repo.summariesGate!!.complete(Unit)
         assertEquals(2, repo.summariesCalls)
@@ -130,6 +127,32 @@ class VehiclesViewModelTest {
         vm.reloadSilently()
         assertEquals(1, repo.summariesCalls)
         repo.summariesGate!!.complete(Unit)
+    }
+
+    @Test fun firstResumeOnlyMarksLaterResumesReloadSilently() {
+        repo.summariesResult = Outcome.Success(listOf(summary))
+        val vm = viewModel()
+        vm.onResume()
+        assertEquals(1, repo.summariesCalls)
+        repo.summariesResult = Outcome.Failure(AppError.Network)
+        vm.onResume()
+        assertEquals(2, repo.summariesCalls)
+        assertEquals(listOf(summary), vm.state.value.summaries)
+        assertNull(vm.state.value.error) // silent
+    }
+
+    @Test fun refreshDuringSilentReloadBecomesVisible() {
+        repo.summariesResult = Outcome.Success(listOf(summary))
+        val vm = viewModel()
+        repo.summariesGate = CompletableDeferred()
+        repo.summariesResult = Outcome.Failure(AppError.Network)
+        vm.reloadSilently()
+        vm.refresh()
+        assertEquals(2, repo.summariesCalls)
+        assertTrue(vm.state.value.refreshing)
+        repo.summariesGate!!.complete(Unit)
+        assertFalse(vm.state.value.refreshing)
+        assertEquals(AppError.Network, vm.state.value.error)
     }
 
     @Test fun webAppUrlComesFromSettings() {

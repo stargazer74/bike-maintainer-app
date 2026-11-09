@@ -1,19 +1,23 @@
 package de.bikemaintainer.app.ui.navigation
 
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onLast
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.testing.TestNavHostController
 import androidx.navigation.toRoute
 import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.network.SessionStatus
 import de.bikemaintainer.app.data.storage.StoredSettings
+import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.ServerMode
 import de.bikemaintainer.app.domain.TaskStatus
@@ -70,7 +74,25 @@ class AppNavGraphTest {
         compose.waitForIdle()
         assertEquals(true, current().contains("VehicleRoute"))
         assertEquals(listOf("VehiclesRoute", "VehicleRoute"), stack())
-        compose.runOnUiThread { nav.popBackStack() }
+        assertEquals(1, vehicles.summariesCalls)
+        compose.onNodeWithContentDescription("Zurück").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("VehiclesRoute"), stack())
+        // Returning to the list reloads it (the resume gate lives in the ViewModel, not in the dropped composition).
+        assertEquals(2, vehicles.summariesCalls)
+    }
+
+    @Test fun vehicleDeletedWhileDetailIsOpenOffersBack() {
+        show(VehiclesRoute)
+        compose.onNodeWithText("Africa Twin").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("12.345 km").assertExists()
+        vehicles.vehicleResult = Outcome.Failure(AppError.NotFound)
+        compose.onNodeWithText("12.345 km").performTouchInput { swipeDown(startY = top, endY = top + 1500f, durationMillis = 500) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Das Fahrzeug wurde nicht gefunden.").assertExists()
+        compose.onNodeWithText("12.345 km").assertDoesNotExist()
+        compose.onNodeWithText("Zurück").performClick()
         compose.waitForIdle()
         assertEquals(listOf("VehiclesRoute"), stack())
     }
@@ -87,9 +109,9 @@ class AppNavGraphTest {
         show(VehiclesRoute)
         compose.runOnUiThread { nav.navigate(SettingsRoute) }
         compose.waitForIdle()
-        compose.onAllNodesWithText("Abmelden").onFirst().performClick()
+        compose.onNode(hasText("Abmelden") and hasClickAction()).performClick()
         compose.waitForIdle()
-        compose.onAllNodesWithText("Abmelden").onLast().performClick()
+        compose.onNode(hasText("Abmelden") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
         compose.waitForIdle()
         assertEquals(1, auth.logoutCalls)
         assertEquals(listOf("LoginRoute"), stack())

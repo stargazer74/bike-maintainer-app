@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,7 +22,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -35,14 +33,15 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import de.bikemaintainer.app.R
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.VehicleSummary
+import de.bikemaintainer.app.ui.common.AppCard
 import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.StatusDot
 import de.bikemaintainer.app.ui.common.loadMessageRes
 import de.bikemaintainer.app.ui.common.mileageText
 import de.bikemaintainer.app.ui.common.nameRes
-import de.bikemaintainer.app.ui.common.statusColor
 import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
+import de.bikemaintainer.app.ui.common.statusColor
 
 @Composable
 fun VehiclesScreen(
@@ -53,10 +52,9 @@ fun VehiclesScreen(
     val state by viewModel.state.collectAsState()
     val openLink = rememberWebLinkOpener()
 
-    // Reload when returning to the app (not on the first resume: the ViewModel loaded in init).
-    val firstResume = remember { booleanArrayOf(true) }
-    LifecycleResumeEffect(Unit) {
-        if (firstResume[0]) firstResume[0] = false else viewModel.reloadSilently()
+    // Reload when returning to the screen or the app; the ViewModel skips the first resume (it loaded in init).
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResume()
         onPauseOrDispose {}
     }
 
@@ -112,7 +110,7 @@ fun VehiclesContent(
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             ErrorText(stringResource(error.loadMessageRes()), Modifier.padding(bottom = 8.dp))
-                            TextButton(onClick = onRetry) { Text(stringResource(R.string.profiles_retry)) }
+                            TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
                         }
                     }
                     summaries == null -> item {
@@ -131,7 +129,7 @@ fun VehiclesContent(
                             )
                             if (state.webAppUrl != null) {
                                 TextButton(onClick = onOpenWebApp) {
-                                    Text(stringResource(R.string.profiles_open_web_app))
+                                    Text(stringResource(R.string.open_web_app))
                                 }
                             }
                         }
@@ -152,7 +150,7 @@ fun VehiclesContent(
 
 @Composable
 private fun VehicleCard(summary: VehicleSummary, onClick: () -> Unit) {
-    Card(
+    AppCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick),
@@ -172,17 +170,15 @@ private fun VehicleCard(summary: VehicleSummary, onClick: () -> Unit) {
 @Composable
 private fun StatusLine(summary: VehicleSummary) {
     val status = summary.status
-    val name = status?.let { stringResource(it.nameRes()) } ?: stringResource(R.string.vehicle_no_tasks)
-    val color = status.statusColor()
     // "All up to date" is the friendlier wording for OK (the overall status never has due tasks then).
-    val text = if (status == TaskStatus.OK || status == TaskStatus.DONE) {
-        stringResource(R.string.vehicle_all_up_to_date)
-    } else {
-        name
+    val text = when (status) {
+        null -> stringResource(R.string.vehicle_no_tasks)
+        TaskStatus.OK, TaskStatus.DONE -> stringResource(R.string.vehicle_all_up_to_date)
+        else -> stringResource(status.nameRes())
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        // The status text next to the dot already says it; describe the dot only if that text differs.
-        StatusDot(color, description = if (text != name) name else null)
+        // The visible text carries the status; the dot is decoration only.
+        StatusDot(status.statusColor())
         Text(text, style = MaterialTheme.typography.bodyMedium)
         if (summary.dueCount > 0) {
             Text(

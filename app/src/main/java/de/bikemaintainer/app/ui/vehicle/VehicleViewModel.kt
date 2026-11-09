@@ -9,81 +9,70 @@ import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
+import de.bikemaintainer.app.ui.common.ReloadableLoader
+import de.bikemaintainer.app.ui.common.isNotFound
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class VehicleUiState(
-    /** `null` until the first successful load. */
+    /** `null` until the first successful load; no vehicle and no error means the first load is running. */
     val vehicle: Vehicle? = null,
     /** Active tasks, most urgent first. */
     val tasks: List<MaintenanceTask> = emptyList(),
-    /** First load (or retry without data) in flight. */
-    val loading: Boolean = true,
     /** Pull-to-refresh in flight. */
     val refreshing: Boolean = false,
     val error: AppError? = null,
 )
 
 class VehicleViewModel(
-    private val vehicleId: Long,
-    private val vehicles: VehicleRepository,
-    private val maintenance: MaintenanceRepository,
+    vehicleId: Long,
+    vehicles: VehicleRepository,
+    maintenance: MaintenanceRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(VehicleUiState())
     val state: StateFlow<VehicleUiState> = _state.asStateFlow()
-    private var inFlight = false
+
+    // A deleted vehicle is terminal: its old data must not stay on screen, also not after a silent reload.
+    private val loader = ReloadableLoader(viewModelScope, isTerminal = AppError::isNotFound) {
+        coroutineScope {
+            val v = async { vehicles.vehicle(vehicleId) }
+            val t = async { maintenance.tasks(vehicleId) }
+            val vehicle = v.await()
+            val tasks = t.await()
+            when {
+                vehicle is Outcome.Failure -> vehicle
+                tasks is Outcome.Failure -> tasks
+                else -> Outcome.Success(
+                    (vehicle as Outcome.Success).value to (tasks as Outcome.Success).value.forDisplay(),
+                )
+            }
+        }
+    }
 
     init {
-        load(silent = false)
+        viewModelScope.launch {
+            loader.state.collect { l ->
+                _state.value = VehicleUiState(
+                    vehicle = l.data?.first,
+                    tasks = l.data?.second.orEmpty(),
+                    refreshing = l.refreshing,
+                    error = l.error,
+                )
+            }
+        }
+        loader.refresh()
     }
 
     /** Pull-to-refresh and "Try again". */
-    fun refresh() = load(silent = false)
+    fun refresh() = loader.refresh()
 
     /** Reload on return to the app: no spinner, an error only if there is nothing to show yet. */
-    fun reloadSilently() = load(silent = true)
+    fun reloadSilently() = loader.reloadSilently()
 
-    private fun load(silent: Boolean) {
-        if (inFlight) return
-        inFlight = true
-        if (!silent) {
-            _state.update {
-                if (it.vehicle == null) it.copy(loading = true, error = null) else it.copy(refreshing = true)
-            }
-        }
-        viewModelScope.launch {
-            try {
-                val (vehicle, tasks) = coroutineScope {
-                    val v = async { vehicles.vehicle(vehicleId) }
-                    val t = async { maintenance.tasks(vehicleId) }
-                    v.await() to t.await()
-                }
-                val failure = (vehicle as? Outcome.Failure)?.error ?: (tasks as? Outcome.Failure)?.error
-                _state.update { current ->
-                    when {
-                        failure == null && vehicle is Outcome.Success && tasks is Outcome.Success ->
-                            current.copy(
-                                vehicle = vehicle.value,
-                                tasks = tasks.value.forDisplay(),
-                                loading = false,
-                                refreshing = false,
-                                error = null,
-                            )
-                        current.vehicle == null || !silent ->
-                            current.copy(loading = false, refreshing = false, error = failure)
-                        else -> current.copy(loading = false, refreshing = false)
-                    }
-                }
-            } finally {
-                // Never stay stuck (e.g. cancellation or an unexpected exception): a later call must work.
-                inFlight = false
-                _state.update { it.copy(loading = false, refreshing = false) }
-            }
-        }
-    }
+    /** Every resume of the screen; the first one is skipped (loaded at creation), later ones reload silently. */
+    fun onResume() = loader.onResume()
 }

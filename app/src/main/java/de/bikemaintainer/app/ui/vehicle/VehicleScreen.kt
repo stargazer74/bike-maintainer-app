@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,11 +22,11 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -35,23 +34,22 @@ import de.bikemaintainer.app.R
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
+import de.bikemaintainer.app.ui.common.AppCard
 import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.StatusDot
 import de.bikemaintainer.app.ui.common.isNotFound
-import de.bikemaintainer.app.ui.common.loadMessageRes
 import de.bikemaintainer.app.ui.common.mileageText
-import de.bikemaintainer.app.ui.common.nameRes
 import de.bikemaintainer.app.ui.common.statusColor
+import de.bikemaintainer.app.ui.common.vehicleLoadMessageRes
 
 @Composable
 fun VehicleScreen(viewModel: VehicleViewModel, onBack: () -> Unit) {
     val state by viewModel.state.collectAsState()
 
-    // Reload when returning to the app (not on the first resume: the ViewModel loaded in init).
-    val firstResume = remember { booleanArrayOf(true) }
-    LifecycleResumeEffect(Unit) {
-        if (firstResume[0]) firstResume[0] = false else viewModel.reloadSilently()
+    // Reload when returning to the app; the ViewModel skips the first resume (it loaded in init).
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResume()
         onPauseOrDispose {}
     }
 
@@ -92,11 +90,11 @@ fun VehicleContent(state: VehicleUiState, onBack: () -> Unit, onRefresh: () -> U
                             verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            ErrorText(stringResource(error.loadMessageRes()), Modifier.padding(bottom = 8.dp))
+                            ErrorText(stringResource(error.vehicleLoadMessageRes()), Modifier.padding(bottom = 8.dp))
                             if (error.isNotFound()) {
                                 TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
                             } else {
-                                TextButton(onClick = onRetry) { Text(stringResource(R.string.profiles_retry)) }
+                                TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
                             }
                         }
                     }
@@ -105,7 +103,7 @@ fun VehicleContent(state: VehicleUiState, onBack: () -> Unit, onRefresh: () -> U
                     }
                     else -> {
                         item { VehicleHeader(vehicle) }
-                        if (error != null) item { ErrorText(stringResource(error.loadMessageRes())) }
+                        if (error != null) item { ErrorText(stringResource(error.vehicleLoadMessageRes())) }
                         if (state.tasks.isEmpty()) {
                             item {
                                 Text(
@@ -144,11 +142,12 @@ private fun VehicleHeader(vehicle: Vehicle) {
 @Composable
 private fun TaskCard(task: MaintenanceTask) {
     val color = task.status.statusColor()
-    Card(Modifier.fillMaxWidth()) {
+    // One TalkBack stop per task: name, status text (the dot is decoration only).
+    AppCard(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(task.name, style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusDot(color, description = stringResource(task.status.nameRes()))
+                StatusDot(color)
                 Text(task.label().text(), style = MaterialTheme.typography.bodyMedium, color = color)
             }
             val progress = task.progress
