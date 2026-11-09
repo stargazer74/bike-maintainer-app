@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Workshop palette (ui/theme/Color.kt): window background before Compose draws, no white flash in dark mode. -->
+    <color name="workshop_background_light">#FFF8FAFC</color>
+    <color name="workshop_background_dark">#FF0B0F19</color>
+</resources>

@@ -28,6 +28,7 @@ class SessionNavigationTest {
         it.settings.value = StoredSettings("https://h", ServerMode.PORTAL, "tok", null, notificationsAsked = true)
     }
     private lateinit var nav: TestNavHostController
+    private var onSettingsBack: () -> Unit = {}
 
     private fun show(start: Any, session: SessionState = SessionState(), afterSignIn: Boolean = false) {
         compose.setContent {
@@ -40,6 +41,7 @@ class SessionNavigationTest {
                 composable<ProfilesRoute> {}
                 composable<VehiclesRoute> {}
                 composable<NotificationPermissionRoute> {}
+                composable<SettingsRoute> { val back = nav.popBackOnce(); onSettingsBack = back }
             }
         }
         compose.waitForIdle()
@@ -72,6 +74,40 @@ class SessionNavigationTest {
         val session = SessionState().also { it.require(SessionStatus.LOGIN_REQUIRED) }
         show(SetupRoute, session)
         assertEquals(true, nav.currentDestination?.route?.contains("Setup"))
+    }
+
+    @Test fun statusOnUnauthenticatedScreensDoesNotNavigate() {
+        val session = SessionState()
+        show(ProfilesRoute("https://h"), session)
+        session.require(SessionStatus.LOGIN_REQUIRED)
+        compose.waitForIdle()
+        assertEquals(true, nav.currentDestination?.route?.contains("Profiles"))
+    }
+
+    @Test fun statusPresentAtStartRedirectsFromAuthenticatedScreen() {
+        // Activity recreated after the session broke: the start destination (Vehicles) is stale.
+        val session = SessionState().also { it.require(SessionStatus.PROFILE_SELECTION_REQUIRED) }
+        show(VehiclesRoute, session)
+        assertEquals(true, nav.currentDestination?.route?.contains("Profiles"))
+        assertEquals(1, stack().size)
+    }
+
+    @Test fun statusPresentAtStartRedirectsFromNotificationQuestion() {
+        val session = SessionState().also { it.require(SessionStatus.LOGIN_REQUIRED) }
+        show(NotificationPermissionRoute, session)
+        assertEquals(true, nav.currentDestination?.route?.contains("Login"))
+    }
+
+    @Test fun settingsBackPopsOnlyOnce() {
+        show(VehiclesRoute)
+        compose.runOnUiThread { nav.navigate(SettingsRoute) }
+        compose.waitForIdle()
+        compose.runOnUiThread {
+            onSettingsBack()
+            onSettingsBack() // double tap: must not pop Vehicles as well
+        }
+        compose.waitForIdle()
+        assertEquals(listOf("VehiclesRoute"), stack())
     }
 
     @Test fun statusChangeWhileComposedNavigates() {

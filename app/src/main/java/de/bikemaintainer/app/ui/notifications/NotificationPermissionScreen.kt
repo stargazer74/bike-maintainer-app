@@ -2,6 +2,7 @@ package de.bikemaintainer.app.ui.notifications
 
 import android.Manifest
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -22,9 +23,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import de.bikemaintainer.app.R
 
-/** One-time question for the notification permission; [onDone] is called after "Allow" (with the result) and "Later". */
+/**
+ * One-time question for the notification permission; [onDone] is called after "Allow" (with the result) and "Later".
+ * Back counts as "Later": otherwise it would leave the app, and the question would come again on every start.
+ */
 @Composable
 fun NotificationPermissionScreen(onDone: () -> Unit) {
+    BackHandler { onDone() }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { onDone() }
     Column(
         modifier = Modifier.fillMaxSize().systemBarsPadding().padding(24.dp),

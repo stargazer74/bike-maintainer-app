@@ -89,12 +89,13 @@ fun AppNavHost(container: AppContainer, start: Any) {
             )
         }
         composable<SettingsRoute> {
+            val back = navController.popBackOnce()
             val viewModel: SettingsViewModel = viewModel(
                 factory = viewModelFactory { initializer { SettingsViewModel(container.authRepository) } },
             )
             SettingsScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() },
+                onBack = back,
                 onNavigate = { navController.navigate(it) { popUpTo(0) } },
             )
         }

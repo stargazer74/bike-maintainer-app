@@ -2,7 +2,6 @@ package de.bikemaintainer.app
 
 import android.content.Context
 import android.util.Log
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.repository.ApiAuthRepository
@@ -12,6 +11,7 @@ import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.KeystoreTokenCipher
 import de.bikemaintainer.app.data.storage.SettingsStore
+import de.bikemaintainer.app.data.storage.settingsDataStore
 import java.io.File
 
 /**
@@ -19,9 +19,7 @@ import java.io.File
  * only one DataStore instance per file per process.
  */
 class AppContainer(context: Context) {
-    private val dataStore = PreferenceDataStoreFactory.create(
-        produceFile = { File(context.filesDir, "datastore/settings.preferences_pb") },
-    )
+    private val dataStore = settingsDataStore { File(context.filesDir, "datastore/settings.preferences_pb") }
 
     val settings = SettingsStore(dataStore)
     val sessionState = SessionState()
