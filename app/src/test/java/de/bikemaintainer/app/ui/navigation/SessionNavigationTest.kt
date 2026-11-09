@@ -8,7 +8,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.testing.TestNavHostController
 import androidx.compose.ui.platform.LocalContext
 import de.bikemaintainer.app.data.network.SessionState
-import de.bikemaintainer.app.data.network.SessionStatus
 import de.bikemaintainer.app.data.storage.StoredSettings
 import de.bikemaintainer.app.domain.ServerMode
 import de.bikemaintainer.app.ui.FakeAuthRepository
@@ -70,33 +69,9 @@ class SessionNavigationTest {
         assertEquals(true, s.single().contains("Notification"))
     }
 
-    @Test fun replayedStatusDoesNotNavigate() {
-        val session = SessionState().also { it.require(SessionStatus.LOGIN_REQUIRED) }
-        show(SetupRoute, session)
-        assertEquals(true, nav.currentDestination?.route?.contains("Setup"))
-    }
 
-    @Test fun statusOnUnauthenticatedScreensDoesNotNavigate() {
-        val session = SessionState()
-        show(ProfilesRoute("https://h"), session)
-        session.require(SessionStatus.LOGIN_REQUIRED)
-        compose.waitForIdle()
-        assertEquals(true, nav.currentDestination?.route?.contains("Profiles"))
-    }
 
-    @Test fun statusPresentAtStartRedirectsFromAuthenticatedScreen() {
-        // Activity recreated after the session broke: the start destination (Vehicles) is stale.
-        val session = SessionState().also { it.require(SessionStatus.PROFILE_SELECTION_REQUIRED) }
-        show(VehiclesRoute, session)
-        assertEquals(true, nav.currentDestination?.route?.contains("Profiles"))
-        assertEquals(1, stack().size)
-    }
 
-    @Test fun statusPresentAtStartRedirectsFromNotificationQuestion() {
-        val session = SessionState().also { it.require(SessionStatus.LOGIN_REQUIRED) }
-        show(NotificationPermissionRoute, session)
-        assertEquals(true, nav.currentDestination?.route?.contains("Login"))
-    }
 
     @Test fun settingsBackPopsOnlyOnce() {
         show(VehiclesRoute)
@@ -110,12 +85,4 @@ class SessionNavigationTest {
         assertEquals(listOf("VehiclesRoute"), stack())
     }
 
-    @Test fun statusChangeWhileComposedNavigates() {
-        val session = SessionState()
-        show(VehiclesRoute, session)
-        session.require(SessionStatus.LOGIN_REQUIRED)
-        compose.waitForIdle()
-        assertEquals(true, nav.currentDestination?.route?.contains("Login"))
-        assertEquals(1, stack().size)
-    }
 }

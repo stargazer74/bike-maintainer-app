@@ -16,7 +16,13 @@ import kotlinx.coroutines.launch
 import de.bikemaintainer.app.ui.notifications.NotificationPermissionScreen
 import de.bikemaintainer.app.ui.settings.SettingsScreen
 import de.bikemaintainer.app.ui.settings.SettingsViewModel
-import de.bikemaintainer.app.AppContainer
+import androidx.compose.runtime.Stable
+import androidx.navigation.NavHostController
+import de.bikemaintainer.app.data.network.SessionStatus
+import de.bikemaintainer.app.data.repository.AuthRepository
+import de.bikemaintainer.app.data.repository.MaintenanceRepository
+import de.bikemaintainer.app.data.repository.VehicleRepository
+import kotlinx.coroutines.flow.StateFlow
 import de.bikemaintainer.app.ui.login.LoginScreen
 import de.bikemaintainer.app.ui.login.LoginViewModel
 import de.bikemaintainer.app.ui.profiles.ProfilesScreen
@@ -28,21 +34,29 @@ import de.bikemaintainer.app.ui.vehicle.VehicleViewModel
 import de.bikemaintainer.app.ui.vehicles.VehiclesScreen
 import de.bikemaintainer.app.ui.vehicles.VehiclesViewModel
 
+/** Everything the navigation graph needs, so tests can pass fakes instead of the real container. */
+@Stable
+class AppDependencies(
+    val auth: AuthRepository,
+    val vehicles: VehicleRepository,
+    val maintenance: MaintenanceRepository,
+    val sessionStatus: StateFlow<SessionStatus>,
+)
+
 @Composable
-fun AppNavHost(container: AppContainer, start: Any) {
-    val navController = rememberNavController()
+fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostController = rememberNavController()) {
     val scope = rememberCoroutineScope()
-    val signedIn: () -> Unit = { scope.launch { navController.navigateAfterSignIn(container.authRepository) } }
+    val signedIn: () -> Unit = { scope.launch { navController.navigateAfterSignIn(deps.auth) } }
 
     // Session cannot be renewed: send the user to login / profile selection from any screen (see the function).
     LaunchedEffect(Unit) {
-        navController.redirectOnSessionChanges(container.sessionState.status, container.authRepository.settings)
+        navController.redirectOnSessionChanges(deps.sessionStatus, deps.auth.settings)
     }
     NavHost(navController = navController, startDestination = start) {
         // Placeholders until the screens of the following tasks are wired in.
         composable<SetupRoute> {
             val viewModel: SetupViewModel = viewModel(
-                factory = viewModelFactory { initializer { SetupViewModel(container.authRepository) } },
+                factory = viewModelFactory { initializer { SetupViewModel(deps.auth) } },
             )
             SetupScreen(viewModel = viewModel, onNavigate = { navController.navigate(it) })
         }
@@ -51,7 +65,7 @@ fun AppNavHost(container: AppContainer, start: Any) {
             val viewModel: LoginViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
-                        LoginViewModel(container.authRepository, route.serverUrl, Build.MODEL, route.relogin)
+                        LoginViewModel(deps.auth, route.serverUrl, Build.MODEL, route.relogin)
                     }
                 },
             )
@@ -67,7 +81,7 @@ fun AppNavHost(container: AppContainer, start: Any) {
         composable<ProfilesRoute> { entry ->
             val route = entry.toRoute<ProfilesRoute>()
             val viewModel: ProfilesViewModel = viewModel(
-                factory = viewModelFactory { initializer { ProfilesViewModel(container.authRepository, route.serverUrl) } },
+                factory = viewModelFactory { initializer { ProfilesViewModel(deps.auth, route.serverUrl) } },
             )
             ProfilesScreen(
                 viewModel = viewModel,
@@ -81,7 +95,7 @@ fun AppNavHost(container: AppContainer, start: Any) {
         composable<VehiclesRoute> {
             val viewModel: VehiclesViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { VehiclesViewModel(container.vehicleRepository, container.authRepository.settings) }
+                    initializer { VehiclesViewModel(deps.vehicles, deps.auth.settings) }
                 },
             )
             VehiclesScreen(
@@ -96,7 +110,7 @@ fun AppNavHost(container: AppContainer, start: Any) {
             val viewModel: VehicleViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
-                        VehicleViewModel(route.vehicleId, container.vehicleRepository, container.maintenanceRepository)
+                        VehicleViewModel(route.vehicleId, deps.vehicles, deps.maintenance)
                     }
                 },
             )
@@ -106,7 +120,7 @@ fun AppNavHost(container: AppContainer, start: Any) {
             NotificationPermissionScreen(
                 onDone = {
                     scope.launch {
-                        container.authRepository.markNotificationsAsked()
+                        deps.auth.markNotificationsAsked()
                         navController.navigate(VehiclesRoute) { popUpTo(0) }
                     }
                 },
@@ -115,7 +129,7 @@ fun AppNavHost(container: AppContainer, start: Any) {
         composable<SettingsRoute> {
             val back = navController.popBackOnce()
             val viewModel: SettingsViewModel = viewModel(
-                factory = viewModelFactory { initializer { SettingsViewModel(container.authRepository) } },
+                factory = viewModelFactory { initializer { SettingsViewModel(deps.auth) } },
             )
             SettingsScreen(
                 viewModel = viewModel,
