@@ -15,3 +15,8 @@ import kotlinx.serialization.Serializable
 @Serializable object NotificationPermissionRoute
 
 @Serializable data class VehicleRoute(val vehicleId: Long)
+
+@Serializable data class LogMaintenanceRoute(val vehicleId: Long)
+
+/** SavedStateHandle key under which the log screen hands its [de.bikemaintainer.app.ui.logmaintenance.LogResult] name to the detail. */
+const val LOG_RESULT_KEY = "log_result"

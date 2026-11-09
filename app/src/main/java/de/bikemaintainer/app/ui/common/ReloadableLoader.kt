@@ -25,8 +25,9 @@ data class LoadState<T>(
  *
  * - [refresh]: visible (spinner or refresh indicator); a failure is shown, data on screen is kept.
  * - [reloadSilently]: no indicator; a failure is only shown if there is nothing to show yet.
- * - Only one load runs at a time. A [refresh] while a silent load runs makes that load visible instead of being
- *   dropped (indicator on, its failure is shown).
+ * - Only one load runs at a time. A [refresh] while a load runs makes it visible (indicator on, its failure is shown)
+ *   and fetches once more after it, since the running load may have started before the change the refresh is for
+ *   (e.g. a saved mileage); the result of the outdated load is dropped. A [reloadSilently] meanwhile is dropped.
  * - [onResume]: the first call only marks (the owner loaded at creation), later calls reload silently. It lives with
  *   the owner (the ViewModel of a back-stack entry), so it survives the screen's composition being dropped while
  *   another destination is shown.
@@ -44,6 +45,7 @@ class ReloadableLoader<T>(
     private var inFlight = false
     private var visible = false
     private var resumed = false
+    private var reloadAgain = false
 
     fun refresh() = load(silent = false)
 
@@ -58,11 +60,14 @@ class ReloadableLoader<T>(
             visible = true
             _state.update { if (it.data == null) it.copy(error = null) else it.copy(refreshing = true) }
         }
-        if (inFlight) return
+        if (inFlight) {
+            if (!silent) reloadAgain = true
+            return
+        }
         inFlight = true
         scope.launch {
             try {
-                val result = fetch()
+                val result = fetchLatest()
                 _state.update { current ->
                     when (result) {
                         is Outcome.Success -> LoadState(data = result.value)
@@ -77,8 +82,19 @@ class ReloadableLoader<T>(
                 // Also after cancellation or an unexpected exception: a later call must work.
                 inFlight = false
                 visible = false
+                reloadAgain = false
                 _state.update { it.copy(refreshing = false) }
             }
         }
+    }
+
+    /** Fetches until no [refresh] arrived during the fetch; only the last result counts. */
+    private suspend fun fetchLatest(): Outcome<T> {
+        var result: Outcome<T>
+        do {
+            reloadAgain = false
+            result = fetch()
+        } while (reloadAgain)
+        return result
     }
 }

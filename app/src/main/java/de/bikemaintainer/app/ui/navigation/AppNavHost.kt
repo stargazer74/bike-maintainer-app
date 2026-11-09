@@ -5,6 +5,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.compose.dropUnlessResumed
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -19,6 +21,8 @@ import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.ui.login.LoginScreen
 import de.bikemaintainer.app.ui.login.LoginViewModel
+import de.bikemaintainer.app.ui.logmaintenance.LogMaintenanceScreen
+import de.bikemaintainer.app.ui.logmaintenance.LogMaintenanceViewModel
 import de.bikemaintainer.app.ui.notifications.NotificationPermissionScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesViewModel
@@ -113,7 +117,35 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                     }
                 },
             )
-            VehicleScreen(viewModel = viewModel, onBack = back)
+            VehicleScreen(
+                viewModel = viewModel,
+                onBack = back,
+                onLogMaintenance = dropUnlessResumed { navController.navigate(LogMaintenanceRoute(route.vehicleId)) },
+                logResult = entry.savedStateHandle.getStateFlow<String?>(LOG_RESULT_KEY, null),
+                onLogResultShown = { entry.savedStateHandle[LOG_RESULT_KEY] = null },
+            )
+        }
+        composable<LogMaintenanceRoute> { entry ->
+            val route = entry.toRoute<LogMaintenanceRoute>()
+            val back = navController.popBackOnce()
+            val viewModel: LogMaintenanceViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer {
+                        LogMaintenanceViewModel(route.vehicleId, deps.vehicles, deps.maintenance, createSavedStateHandle())
+                    }
+                },
+            )
+            LogMaintenanceScreen(
+                viewModel = viewModel,
+                onBack = back,
+                onDone = { result ->
+                    // Idempotent: only the entry that is still on top may hand over its result and pop.
+                    if (navController.currentBackStackEntry == entry) {
+                        navController.previousBackStackEntry?.savedStateHandle?.set(LOG_RESULT_KEY, result.name)
+                        navController.popBackStack()
+                    }
+                },
+            )
         }
         composable<NotificationPermissionRoute> {
             NotificationPermissionScreen(

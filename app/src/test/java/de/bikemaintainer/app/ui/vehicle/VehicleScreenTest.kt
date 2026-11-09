@@ -1,17 +1,25 @@
 package de.bikemaintainer.app.ui.vehicle
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextInput
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
+import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleType
+import de.bikemaintainer.app.ui.FakeMaintenanceRepository
+import de.bikemaintainer.app.ui.FakeVehicleRepository
+import de.bikemaintainer.app.ui.logmaintenance.LogResult
 import java.time.LocalDate
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -37,10 +45,14 @@ class VehicleScreenTest {
     ) = MaintenanceTask(id, 7, name, false, true, status, progress, km, days, null, lastDate, null)
 
     private fun show(state: VehicleUiState, onBack: () -> Unit = {}, onRetry: () -> Unit = {}) {
-        compose.setContent { VehicleContent(state = state, onBack = onBack, onRefresh = {}, onRetry = onRetry) }
+        compose.setContent {
+            VehicleContent(state = state, onBack = onBack, onRefresh = {}, onRetry = onRetry, actions = noActions)
+        }
     }
 
-    @Test fun showsHeaderAndTaskTexts() {
+    private val noActions = VehicleActions({}, {}, {}, {}, {})
+
+    @Test @Config(qualifiers = "de-h1200dp") fun showsHeaderAndTaskTexts() {
         show(
             VehicleUiState(
                 vehicle = vehicle,
@@ -101,5 +113,61 @@ class VehicleScreenTest {
         compose.onNodeWithText("Erneut versuchen").assertDoesNotExist()
         compose.onNodeWithText("Zurück").performClick()
         assertEquals(1, back)
+    }
+
+    @Test fun enterMileageDialogSavesAndShowsTooLow() {
+        val viewModel = VehicleViewModel(
+            7,
+            FakeVehicleRepository().apply { vehicleResult = Outcome.Success(vehicle.copy(currentMileage = 24500)) },
+            FakeMaintenanceRepository(),
+        )
+        compose.setContent { VehicleScreen(viewModel = viewModel, onBack = {}, onLogMaintenance = {}, logResult = MutableStateFlow(null), onLogResultShown = {}) }
+        compose.onNodeWithText("Kilometerstand eintragen").performClick()
+        compose.onNode(hasSetTextAction()).performTextClearance()
+        compose.onNode(hasSetTextAction()).performTextInput("24000")
+        compose.onNodeWithText("Speichern").performClick()
+        compose.onNodeWithText("Darf nicht kleiner sein als bisher (24.500 km).").assertExists()
+    }
+
+    @Test fun logButtonHiddenWithoutTasks() {
+        show(VehicleUiState(vehicle = vehicle))
+        compose.onNodeWithText("Kilometerstand eintragen").assertExists()
+        compose.onNodeWithText("Wartung erfassen").assertDoesNotExist()
+    }
+
+    @Test fun logButtonShownWithTasks() {
+        var logged = 0
+        compose.setContent {
+            VehicleContent(
+                state = VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Kette", TaskStatus.OK))),
+                onBack = {}, onRefresh = {}, onRetry = {},
+                actions = noActions.copy(onLogMaintenance = { logged++ }),
+            )
+        }
+        compose.onNodeWithText("Wartung erfassen").performClick()
+        assertEquals(1, logged)
+    }
+
+    private fun showLogResult(result: LogResult) {
+        val viewModel = VehicleViewModel(
+            7,
+            FakeVehicleRepository().apply { vehicleResult = Outcome.Success(vehicle) },
+            FakeMaintenanceRepository(),
+        )
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            VehicleScreen(viewModel = viewModel, onBack = {}, onLogMaintenance = {}, logResult = MutableStateFlow(result.name), onLogResultShown = {})
+        }
+        compose.mainClock.advanceTimeBy(6_000)
+    }
+
+    @Test fun savedSnackbarIsShort() {
+        showLogResult(LogResult.SAVED)
+        compose.onNodeWithText("Wartung gespeichert.").assertDoesNotExist()
+    }
+
+    @Test fun mileageFailedSnackbarStaysLonger() {
+        showLogResult(LogResult.SAVED_MILEAGE_FAILED)
+        compose.onNodeWithText("Wartung gespeichert, aber der Kilometerstand konnte nicht angehoben werden.").assertExists()
     }
 }

@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import mockwebserver3.MockResponse
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -30,8 +31,11 @@ class MaintenanceRepositoryTest {
         env.close()
     }
 
-    private fun setUp(configured: Boolean = true): MaintenanceRepository {
-        env = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), handler = { json(LOG, 201) })
+    private fun setUp(
+        configured: Boolean = true,
+        response: () -> MockResponse = { json(LOG, 201) },
+    ): MaintenanceRepository {
+        env = RepositoryTestEnv(tmp.newFile("s.preferences_pb"), handler = { response() })
         if (configured) runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
         return ApiMaintenanceRepository(env.provider)
     }
@@ -67,5 +71,20 @@ class MaintenanceRepositoryTest {
     fun blankNotesAreOmitted() {
         send("  ")
         assertTrue(body()["notes"] == null || body()["notes"] == JsonNull)
+    }
+
+    @Test
+    fun unreadableCreatedResponseCountsAsSaved() {
+        val repo = setUp(response = { json("{", 201) })
+        val result = runBlocking { repo.logMaintenance(3, LocalDate.of(2026, 11, 9), 24100, setOf(1L), null) }
+        assertEquals(Outcome.Success(Unit), result)
+        assertEquals(1, env.requests.size)
+    }
+
+    @Test
+    fun logMaintenanceServerErrorStaysFailure() {
+        val repo = setUp(response = { json("{}", 500) })
+        val result = runBlocking { repo.logMaintenance(3, LocalDate.of(2026, 11, 9), 24100, setOf(1L), null) }
+        assertEquals(Outcome.Failure(AppError.Http(500, null)), result)
     }
 }

@@ -9,6 +9,7 @@ import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
+import de.bikemaintainer.app.domain.parseMileage
 import de.bikemaintainer.app.ui.common.ReloadableLoader
 import de.bikemaintainer.app.ui.common.isNotFound
 import kotlinx.coroutines.async
@@ -16,6 +17,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class VehicleUiState(
@@ -26,11 +28,23 @@ data class VehicleUiState(
     /** Pull-to-refresh in flight. */
     val refreshing: Boolean = false,
     val error: AppError? = null,
+    /** The "enter mileage" dialog, `null` while closed. */
+    val mileageDialog: MileageDialogState? = null,
 )
+
+data class MileageDialogState(val input: String, val error: MileageError? = null, val saving: Boolean = false)
+
+sealed interface MileageError {
+    data object Invalid : MileageError
+
+    data class TooLow(val current: Int) : MileageError
+
+    data class Save(val error: AppError) : MileageError
+}
 
 class VehicleViewModel(
     vehicleId: Long,
-    vehicles: VehicleRepository,
+    private val vehicles: VehicleRepository,
     maintenance: MaintenanceRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(VehicleUiState())
@@ -56,12 +70,16 @@ class VehicleViewModel(
     init {
         viewModelScope.launch {
             loader.state.collect { l ->
-                _state.value = VehicleUiState(
-                    vehicle = l.data?.first,
-                    tasks = l.data?.second.orEmpty(),
-                    refreshing = l.refreshing,
-                    error = l.error,
-                )
+                _state.update {
+                    VehicleUiState(
+                        vehicle = l.data?.first,
+                        tasks = l.data?.second.orEmpty(),
+                        refreshing = l.refreshing,
+                        error = l.error,
+                        // The dialog outlives silent reloads, but not the vehicle (deleted).
+                        mileageDialog = if (l.data == null) null else it.mileageDialog,
+                    )
+                }
             }
         }
         loader.refresh()
@@ -75,4 +93,50 @@ class VehicleViewModel(
 
     /** Every resume of the screen; the first one is skipped (loaded at creation), later ones reload silently. */
     fun onResume() = loader.onResume()
+
+    fun openMileageDialog() {
+        val vehicle = loader.state.value.data?.first ?: return
+        _state.update { it.copy(mileageDialog = MileageDialogState(vehicle.currentMileage.toString())) }
+    }
+
+    fun onMileageInput(text: String) = updateDialog { it.copy(input = text, error = null) }
+
+    fun dismissMileageDialog() {
+        _state.update { if (it.mileageDialog?.saving == true) it else it.copy(mileageDialog = null) }
+    }
+
+    fun saveMileage() {
+        val dialog = _state.value.mileageDialog ?: return
+        if (dialog.saving) return
+        val vehicle = loader.state.value.data?.first ?: return
+        val km = parseMileage(dialog.input)
+        when {
+            km == null -> updateDialog { it.copy(error = MileageError.Invalid) }
+            km < vehicle.currentMileage -> updateDialog { it.copy(error = MileageError.TooLow(vehicle.currentMileage)) }
+            km == vehicle.currentMileage -> _state.update { it.copy(mileageDialog = null) }
+            else -> {
+                updateDialog { it.copy(saving = true, error = null) }
+                viewModelScope.launch {
+                    when (val result = vehicles.updateMileage(vehicle, km)) {
+                        is Outcome.Success -> {
+                            _state.update { it.copy(mileageDialog = null) }
+                            loader.refresh()
+                        }
+                        is Outcome.Failure -> if (result.error.isNotFound()) {
+                            // Deleted meanwhile: close the dialog; the reload turns the detail into its terminal
+                            // not-found state.
+                            _state.update { it.copy(mileageDialog = null) }
+                            loader.refresh()
+                        } else {
+                            updateDialog { it.copy(saving = false, error = MileageError.Save(result.error)) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun updateDialog(change: (MileageDialogState) -> MileageDialogState) {
+        _state.update { s -> s.mileageDialog?.let { s.copy(mileageDialog = change(it)) } ?: s }
+    }
 }

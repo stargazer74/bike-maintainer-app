@@ -3,6 +3,8 @@
     <string name="error_no_connection">No connection.</string>
     <string name="error_server_not_responding">The server does not respond.</string>
     <string name="error_vehicle_not_found">The vehicle was not found.</string>
+    <string name="error_input_rejected">The server rejected the input.</string>
+    <string name="error_save_failed">Could not be saved.</string>
     <string name="error_load_failed">Data could not be loaded.</string>
     <string name="status_overdue">Overdue</string>
     <string name="status_due_soon">Due soon</string>
@@ -90,4 +92,20 @@
         <item quantity="one">OK (%1$s day left)</item>
         <item quantity="other">OK (%1$s days left)</item>
     </plurals>
+    <string name="save">Save</string>
+    <string name="mileage_enter">Enter mileage</string>
+    <string name="mileage_label">Mileage (km)</string>
+    <string name="error_mileage_invalid">Please enter a whole number.</string>
+    <string name="error_mileage_too_low">Must not be lower than before (%1$s km).</string>
+    <string name="log_title">Log maintenance</string>
+    <string name="log_date">Date</string>
+    <string name="log_tasks">Tasks performed</string>
+    <string name="log_notes">Note (optional)</string>
+    <string name="log_notes_counter">%1$d / 1000</string>
+    <string name="log_costs_hint">Add materials and costs in the web app.</string>
+    <string name="log_raise_mileage">Raise the vehicle\'s mileage to %1$s km</string>
+    <string name="error_no_task_selected">Please select at least one task.</string>
+    <string name="ok">OK</string>
+    <string name="log_saved">Maintenance logged.</string>
+    <string name="log_saved_mileage_failed">Maintenance logged, but the mileage could not be raised.</string>
 </resources>

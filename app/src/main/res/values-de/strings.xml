@@ -3,6 +3,8 @@
     <string name="error_no_connection">Keine Verbindung.</string>
     <string name="error_server_not_responding">Der Server antwortet nicht.</string>
     <string name="error_vehicle_not_found">Das Fahrzeug wurde nicht gefunden.</string>
+    <string name="error_input_rejected">Der Server hat die Eingaben abgelehnt.</string>
+    <string name="error_save_failed">Konnte nicht gespeichert werden.</string>
     <string name="error_load_failed">Daten konnten nicht geladen werden.</string>
     <string name="status_overdue">Überfällig</string>
     <string name="status_due_soon">Bald fällig</string>
@@ -90,4 +92,20 @@
         <item quantity="one">OK (%1$s Tag verbleibend)</item>
         <item quantity="other">OK (%1$s Tage verbleibend)</item>
     </plurals>
+    <string name="save">Speichern</string>
+    <string name="mileage_enter">Kilometerstand eintragen</string>
+    <string name="mileage_label">Kilometerstand (km)</string>
+    <string name="error_mileage_invalid">Bitte eine ganze Zahl eingeben.</string>
+    <string name="error_mileage_too_low">Darf nicht kleiner sein als bisher (%1$s km).</string>
+    <string name="log_title">Wartung erfassen</string>
+    <string name="log_date">Datum</string>
+    <string name="log_tasks">Durchgeführte Aufgaben</string>
+    <string name="log_notes">Notiz (optional)</string>
+    <string name="log_notes_counter">%1$d / 1000</string>
+    <string name="log_costs_hint">Material und Kosten in der Web-App ergänzen.</string>
+    <string name="log_raise_mileage">Kilometerstand des Fahrzeugs auf %1$s km anheben</string>
+    <string name="error_no_task_selected">Bitte mindestens eine Aufgabe auswählen.</string>
+    <string name="ok">OK</string>
+    <string name="log_saved">Wartung gespeichert.</string>
+    <string name="log_saved_mileage_failed">Wartung gespeichert, aber der Kilometerstand konnte nicht angehoben werden.</string>
 </resources>
