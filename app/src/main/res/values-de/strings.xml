@@ -108,4 +108,11 @@
     <string name="ok">OK</string>
     <string name="log_saved">Wartung gespeichert.</string>
     <string name="log_saved_mileage_failed">Wartung gespeichert, aber der Kilometerstand konnte nicht angehoben werden.</string>
+    <string name="notif_channel_due">Fällige Wartungen</string>
+    <string name="notif_channel_due_desc">Erinnerungen an fällige und überfällige Wartungen</string>
+    <string name="notif_public_title">Wartung fällig</string>
+    <string name="notif_task_overdue">%1$s überfällig</string>
+    <string name="notif_task_due_soon">%1$s bald fällig</string>
+    <string name="notif_relogin_title">Bitte erneut anmelden</string>
+    <string name="notif_relogin_text">Bitte erneut anmelden, sonst keine Erinnerungen.</string>
 </resources>

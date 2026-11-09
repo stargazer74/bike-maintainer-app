@@ -39,4 +39,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    companion object {
+        /** Id of the vehicle a notification wants to open. */
+        const val EXTRA_VEHICLE_ID = "de.bikemaintainer.app.VEHICLE_ID"
+    }
 }

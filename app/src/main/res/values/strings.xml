@@ -108,4 +108,11 @@
     <string name="ok">OK</string>
     <string name="log_saved">Maintenance logged.</string>
     <string name="log_saved_mileage_failed">Maintenance logged, but the mileage could not be raised.</string>
+    <string name="notif_channel_due">Due maintenance</string>
+    <string name="notif_channel_due_desc">Reminders about due and overdue maintenance</string>
+    <string name="notif_public_title">Maintenance due</string>
+    <string name="notif_task_overdue">%1$s overdue</string>
+    <string name="notif_task_due_soon">%1$s due soon</string>
+    <string name="notif_relogin_title">Please sign in again</string>
+    <string name="notif_relogin_text">Please sign in again, otherwise no reminders.</string>
 </resources>
