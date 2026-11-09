@@ -94,6 +94,11 @@ android {
         // BuildConfig.DEBUG decides e.g. whether HTTP logging may be enabled.
         buildConfig = true
     }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
     lint {
         // Lint covers Android security checks (exported components, cleartext traffic, …); findings fail the build.
         warningsAsErrors = true
@@ -131,7 +136,10 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx.serialization)
+    testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver3)
     testImplementation(libs.okhttp.tls)
@@ -141,6 +149,16 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+// Robolectric reflects into JDK internals, which newer JDKs close by default.
+tasks.withType<Test>().configureEach {
+    jvmArgs(
+        "--add-opens=java.base/java.io=ALL-UNNAMED",
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+        "--enable-native-access=ALL-UNNAMED",
+    )
 }
 
 // Coverage gate: data and domain layers need >= 90 % line coverage; generated API code and the Keystore-bound cipher

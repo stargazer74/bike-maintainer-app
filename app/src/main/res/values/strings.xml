@@ -11,4 +11,18 @@
     <string name="setup_error_not_bike_maintainer">There is no Bike Maintainer at this address.</string>
     <string name="error_server_not_reachable">The server does not respond. Please check the address and your connection.</string>
     <string name="error_cleartext_not_allowed">Unencrypted connections are only allowed in your home network – please use https://.</string>
+    <string name="login_email">Email</string>
+    <string name="login_password">Password</string>
+    <string name="login_device_name">Device name</string>
+    <string name="login_submit">Log in</string>
+    <string name="login_register">No account yet? Create one</string>
+    <string name="login_forgot_password">Forgot password?</string>
+    <string name="login_other_server">Other server</string>
+    <string name="login_relogin_hint">Please log in again.</string>
+    <string name="login_error_required">Please enter your email and password.</string>
+    <string name="login_error_invalid_credentials">Wrong email or password.</string>
+    <string name="login_error_account_disabled">Your account has been disabled.</string>
+    <string name="login_error_email_not_verified">Your email address has not been verified yet.</string>
+    <string name="login_error_too_many_attempts">Too many attempts, please try again later.</string>
+    <string name="login_error_unknown">Login failed, please try again later.</string>
 </resources>

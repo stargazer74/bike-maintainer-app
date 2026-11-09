@@ -1,5 +1,6 @@
 package de.bikemaintainer.app.ui.navigation
 
+import android.os.Build
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -8,7 +9,10 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import de.bikemaintainer.app.AppContainer
+import de.bikemaintainer.app.ui.login.LoginScreen
+import de.bikemaintainer.app.ui.login.LoginViewModel
 import de.bikemaintainer.app.ui.setup.SetupScreen
 import de.bikemaintainer.app.ui.setup.SetupViewModel
 import de.bikemaintainer.app.ui.vehicles.VehiclesPlaceholderScreen
@@ -24,7 +28,24 @@ fun AppNavHost(container: AppContainer, start: Any) {
             )
             SetupScreen(viewModel = viewModel, onNavigate = { navController.navigate(it) })
         }
-        composable<LoginRoute> { Text("Login") }
+        composable<LoginRoute> { entry ->
+            val route = entry.toRoute<LoginRoute>()
+            val viewModel: LoginViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer {
+                        LoginViewModel(container.authRepository, route.serverUrl, Build.MODEL, route.relogin)
+                    }
+                },
+            )
+            LoginScreen(
+                viewModel = viewModel,
+                serverUrl = route.serverUrl,
+                onSignedIn = { navController.navigateAfterSignIn() },
+                onOtherServer = {
+                    if (!navController.popBackStack(SetupRoute, inclusive = false)) navController.navigate(SetupRoute)
+                },
+            )
+        }
         composable<ProfilesRoute> { Text("Profiles") }
         composable<VehiclesRoute> {
             VehiclesPlaceholderScreen(onOpenSettings = { navController.navigate(SettingsRoute) })

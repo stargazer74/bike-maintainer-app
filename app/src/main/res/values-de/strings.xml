@@ -11,4 +11,18 @@
     <string name="setup_error_not_bike_maintainer">Unter dieser Adresse läuft kein Bike Maintainer.</string>
     <string name="error_server_not_reachable">Der Server antwortet nicht. Bitte Adresse und Verbindung prüfen.</string>
     <string name="error_cleartext_not_allowed">Unverschlüsselte Verbindung nur im Heimnetz erlaubt – bitte https:// verwenden.</string>
+    <string name="login_email">E-Mail</string>
+    <string name="login_password">Passwort</string>
+    <string name="login_device_name">Gerätename</string>
+    <string name="login_submit">Anmelden</string>
+    <string name="login_register">Noch kein Konto? Konto anlegen</string>
+    <string name="login_forgot_password">Passwort vergessen?</string>
+    <string name="login_other_server">Anderer Server</string>
+    <string name="login_relogin_hint">Bitte melde dich erneut an.</string>
+    <string name="login_error_required">Bitte E-Mail und Passwort eingeben.</string>
+    <string name="login_error_invalid_credentials">E-Mail oder Passwort falsch.</string>
+    <string name="login_error_account_disabled">Dein Konto wurde gesperrt.</string>
+    <string name="login_error_email_not_verified">Deine E-Mail-Adresse ist noch nicht bestätigt.</string>
+    <string name="login_error_too_many_attempts">Zu viele Versuche, bitte später erneut.</string>
+    <string name="login_error_unknown">Anmeldung fehlgeschlagen, bitte später erneut versuchen.</string>
 </resources>
