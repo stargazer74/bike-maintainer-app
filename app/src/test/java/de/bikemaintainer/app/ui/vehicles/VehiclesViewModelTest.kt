@@ -75,6 +75,8 @@ class VehiclesViewModelTest {
         val vm = viewModel()
         repo.summariesGate = CompletableDeferred()
         vm.reloadSilently()
+        assertEquals(2, repo.summariesCalls) // the reload is really in flight
+        assertEquals(listOf(summary), vm.state.value.summaries)
         assertFalse(vm.state.value.loading)
         assertFalse(vm.state.value.refreshing)
         repo.summariesGate!!.complete(Unit)
@@ -87,6 +89,26 @@ class VehiclesViewModelTest {
         repo.summariesResult = Outcome.Failure(AppError.Network)
         vm.reloadSilently()
         assertEquals(listOf(summary), vm.state.value.summaries)
+        assertNull(vm.state.value.error)
+    }
+
+    @Test fun silentReloadFailureWithoutDataSetsError() {
+        repo.summariesResult = Outcome.Failure(AppError.Network)
+        val vm = viewModel()
+        repo.summariesResult = Outcome.Failure(AppError.Http(503, null))
+        vm.reloadSilently()
+        assertNull(vm.state.value.summaries)
+        assertEquals(AppError.Http(503, null), vm.state.value.error)
+    }
+
+    @Test fun successfulReloadClearsError() {
+        repo.summariesResult = Outcome.Success(listOf(summary))
+        val vm = viewModel()
+        repo.summariesResult = Outcome.Failure(AppError.Network)
+        vm.refresh()
+        assertEquals(AppError.Network, vm.state.value.error)
+        repo.summariesResult = Outcome.Success(listOf(summary))
+        vm.reloadSilently()
         assertNull(vm.state.value.error)
     }
 

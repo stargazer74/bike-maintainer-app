@@ -54,19 +54,24 @@ class VehiclesViewModel(
             }
         }
         viewModelScope.launch {
-            val result = vehicles.summaries()
-            inFlight = false
-            _state.update { current ->
-                when (result) {
-                    is Outcome.Success ->
-                        current.copy(summaries = result.value, loading = false, refreshing = false, error = null)
-                    is Outcome.Failure -> when {
-                        current.summaries == null ->
-                            current.copy(loading = false, refreshing = false, error = result.error)
-                        silent -> current.copy(loading = false, refreshing = false)
-                        else -> current.copy(loading = false, refreshing = false, error = result.error)
+            try {
+                val result = vehicles.summaries()
+                _state.update { current ->
+                    when (result) {
+                        is Outcome.Success ->
+                            current.copy(summaries = result.value, loading = false, refreshing = false, error = null)
+                        is Outcome.Failure -> when {
+                            current.summaries == null ->
+                                current.copy(loading = false, refreshing = false, error = result.error)
+                            silent -> current.copy(loading = false, refreshing = false)
+                            else -> current.copy(loading = false, refreshing = false, error = result.error)
+                        }
                     }
                 }
+            } finally {
+                // Never stay stuck (e.g. cancellation or an unexpected exception): a later call must work.
+                inFlight = false
+                _state.update { it.copy(loading = false, refreshing = false) }
             }
         }
     }

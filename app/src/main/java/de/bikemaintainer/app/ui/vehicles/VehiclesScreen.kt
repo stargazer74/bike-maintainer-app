@@ -190,8 +190,8 @@ private fun StatusLine(summary: VehicleSummary) {
     val color: Color = when (status) {
         TaskStatus.OVERDUE -> colors.overdue
         TaskStatus.DUE_SOON -> colors.dueSoon
-        TaskStatus.OK, TaskStatus.DONE -> colors.ok
-        null -> MaterialTheme.colorScheme.onSurfaceVariant
+        TaskStatus.OK -> colors.ok
+        TaskStatus.DONE, null -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     // "All up to date" is the friendlier wording for OK (the overall status never has due tasks then).
     val text = if (status == TaskStatus.OK || status == TaskStatus.DONE) {
@@ -204,7 +204,8 @@ private fun StatusLine(summary: VehicleSummary) {
             Modifier
                 .size(10.dp)
                 .background(color, CircleShape)
-                .semantics { contentDescription = name },
+                // The status text next to the dot already says it; describe the dot only if that text differs.
+                .semantics { if (text != name) contentDescription = name },
         )
         Text(text, style = MaterialTheme.typography.bodyMedium)
         if (summary.dueCount > 0) {
