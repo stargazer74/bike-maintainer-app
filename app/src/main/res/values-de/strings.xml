@@ -25,4 +25,11 @@
     <string name="login_error_email_not_verified">Deine E-Mail-Adresse ist noch nicht bestätigt.</string>
     <string name="login_error_too_many_attempts">Zu viele Versuche, bitte später erneut.</string>
     <string name="login_error_unknown">Anmeldung fehlgeschlagen, bitte später erneut versuchen.</string>
+    <string name="profiles_title">Wer bist du?</string>
+    <string name="profiles_subtitle">Wähle deine Person, um deine Fahrzeuge zu sehen.</string>
+    <string name="profiles_load_failed">Die Personen konnten nicht geladen werden.</string>
+    <string name="profiles_retry">Erneut versuchen</string>
+    <string name="profiles_empty">Noch keine Personen – lege sie in der Web-App an.</string>
+    <string name="profiles_open_web_app">Web-App öffnen</string>
+    <string name="profiles_select_failed">Diese Person konnte nicht ausgewählt werden. Bitte wähle erneut.</string>
 </resources>

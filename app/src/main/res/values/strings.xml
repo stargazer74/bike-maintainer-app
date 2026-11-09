@@ -25,4 +25,11 @@
     <string name="login_error_email_not_verified">Your email address has not been verified yet.</string>
     <string name="login_error_too_many_attempts">Too many attempts, please try again later.</string>
     <string name="login_error_unknown">Login failed, please try again later.</string>
+    <string name="profiles_title">Who are you?</string>
+    <string name="profiles_subtitle">Pick your profile to see your vehicles.</string>
+    <string name="profiles_load_failed">The profiles could not be loaded.</string>
+    <string name="profiles_retry">Try again</string>
+    <string name="profiles_empty">No profiles yet – create them in the web app.</string>
+    <string name="profiles_open_web_app">Open web app</string>
+    <string name="profiles_select_failed">This profile could not be selected. Please choose again.</string>
 </resources>

@@ -13,6 +13,8 @@ import androidx.navigation.toRoute
 import de.bikemaintainer.app.AppContainer
 import de.bikemaintainer.app.ui.login.LoginScreen
 import de.bikemaintainer.app.ui.login.LoginViewModel
+import de.bikemaintainer.app.ui.profiles.ProfilesScreen
+import de.bikemaintainer.app.ui.profiles.ProfilesViewModel
 import de.bikemaintainer.app.ui.setup.SetupScreen
 import de.bikemaintainer.app.ui.setup.SetupViewModel
 import de.bikemaintainer.app.ui.vehicles.VehiclesPlaceholderScreen
@@ -46,7 +48,20 @@ fun AppNavHost(container: AppContainer, start: Any) {
                 },
             )
         }
-        composable<ProfilesRoute> { Text("Profiles") }
+        composable<ProfilesRoute> { entry ->
+            val route = entry.toRoute<ProfilesRoute>()
+            val viewModel: ProfilesViewModel = viewModel(
+                factory = viewModelFactory { initializer { ProfilesViewModel(container.authRepository, route.serverUrl) } },
+            )
+            ProfilesScreen(
+                viewModel = viewModel,
+                serverUrl = route.serverUrl,
+                onSignedIn = { navController.navigateAfterSignIn() },
+                onOtherServer = {
+                    if (!navController.popBackStack(SetupRoute, inclusive = false)) navController.navigate(SetupRoute)
+                },
+            )
+        }
         composable<VehiclesRoute> {
             VehiclesPlaceholderScreen(onOpenSettings = { navController.navigate(SettingsRoute) })
         }
