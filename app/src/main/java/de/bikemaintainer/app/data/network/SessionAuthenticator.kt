@@ -71,6 +71,9 @@ class SessionAuthenticator(
     }
 
     private suspend fun exchangeDeviceToken(request: Request): Request? {
+        // After a rejected exchange the used-up token may still be stored (clearing it can fail as well): never present
+        // it again. Only a new login (which starts a new session) leaves this state.
+        if (state.status.value == SessionStatus.LOGIN_REQUIRED) return null
         val token = tokens.get()
         if (token == null) {
             state.require(SessionStatus.LOGIN_REQUIRED)
@@ -86,9 +89,12 @@ class SessionAuthenticator(
         if (result.code() != HTTP_OK) return null
         // Same as above: the old token is used up; presenting it again would look like a copied token.
         val newToken = result.body()?.deviceToken ?: return rejectExchange()
-        // Store the new token before the new session can be used. If that fails, the old one is used up all the same.
+        // Store the new token before the new session can be used. If that fails in any way (Keystore, full disk), the
+        // old one is used up all the same.
         try {
             tokens.set(newToken)
+        } catch (_: IOException) {
+            return rejectExchange()
         } catch (_: GeneralSecurityException) {
             return rejectExchange()
         } catch (_: RuntimeException) {

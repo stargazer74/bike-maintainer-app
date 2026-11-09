@@ -1,6 +1,8 @@
 package de.bikemaintainer.app.data.network
 
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
 import de.bikemaintainer.app.api.apis.AuthApi
 import de.bikemaintainer.app.api.apis.ProfilesApi
 import de.bikemaintainer.app.api.apis.VehiclesApi
@@ -9,11 +11,13 @@ import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.FakeTokenCipher
 import de.bikemaintainer.app.data.storage.SettingsStore
 import de.bikemaintainer.app.data.storage.TokenCipher
-import java.security.GeneralSecurityException
 import de.bikemaintainer.app.domain.ServerMode
+import java.io.IOException
+import java.security.GeneralSecurityException
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,6 +60,9 @@ class SessionAuthenticatorTest {
     private lateinit var cookieJar: InMemoryCookieJar
     private lateinit var client: OkHttpClient
 
+    /** Once set, every DataStore write fails like a full disk. */
+    private val failWrites = AtomicBoolean(false)
+
     @After
     fun tearDown() {
         server.close()
@@ -77,7 +84,7 @@ class SessionAuthenticatorTest {
         }
         server.start()
         settings = SettingsStore(
-            PreferenceDataStoreFactory.create(scope = storeScope) { tmpFolder.newFile("t.preferences_pb") },
+            failingWrites(PreferenceDataStoreFactory.create(scope = storeScope) { tmpFolder.newFile("t.preferences_pb") }),
         )
         tokens = DeviceTokenStore(settings, cipher)
         runBlocking {
@@ -94,6 +101,14 @@ class SessionAuthenticatorTest {
         }
         built = HttpClientFactory.create(cookieJar, authenticator, listOf(GenerationTagInterceptor(state)))
         client = built
+    }
+
+    private fun failingWrites(real: DataStore<Preferences>) = object : DataStore<Preferences> {
+        override val data = real.data
+        override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences {
+            if (failWrites.get()) throw IOException("disk full")
+            return real.updateData(transform)
+        }
     }
 
     private fun retrofit(client: OkHttpClient): Retrofit = Retrofit.Builder()
@@ -287,6 +302,28 @@ class SessionAuthenticatorTest {
         assertEquals(1, count(DEVICE_SESSION))
         assertEquals(1, count(VEHICLES))
         assertEquals(0L, state.generation)
+    }
+
+    @Test
+    fun storageWriteFailureAfterExchangeRequiresLoginAndNeverReusesToken() {
+        val sessionExpired = AtomicBoolean(false)
+        setUp { req ->
+            when (req.url.encodedPath) {
+                VEHICLES -> if (req.hasNewSession() && !sessionExpired.get()) json("[]") else status(401)
+                DEVICE_SESSION -> exchanged()
+                else -> status(500)
+            }
+        }
+        failWrites.set(true)
+        val vehicles = retrofit(client).create(VehiclesApi::class.java)
+        assertEquals(401, runBlocking { vehicles.listVehicles() }.code())
+        assertEquals(SessionStatus.LOGIN_REQUIRED, state.status.value)
+        assertEquals(0L, state.generation)
+        // The used-up token could not be removed (writes fail); it must still never be presented again, not even when
+        // the new session has expired as well.
+        sessionExpired.set(true)
+        get(VEHICLES).use { assertEquals(401, it.code) }
+        assertEquals(1, count(DEVICE_SESSION))
     }
 
     @Test
