@@ -6,13 +6,16 @@ import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.ServerConfig
 import de.bikemaintainer.app.domain.ServerMode
+import de.bikemaintainer.app.notifications.FakeDueNotifications
 import de.bikemaintainer.app.ui.FakeAuthRepository
+import de.bikemaintainer.app.ui.FakeReminderScheduler
 import de.bikemaintainer.app.ui.MainDispatcherRule
 import de.bikemaintainer.app.ui.navigation.LoginRoute
 import de.bikemaintainer.app.ui.navigation.ProfilesRoute
 import de.bikemaintainer.app.ui.navigation.SetupRoute
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -21,6 +24,12 @@ class SettingsViewModelTest {
     @get:Rule val mainRule = MainDispatcherRule()
 
     private val auth = FakeAuthRepository()
+    private val reminders = FakeReminderScheduler()
+    private val notifications = FakeDueNotifications()
+    private var allowed = true
+
+    private fun SettingsViewModel(auth: FakeAuthRepository) =
+        SettingsViewModel(auth, reminders, notifications) { allowed }
 
     private fun store(mode: ServerMode) {
         auth.settings.value = StoredSettings("https://h", mode, "tok", null)
@@ -76,5 +85,46 @@ class SettingsViewModelTest {
         val vm = SettingsViewModel(auth)
         vm.logout()
         assertEquals(LoginRoute("https://h"), vm.state.value.next)
+    }
+
+    @Test fun toggleSavesAndSyncs() {
+        store(ServerMode.PORTAL)
+        val vm = SettingsViewModel(auth)
+        assertTrue(vm.state.value.notificationsEnabled)
+        vm.setNotificationsEnabled(false)
+        assertFalse(auth.settings.value.notificationsEnabled)
+        assertFalse(vm.state.value.notificationsEnabled)
+        assertEquals(1, reminders.syncCalls)
+        vm.setNotificationsEnabled(true)
+        assertTrue(vm.state.value.notificationsEnabled)
+        assertEquals(2, reminders.syncCalls)
+    }
+
+    @Test fun blockedWhenEnabledButNotAllowed() {
+        store(ServerMode.PORTAL)
+        allowed = false
+        val vm = SettingsViewModel(auth)
+        assertTrue(vm.state.value.notificationsBlocked)
+        vm.setNotificationsEnabled(false)
+        assertFalse(vm.state.value.notificationsBlocked)
+        vm.setNotificationsEnabled(true)
+        assertTrue(vm.state.value.notificationsBlocked)
+        allowed = true
+        vm.refreshPermission()
+        assertFalse(vm.state.value.notificationsBlocked)
+    }
+
+    @Test fun logoutCancelsRemindersAndNotifications() {
+        store(ServerMode.PORTAL)
+        SettingsViewModel(auth).logout()
+        assertEquals(1, reminders.cancelCalls)
+        assertEquals(1, notifications.cancelAllCalls)
+    }
+
+    @Test fun switchServerCancelsRemindersAndNotifications() {
+        store(ServerMode.PORTAL)
+        SettingsViewModel(auth).switchServer()
+        assertEquals(1, reminders.cancelCalls)
+        assertEquals(1, notifications.cancelAllCalls)
     }
 }

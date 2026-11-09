@@ -36,5 +36,5 @@ suspend fun NavController.redirectOnSessionChanges(statuses: StateFlow<SessionSt
 }
 
 /** Pages that need a session. Login and profile selection are never among them, so a target is never shown twice. */
-private fun NavDestination.isAuthenticated(): Boolean =
+internal fun NavDestination.isAuthenticated(): Boolean =
     hasRoute<VehiclesRoute>() || hasRoute<VehicleRoute>() || hasRoute<LogMaintenanceRoute>() || hasRoute<SettingsRoute>() || hasRoute<NotificationPermissionRoute>()

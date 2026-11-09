@@ -31,11 +31,14 @@ import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.domain.VehicleType
 import de.bikemaintainer.app.ui.FakeAuthRepository
+import de.bikemaintainer.app.notifications.FakeDueNotifications
 import de.bikemaintainer.app.ui.FakeMaintenanceRepository
+import de.bikemaintainer.app.ui.FakeReminderScheduler
 import de.bikemaintainer.app.ui.FakeVehicleRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -60,12 +63,18 @@ class AppNavGraphTest {
     }
     private val maintenance = FakeMaintenanceRepository()
     private val session = SessionState()
+    private val reminders = FakeReminderScheduler()
+    private val openVehicle = MutableStateFlow<Long?>(null)
+    private var vehicleOpened = 0
     private lateinit var nav: TestNavHostController
 
     private fun show(start: Any) {
         compose.setContent {
             nav = TestNavHostController(LocalContext.current).apply { navigatorProvider.addNavigator(ComposeNavigator()) }
-            AppNavHost(AppDependencies(auth, vehicles, maintenance, session.status), start, nav)
+            AppNavHost(AppDependencies(
+                    auth, vehicles, maintenance, session.status,
+                    reminders, FakeDueNotifications(), { true }, openVehicle, { vehicleOpened++; openVehicle.value = null },
+                ), start, nav)
         }
         compose.waitForIdle()
     }
@@ -116,7 +125,7 @@ class AppNavGraphTest {
         show(VehiclesRoute)
         compose.runOnUiThread { nav.navigate(SettingsRoute) }
         compose.waitForIdle()
-        compose.onNode(hasText("Abmelden") and hasClickAction()).performClick()
+        compose.onNode(hasText("Abmelden") and hasClickAction()).performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNode(hasText("Abmelden") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
         compose.waitForIdle()
@@ -225,5 +234,40 @@ class AppNavGraphTest {
         session.require(SessionStatus.LOGIN_REQUIRED)
         compose.waitForIdle()
         assertEquals(listOf("LoginRoute"), stack())
+    }
+
+    @Test fun vehicleIntentOpensDetailOverList() {
+        openVehicle.value = 3
+        show(VehiclesRoute)
+        assertEquals(listOf("VehiclesRoute", "VehicleRoute"), stack())
+        assertEquals(3L, nav.currentBackStackEntry?.toRoute<VehicleRoute>()?.vehicleId)
+        assertEquals(1, vehicleOpened)
+    }
+
+    @Test fun vehicleIntentWhileAppIsRunningOpensDetail() {
+        show(VehiclesRoute)
+        compose.runOnUiThread { openVehicle.value = 3 }
+        compose.waitForIdle()
+        assertEquals(listOf("VehiclesRoute", "VehicleRoute"), stack())
+        assertEquals(1, vehicleOpened)
+    }
+
+    @Test fun vehicleIntentWhenSignedOutStaysOnLogin() {
+        openVehicle.value = 3
+        show(LoginRoute("https://h"))
+        assertEquals(listOf("LoginRoute"), stack())
+        assertEquals(1, vehicleOpened)
+        assertNull(openVehicle.value)
+    }
+
+    @Test fun signInSyncsReminders() {
+        auth.deviceLoginResult = Outcome.Success(Unit)
+        show(LoginRoute("https://h"))
+        compose.onNodeWithText("E-Mail").performTextInput("a@b.de")
+        compose.onNodeWithText("Passwort").performTextInput("pw")
+        compose.onNodeWithText("Anmelden").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("VehiclesRoute"), stack())
+        assertEquals(1, reminders.syncCalls)
     }
 }

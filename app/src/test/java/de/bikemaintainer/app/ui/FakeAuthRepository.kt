@@ -93,6 +93,10 @@ class FakeAuthRepository : AuthRepository {
         return currentAccountResult
     }
 
+    override suspend fun setNotificationsEnabled(enabled: Boolean) {
+        settings.value = settings.value.copy(notificationsEnabled = enabled)
+    }
+
     override suspend fun markNotificationsAsked() {
         markNotificationsAskedCalls++
     }

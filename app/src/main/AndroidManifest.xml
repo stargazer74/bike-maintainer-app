@@ -21,6 +21,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.BikeMaintainer"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

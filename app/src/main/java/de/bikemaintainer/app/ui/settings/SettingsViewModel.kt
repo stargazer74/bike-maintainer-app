@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.domain.Account
+import de.bikemaintainer.app.notifications.DueNotifications
+import de.bikemaintainer.app.notifications.ReminderScheduler
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.ServerMode
 import de.bikemaintainer.app.ui.navigation.LoginRoute
@@ -22,15 +24,34 @@ data class SettingsUiState(
     val account: Account? = null,
     val websiteUrl: String? = null,
     val busy: Boolean = false,
+    /** The reminder switch. */
+    val notificationsEnabled: Boolean = true,
+    /** The switch is on, but the system does not allow notifications (permission denied or turned off). */
+    val notificationsBlocked: Boolean = false,
     /** Route to navigate to once (after logout or switching the server). */
     val next: Any? = null,
 )
 
-class SettingsViewModel(private val auth: AuthRepository) : ViewModel() {
+class SettingsViewModel(
+    private val auth: AuthRepository,
+    private val reminders: ReminderScheduler,
+    private val notifications: DueNotifications,
+    private val notificationsAllowed: () -> Boolean,
+) : ViewModel() {
     private val _state = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            auth.settings.collect { stored ->
+                _state.update {
+                    it.copy(
+                        notificationsEnabled = stored.notificationsEnabled,
+                        notificationsBlocked = stored.notificationsEnabled && !notificationsAllowed(),
+                    )
+                }
+            }
+        }
         viewModelScope.launch {
             val stored = auth.settings.first()
             _state.update { it.copy(serverUrl = stored.serverUrl, mode = stored.mode) }
@@ -43,10 +64,25 @@ class SettingsViewModel(private val auth: AuthRepository) : ViewModel() {
         }
     }
 
+    /** Saves the switch (the wish of the user, even without permission) and brings the schedule in line. */
+    fun setNotificationsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            auth.setNotificationsEnabled(enabled)
+            refreshPermission()
+            reminders.sync()
+        }
+    }
+
+    /** Re-reads the system permission, e.g. when the screen is resumed or after the permission dialog. */
+    fun refreshPermission() {
+        _state.update { it.copy(notificationsBlocked = it.notificationsEnabled && !notificationsAllowed()) }
+    }
+
     /** Logs out but keeps the server; the repository clears local credentials even if the server call fails. */
     fun logout() = run {
         val server = _state.value.serverUrl
         auth.logout()
+        stopReminders()
         when {
             server == null -> SetupRoute
             _state.value.mode == ServerMode.HOUSEHOLD -> ProfilesRoute(server)
@@ -56,7 +92,14 @@ class SettingsViewModel(private val auth: AuthRepository) : ViewModel() {
 
     fun switchServer() = run {
         auth.switchServer()
+        stopReminders()
         SetupRoute
+    }
+
+    /** No more reminders for the account that is gone, and no vehicle names left in the status bar. */
+    private fun stopReminders() {
+        reminders.cancel()
+        notifications.cancelAll()
     }
 
     fun navigated() = _state.update { it.copy(next = null) }
