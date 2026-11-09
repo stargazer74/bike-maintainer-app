@@ -122,8 +122,14 @@ class VehicleViewModel(
                             _state.update { it.copy(mileageDialog = null) }
                             loader.refresh()
                         }
-                        is Outcome.Failure ->
+                        is Outcome.Failure -> if (result.error.isNotFound()) {
+                            // Deleted meanwhile: close the dialog; the reload turns the detail into its terminal
+                            // not-found state.
+                            _state.update { it.copy(mileageDialog = null) }
+                            loader.refresh()
+                        } else {
                             updateDialog { it.copy(saving = false, error = MileageError.Save(result.error)) }
+                        }
                     }
                 }
             }

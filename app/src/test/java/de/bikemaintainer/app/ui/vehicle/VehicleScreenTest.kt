@@ -1,23 +1,24 @@
 package de.bikemaintainer.app.ui.vehicle
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
-import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.test.performClick
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleType
-import java.time.LocalDate
 import de.bikemaintainer.app.ui.FakeMaintenanceRepository
 import de.bikemaintainer.app.ui.FakeVehicleRepository
+import de.bikemaintainer.app.ui.logmaintenance.LogResult
+import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -145,5 +146,28 @@ class VehicleScreenTest {
         }
         compose.onNodeWithText("Wartung erfassen").performClick()
         assertEquals(1, logged)
+    }
+
+    private fun showLogResult(result: LogResult) {
+        val viewModel = VehicleViewModel(
+            7,
+            FakeVehicleRepository().apply { vehicleResult = Outcome.Success(vehicle) },
+            FakeMaintenanceRepository(),
+        )
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            VehicleScreen(viewModel = viewModel, onBack = {}, onLogMaintenance = {}, logResult = MutableStateFlow(result.name), onLogResultShown = {})
+        }
+        compose.mainClock.advanceTimeBy(6_000)
+    }
+
+    @Test fun savedSnackbarIsShort() {
+        showLogResult(LogResult.SAVED)
+        compose.onNodeWithText("Wartung gespeichert.").assertDoesNotExist()
+    }
+
+    @Test fun mileageFailedSnackbarStaysLonger() {
+        showLogResult(LogResult.SAVED_MILEAGE_FAILED)
+        compose.onNodeWithText("Wartung gespeichert, aber der Kilometerstand konnte nicht angehoben werden.").assertExists()
     }
 }

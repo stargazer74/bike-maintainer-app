@@ -15,38 +15,35 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import de.bikemaintainer.app.ui.common.saveMessageRes
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import kotlinx.coroutines.launch
-import de.bikemaintainer.app.ui.logmaintenance.LogResult
-import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -58,11 +55,15 @@ import de.bikemaintainer.app.ui.common.AppCard
 import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.StatusDot
-import de.bikemaintainer.app.ui.common.isNotFound
 import de.bikemaintainer.app.ui.common.formatNumber
+import de.bikemaintainer.app.ui.common.isNotFound
 import de.bikemaintainer.app.ui.common.mileageText
+import de.bikemaintainer.app.ui.common.saveMessageRes
 import de.bikemaintainer.app.ui.common.statusColor
 import de.bikemaintainer.app.ui.common.vehicleLoadMessageRes
+import de.bikemaintainer.app.ui.logmaintenance.LogResult
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 @Composable
 fun VehicleScreen(
@@ -81,15 +82,16 @@ fun VehicleScreen(
     val saved = stringResource(R.string.log_saved)
     val savedMileageFailed = stringResource(R.string.log_saved_mileage_failed)
     LaunchedEffect(result) {
-        val message = when (result) {
-            LogResult.SAVED.name -> saved
-            LogResult.SAVED_MILEAGE_FAILED.name -> savedMileageFailed
-            else -> null
-        } ?: return@LaunchedEffect
+        // The partial failure asks the user to act (enter the mileage again), so it stays longer.
+        val (message, duration) = when (result) {
+            LogResult.SAVED.name -> saved to SnackbarDuration.Short
+            LogResult.SAVED_MILEAGE_FAILED.name -> savedMileageFailed to SnackbarDuration.Long
+            else -> return@LaunchedEffect
+        }
         // Consume first (the effect restarts when the value changes, so the snackbar runs in its own scope):
         // the message is shown once even if the screen is recreated while the snackbar is visible.
         currentShown()
-        scope.launch { snackbarHost.showSnackbar(message) }
+        scope.launch { snackbarHost.showSnackbar(message, duration = duration) }
     }
 
     // Reload when returning to the app; the ViewModel skips the first resume (it loaded in init).

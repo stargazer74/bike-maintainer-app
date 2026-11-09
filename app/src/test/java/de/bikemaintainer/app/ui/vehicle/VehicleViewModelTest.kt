@@ -285,4 +285,28 @@ class VehicleViewModelTest {
         assertNull(vm.state.value.mileageDialog)
         assertEquals(AppError.NotFound, vm.state.value.error)
     }
+
+    @Test fun mileageSavedDuringSilentReloadShowsTheNewMileage() {
+        vehicles.updateMileageResult = Outcome.Success(vehicle.copy(currentMileage = 12600))
+        val vm = openDialog()
+        vm.onMileageInput("12600")
+        // A resume reload is running and already has the old vehicle; the tasks are still loading.
+        maintenance.tasksGate = CompletableDeferred()
+        vm.reloadSilently()
+        vehicles.vehicleResult = Outcome.Success(vehicle.copy(currentMileage = 12600))
+        vm.saveMileage()
+        maintenance.tasksGate!!.complete(Unit)
+        assertEquals(3, vehicles.vehicleCalls.size)
+        assertEquals(12600, vm.state.value.vehicle!!.currentMileage)
+        assertFalse(vm.state.value.refreshing)
+    }
+
+    @Test fun vehicleDeletedBeforeMileageSaveShowsNotFound() {
+        val vm = openDialog()
+        vm.onMileageInput("12600")
+        vehicles.updateMileageResult = Outcome.Failure(AppError.NotFound)
+        vehicles.vehicleResult = Outcome.Failure(AppError.NotFound)
+        vm.saveMileage()
+        assertEquals(VehicleUiState(error = AppError.NotFound), vm.state.value)
+    }
 }

@@ -102,8 +102,35 @@ class ReloadableLoaderTest {
         l.reloadSilently()
         assertEquals(1, calls)
         gate!!.complete(Unit)
+        assertEquals(2, calls) // the refresh during the load runs once more afterwards, not twice
         l.refresh()
-        assertEquals(2, calls)
+        assertEquals(3, calls)
+    }
+
+    @Test fun refreshWhileLoadingFetchesOnceMoreWithTheNewData() {
+        val first = CompletableDeferred<Unit>()
+        var n = 0
+        val l = ReloadableLoader(scope) {
+            n++
+            if (n == 1) first.await()
+            Outcome.Success("v$n")
+        }
+        l.reloadSilently()
+        l.refresh() // e.g. after saving: the running load may have started before the change
+        assertEquals(1, n)
+        first.complete(Unit)
+        assertEquals(2, n)
+        assertEquals(LoadState(data = "v2"), l.state.value)
+    }
+
+    @Test fun silentReloadWhileLoadingIsNotRepeated() {
+        gate = CompletableDeferred()
+        val l = loader()
+        l.refresh()
+        l.reloadSilently()
+        gate!!.complete(Unit)
+        assertEquals(1, calls)
+        assertEquals(LoadState(data = "a"), l.state.value)
     }
 
     @Test fun refreshDuringSilentReloadMakesItVisible() {
