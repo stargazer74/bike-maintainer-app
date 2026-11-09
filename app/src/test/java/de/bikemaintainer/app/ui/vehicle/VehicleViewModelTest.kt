@@ -277,4 +277,12 @@ class VehicleViewModelTest {
         vm.reloadSilently()
         assertEquals("123", vm.state.value.mileageDialog!!.input)
     }
+
+    @Test fun terminalReloadErrorClosesOpenDialog() {
+        val vm = openDialog()
+        vehicles.vehicleResult = Outcome.Failure(AppError.NotFound)
+        vm.reloadSilently()
+        assertNull(vm.state.value.mileageDialog)
+        assertEquals(AppError.NotFound, vm.state.value.error)
+    }
 }

@@ -113,6 +113,9 @@ class LogMaintenanceViewModel(
         }
     }
 
+    /** Called once the screen has handed [LogMaintenanceUiState.done] on, so a recreated screen does not report it again. */
+    fun consumeDone() = _state.update { it.copy(done = null) }
+
     fun onDate(date: LocalDate) = edit { it.copy(date = date) }
 
     fun onMileageInput(text: String) = edit { it.copy(mileageInput = text) }

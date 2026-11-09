@@ -105,4 +105,7 @@
     <string name="log_costs_hint">Add materials and costs in the web app.</string>
     <string name="log_raise_mileage">Raise the vehicle\'s mileage to %1$s km</string>
     <string name="error_no_task_selected">Please select at least one task.</string>
+    <string name="ok">OK</string>
+    <string name="log_saved">Maintenance logged.</string>
+    <string name="log_saved_mileage_failed">Maintenance logged, but the mileage could not be raised.</string>
 </resources>

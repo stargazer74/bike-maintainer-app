@@ -35,6 +35,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,7 +67,13 @@ import java.time.format.FormatStyle
 @Composable
 fun LogMaintenanceScreen(viewModel: LogMaintenanceViewModel, onBack: () -> Unit, onDone: (LogResult) -> Unit) {
     val state by viewModel.state.collectAsState()
-    LaunchedEffect(state.done) { state.done?.let(onDone) }
+    val currentOnDone by rememberUpdatedState(onDone)
+    LaunchedEffect(state.done) {
+        state.done?.let {
+            currentOnDone(it)
+            viewModel.consumeDone()
+        }
+    }
     LogMaintenanceContent(
         state = state,
         today = viewModel.latestDate,
@@ -241,11 +248,10 @@ private fun DateField(date: LocalDate, today: LocalDate, enabled: Boolean, onDat
     }
     if (open) {
         // The picker works in UTC milliseconds; only today and earlier days can be chosen.
-        val lastMillis = today.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli() - 1
         val pickerState = rememberDatePickerState(
             initialSelectedDateMillis = date.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
             selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis <= lastMillis
+                override fun isSelectableDate(utcTimeMillis: Long) = isSelectableLogDate(utcTimeMillis, today)
             },
         )
         DatePickerDialog(
@@ -258,9 +264,13 @@ private fun DateField(date: LocalDate, today: LocalDate, enabled: Boolean, onDat
                         }
                         open = false
                     },
-                ) { Text(stringResource(R.string.save)) }
+                ) { Text(stringResource(R.string.ok)) }
             },
             dismissButton = { TextButton(onClick = { open = false }) { Text(stringResource(R.string.cancel)) } },
         ) { DatePicker(state = pickerState) }
     }
 }
+
+/** The picker works in UTC milliseconds regardless of the default time zone; only [today] and earlier days qualify. */
+fun isSelectableLogDate(utcMillis: Long, today: LocalDate): Boolean =
+    Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate() <= today

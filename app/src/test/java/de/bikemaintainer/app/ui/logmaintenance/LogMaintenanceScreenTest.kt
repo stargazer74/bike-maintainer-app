@@ -1,10 +1,10 @@
 package de.bikemaintainer.app.ui.logmaintenance
 
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -91,5 +91,15 @@ class LogMaintenanceScreenTest {
         node.assertIsOn()
         val state = node.fetchSemanticsNode().config[SemanticsProperties.ToggleableState]
         assertEquals(ToggleableState.On, state)
+        assertEquals(Role.Checkbox, node.fetchSemanticsNode().config[SemanticsProperties.Role])
+    }
+
+    @Test fun onDoneIsCalledOnceEvenWhenRecomposed() {
+        show()
+        compose.onNodeWithText("Speichern").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.runOnUiThread { }
+        compose.waitForIdle()
+        assertEquals(listOf(LogResult.SAVED), done)
     }
 }

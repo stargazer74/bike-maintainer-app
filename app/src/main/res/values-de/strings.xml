@@ -105,4 +105,7 @@
     <string name="log_costs_hint">Material und Kosten in der Web-App ergänzen.</string>
     <string name="log_raise_mileage">Kilometerstand des Fahrzeugs auf %1$s km anheben</string>
     <string name="error_no_task_selected">Bitte mindestens eine Aufgabe auswählen.</string>
+    <string name="ok">OK</string>
+    <string name="log_saved">Wartung gespeichert.</string>
+    <string name="log_saved_mileage_failed">Wartung gespeichert, aber der Kilometerstand konnte nicht angehoben werden.</string>
 </resources>

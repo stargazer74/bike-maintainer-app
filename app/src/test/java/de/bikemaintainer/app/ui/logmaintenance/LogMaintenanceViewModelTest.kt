@@ -181,4 +181,13 @@ class LogMaintenanceViewModelTest {
         vm.save()
         assertTrue(maintenance.logCalls.isEmpty())
     }
+
+    @Test fun consumeDoneClearsResult() {
+        maintenance.logResult = Outcome.Success(Unit)
+        val vm = viewModel()
+        vm.save()
+        assertEquals(LogResult.SAVED, vm.state.value.done)
+        vm.consumeDone()
+        assertNull(vm.state.value.done)
+    }
 }
