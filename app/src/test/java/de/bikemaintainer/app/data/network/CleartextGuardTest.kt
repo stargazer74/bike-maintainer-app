@@ -6,6 +6,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
+import java.net.InetSocketAddress
+import java.net.Proxy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -39,6 +41,20 @@ class CleartextGuardTest {
         server.enqueue(MockResponse())
         assertThrows(CleartextNotAllowedException::class.java) {
             clientWith(false).newCall(Request.Builder().url(server.url("/")).build()).execute()
+        }
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun httpViaProxyIsRejected() {
+        server.start()
+        server.enqueue(MockResponse())
+        val client = OkHttpClient.Builder()
+            .proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(server.hostName, server.port)))
+            .addNetworkInterceptor(CleartextGuard { true })
+            .build()
+        assertThrows(CleartextNotAllowedException::class.java) {
+            client.newCall(Request.Builder().url("http://example.com/").build()).execute()
         }
         assertEquals(0, server.requestCount)
     }

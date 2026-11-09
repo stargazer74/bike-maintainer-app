@@ -2,6 +2,7 @@ package de.bikemaintainer.app.data.network
 
 import java.io.IOException
 import java.net.InetAddress
+import java.net.Proxy
 import okhttp3.Interceptor
 import okhttp3.Response
 
@@ -19,8 +20,11 @@ class CleartextGuard(
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         if (!request.url.isHttps) {
-            val address = chain.connection()!!.route().socketAddress.address
-            if (!isHomeNetwork(address)) throw CleartextNotAllowedException(request.url.host)
+            val route = chain.connection()!!.route()
+            // Through a proxy, socketAddress is the proxy's address (HTTP) or unresolved (SOCKS), not the target's, so
+            // the home-network check would say nothing about where the cleartext traffic ends up. Hence: no proxy.
+            val address = if (route.proxy.type() == Proxy.Type.DIRECT) route.socketAddress.address else null
+            if (address == null || !isHomeNetwork(address)) throw CleartextNotAllowedException(request.url.host)
         }
         return chain.proceed(request)
     }
