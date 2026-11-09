@@ -1,5 +1,6 @@
 package de.bikemaintainer.app.notifications
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -68,10 +69,15 @@ class DueTaskNotifier(private val context: Context) : DueNotifications {
 
     private fun openApp(requestCode: Int, extras: Intent.() -> Unit): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply(extras)
-        return PendingIntent.getActivity(context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE)
+        return PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
     }
 
-    private fun notify(tag: String, id: Int, notification: android.app.Notification) {
+    private fun notify(tag: String, id: Int, notification: Notification) {
         if (!manager.areNotificationsEnabled()) return
         try {
             manager.notify(tag, id, notification)
