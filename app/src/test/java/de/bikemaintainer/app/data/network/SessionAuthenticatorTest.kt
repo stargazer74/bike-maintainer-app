@@ -328,6 +328,25 @@ class SessionAuthenticatorTest {
     }
 
     @Test
+    fun transientDecryptFailureKeepsTokenWithoutExchange() {
+        val cipher = object : TokenCipher {
+            override fun encrypt(plain: String): String = "x"
+            override fun decrypt(encrypted: String): String = throw GeneralSecurityException("keystore busy")
+        }
+        setUp(cipher = cipher) { req ->
+            when (req.url.encodedPath) {
+                VEHICLES -> status(401)
+                DEVICE_SESSION -> exchanged()
+                else -> status(500)
+            }
+        }
+        get(VEHICLES).use { assertEquals(401, it.code) }
+        assertEquals(0, count(DEVICE_SESSION))
+        assertEquals(SessionStatus.ACTIVE, state.status.value)
+        assertEquals("enc:alt", runBlocking { settings.current() }.encryptedDeviceToken)
+    }
+
+    @Test
     fun failedExchangeKeepsTokenAndStatus() {
         setUp { req ->
             when (req.url.encodedPath) {

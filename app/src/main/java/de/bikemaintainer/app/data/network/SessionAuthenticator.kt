@@ -88,7 +88,9 @@ class SessionAuthenticator(
         if (state.status.value == SessionStatus.LOGIN_REQUIRED) return null
         val token = tokens.get()
         if (token == null) {
-            state.require(SessionStatus.LOGIN_REQUIRED)
+            // Still stored means it could not be decrypted right now (transient Keystore error): no renewal this time,
+            // but the token stays valid. Gone means there is none (or it was unreadable for good): log in again.
+            if (settings.current().encryptedDeviceToken == null) state.require(SessionStatus.LOGIN_REQUIRED)
             return null
         }
         val result = try {
