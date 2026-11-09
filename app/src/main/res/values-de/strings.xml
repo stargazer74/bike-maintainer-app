@@ -120,6 +120,14 @@
     <string name="notif_public_title">Wartung fällig</string>
     <string name="notif_task_overdue">%1$s überfällig</string>
     <string name="notif_task_due_soon">%1$s bald fällig</string>
+    <plurals name="notif_more">
+        <item quantity="one">%1$s und %2$d weitere</item>
+        <item quantity="other">%1$s und %2$d weitere</item>
+    </plurals>
+    <plurals name="notif_count">
+        <item quantity="one">%1$d Wartung fällig</item>
+        <item quantity="other">%1$d Wartungen fällig</item>
+    </plurals>
     <string name="notif_relogin_title">Bitte erneut anmelden</string>
     <string name="notif_relogin_text">Bitte erneut anmelden, sonst keine Erinnerungen.</string>
 </resources>

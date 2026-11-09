@@ -37,10 +37,16 @@ class DueTaskNotifier(private val context: Context) : DueNotifications {
     }
 
     override fun showDue(due: VehicleDue) {
-        val text = due.all.joinToString(", ") {
+        val all = due.all
+        val named = all.take(MAX_NAMED).joinToString(", ") {
             val format = if (it.status == TaskStatus.OVERDUE) R.string.notif_task_overdue else R.string.notif_task_due_soon
             context.getString(format, it.name)
         }
+        val rest = all.size - MAX_NAMED
+        // Android cuts long texts off without a hint: name the most important ones and count the rest.
+        val text = if (rest > 0) context.resources.getQuantityString(R.plurals.notif_more, rest, named, rest) else named
+        val shortText =
+            if (rest > 0) context.resources.getQuantityString(R.plurals.notif_count, all.size, all.size) else text
         val publicVersion = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.notif_public_title))
@@ -48,7 +54,7 @@ class DueTaskNotifier(private val context: Context) : DueNotifications {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(due.vehicleName)
-            .setContentText(text)
+            .setContentText(shortText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
@@ -99,6 +105,9 @@ class DueTaskNotifier(private val context: Context) : DueNotifications {
         const val CHANNEL_ID = "due_maintenance"
         const val TAG_VEHICLE = "vehicle"
         const val TAG_RELOGIN = "relogin"
+
+        /** Tasks named in a vehicle notification; further ones are only counted. */
+        const val MAX_NAMED = 5
     }
 }
 

@@ -120,6 +120,14 @@
     <string name="notif_public_title">Maintenance due</string>
     <string name="notif_task_overdue">%1$s overdue</string>
     <string name="notif_task_due_soon">%1$s due soon</string>
+    <plurals name="notif_more">
+        <item quantity="one">%1$s and %2$d more</item>
+        <item quantity="other">%1$s and %2$d more</item>
+    </plurals>
+    <plurals name="notif_count">
+        <item quantity="one">%1$d maintenance task due</item>
+        <item quantity="other">%1$d maintenance tasks due</item>
+    </plurals>
     <string name="notif_relogin_title">Please sign in again</string>
     <string name="notif_relogin_text">Please sign in again, otherwise no reminders.</string>
 </resources>
