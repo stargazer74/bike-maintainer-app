@@ -25,7 +25,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
@@ -34,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import de.bikemaintainer.app.R
+import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
 import de.bikemaintainer.app.ui.common.WebLinks
 
 /** Stateful entry point: signals [onSignedIn] once after a successful login. */
@@ -48,16 +48,16 @@ fun LoginScreen(
     LaunchedEffect(state.done) {
         if (state.done) onSignedIn()
     }
-    // Opens the system browser (no WebView).
-    val uriHandler = LocalUriHandler.current
+    // Opens the system browser (no WebView); safe without a browser.
+    val openLink = rememberWebLinkOpener()
     LoginContent(
         state = state,
         onEmailChange = viewModel::onEmailChange,
         onPasswordChange = viewModel::onPasswordChange,
         onDeviceNameChange = viewModel::onDeviceNameChange,
         onSubmit = viewModel::onSubmit,
-        onRegister = { uriHandler.openUri(WebLinks.register(serverUrl)) },
-        onForgotPassword = { uriHandler.openUri(WebLinks.forgotPassword(serverUrl)) },
+        onRegister = { openLink(WebLinks.register(serverUrl)) },
+        onForgotPassword = { openLink(WebLinks.forgotPassword(serverUrl)) },
         onOtherServer = onOtherServer,
     )
 }

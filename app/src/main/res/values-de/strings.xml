@@ -32,4 +32,5 @@
     <string name="profiles_empty">Noch keine Personen – lege sie in der Web-App an.</string>
     <string name="profiles_open_web_app">Web-App öffnen</string>
     <string name="profiles_select_failed">Diese Person konnte nicht ausgewählt werden. Bitte wähle erneut.</string>
+    <string name="no_browser_found">Kein Browser gefunden.</string>
 </resources>

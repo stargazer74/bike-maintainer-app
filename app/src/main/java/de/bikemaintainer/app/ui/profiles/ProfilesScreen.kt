@@ -24,10 +24,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import de.bikemaintainer.app.R
+import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
 
 /** Stateful entry point: signals [onSignedIn] once after a profile was selected. */
 @Composable
@@ -41,13 +41,13 @@ fun ProfilesScreen(
     LaunchedEffect(state.done) {
         if (state.done) onSignedIn()
     }
-    // Opens the system browser (no WebView); the web app routes to its own person selection.
-    val uriHandler = LocalUriHandler.current
+    // Opens the system browser (no WebView); safe without a browser; the web app routes to its own person selection.
+    val openLink = rememberWebLinkOpener()
     ProfilesContent(
         state = state,
         onSelect = viewModel::select,
         onRetry = viewModel::reload,
-        onOpenWebApp = { uriHandler.openUri(serverUrl) },
+        onOpenWebApp = { openLink(serverUrl) },
         onOtherServer = onOtherServer,
     )
 }
