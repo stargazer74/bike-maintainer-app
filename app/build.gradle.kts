@@ -61,6 +61,23 @@ tasks.named("preBuild") {
     dependsOn("openApiGenerate")
 }
 
+// Release version from -Pbm.version=X.Y.Z (scripts/release.sh takes it from the tag vX.Y.Z). versionCode must rise
+// strictly across GitHub and Play, so it is derived from the version: X·1 000 000 + Y·1 000 + Z (below Play's limit
+// of 2 100 000 000). Without the property: a development version that any release can update.
+val appVersion: Pair<String, Int> = providers.gradleProperty("bm.version").orNull.let { version ->
+    if (version == null) return@let "0.0.0-dev" to 1
+    val match = Regex("""(\d{1,4})\.(\d{1,3})\.(\d{1,3})""").matchEntire(version)
+        ?: error("bm.version must be X.Y.Z (major up to 2099, minor/patch up to 999), got '$version'")
+    val (major, minor, patch) = match.destructured.toList().map(String::toInt)
+    check(major <= 2099) { "bm.version major must be at most 2099, got $major" }
+    version to major * 1_000_000 + minor * 1_000 + patch
+}
+
+// Signing key only from the environment (scripts/release.sh asks for the password); nothing in the repo or in
+// local.properties. Without it the release build stays unsigned, so builds without the key (CI, contributors) work.
+val releaseKeystore: String? = providers.environmentVariable("BM_KEYSTORE_FILE").orNull
+val releaseKeystorePassword: String? = providers.environmentVariable("BM_KEYSTORE_PASSWORD").orNull
+
 android {
     namespace = "de.bikemaintainer.app"
     compileSdk {
@@ -71,14 +88,27 @@ android {
         applicationId = "de.bikemaintainer.app"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersion.second
+        versionName = appVersion.first
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (releaseKeystore != null && releaseKeystorePassword != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = releaseKeystorePassword
+                keyAlias = providers.environmentVariable("BM_KEY_ALIAS").orElse("bike-maintainer").get()
+                // PKCS12 keystores use the store password for the key as well.
+                keyPassword = providers.environmentVariable("BM_KEY_PASSWORD").orElse(releaseKeystorePassword).get()
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
