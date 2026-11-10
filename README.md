@@ -25,7 +25,8 @@ The app is not tied to Google services. Signed APKs are published under
   certificate with the fingerprint below (e.g. `apksigner verify --print-certs`). Android itself refuses updates
   that are signed with a different key.
 
-Signing certificate (SHA-256): _published with the first release_
+Signing certificate (SHA-256, since 1.0.0):
+`DC:3B:B4:5B:E9:D5:7D:8F:DC:4F:35:24:4D:3F:47:8B:BE:F2:4D:03:C0:DF:E8:BB:F6:5D:45:68:5F:03:61:4F`
 
 Downloads from GitHub are visible to GitHub. The app itself only talks to the server you set it up with.
 
