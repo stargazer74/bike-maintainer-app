@@ -8,6 +8,7 @@ import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleType
 import de.bikemaintainer.app.ui.FakeMaintenanceRepository
+import de.bikemaintainer.app.ui.FakeMeasurementRepository
 import de.bikemaintainer.app.ui.FakeMaintenanceRepository.LogCall
 import de.bikemaintainer.app.ui.FakeVehicleRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
@@ -26,6 +27,7 @@ class LogMaintenanceViewModelTest {
 
     private val vehicles = FakeVehicleRepository()
     private val maintenance = FakeMaintenanceRepository()
+    private val measurements = FakeMeasurementRepository()
     private val today = LocalDate.of(2026, 11, 9)
     private val vehicle = Vehicle(3, "Africa Twin", VehicleType.MOTORCYCLE, null, null, 2020, LocalDate.of(2020, 5, 1), 24500)
 
@@ -46,7 +48,10 @@ class LogMaintenanceViewModelTest {
         if (vehicles.vehicleResult == null) vehicles.vehicleResult = Outcome.Success(vehicle)
         if (vehicles.updateMileageResult == null) vehicles.updateMileageResult = Outcome.Success(vehicle)
         maintenance.tasksResult = Outcome.Success(tasks)
-        return LogMaintenanceViewModel(3, vehicles, maintenance, savedState) { today }
+        return LogMaintenanceViewModel(
+            3, vehicles, maintenance, savedState, measurements,
+            today = { today }, shimDebounceMillis = 0, decimalSeparator = ',',
+        )
     }
 
     @Test fun prefillsTodayMileageAndDueTasks() {

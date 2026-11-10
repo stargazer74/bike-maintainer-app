@@ -3,15 +3,18 @@ package de.bikemaintainer.app.ui.vehicle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
+import de.bikemaintainer.app.data.repository.MeasurementRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
+import de.bikemaintainer.app.domain.MeasurementContext
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
 import de.bikemaintainer.app.domain.parseMileage
 import de.bikemaintainer.app.ui.common.ReloadableLoader
 import de.bikemaintainer.app.ui.common.isNotFound
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +33,8 @@ data class VehicleUiState(
     val error: AppError? = null,
     /** The "enter mileage" dialog, `null` while closed. */
     val mileageDialog: MileageDialogState? = null,
+    /** Target values and last measurements; `null` until loaded. A failure only hides them, the screen works on. */
+    val measurements: MeasurementContext? = null,
 )
 
 data class MileageDialogState(val input: String, val error: MileageError? = null, val saving: Boolean = false)
@@ -43,9 +48,10 @@ sealed interface MileageError {
 }
 
 class VehicleViewModel(
-    vehicleId: Long,
+    private val vehicleId: Long,
     private val vehicles: VehicleRepository,
     maintenance: MaintenanceRepository,
+    private val measurementRepository: MeasurementRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(VehicleUiState())
     val state: StateFlow<VehicleUiState> = _state.asStateFlow()
@@ -69,7 +75,11 @@ class VehicleViewModel(
 
     init {
         viewModelScope.launch {
+            var loaded: Any? = null
             loader.state.collect { l ->
+                // Every successful (re)load also refreshes the measurements, e.g. after a log was saved.
+                if (l.data != null && l.data !== loaded) loadMeasurements()
+                loaded = l.data
                 _state.update {
                     VehicleUiState(
                         vehicle = l.data?.first,
@@ -78,11 +88,24 @@ class VehicleViewModel(
                         error = l.error,
                         // The dialog outlives silent reloads, but not the vehicle (deleted).
                         mileageDialog = if (l.data == null) null else it.mileageDialog,
+                        measurements = if (l.data == null) null else it.measurements,
                     )
                 }
             }
         }
         loader.refresh()
+    }
+
+    private var measurementJob: Job? = null
+
+    private fun loadMeasurements() {
+        measurementJob?.cancel()
+        measurementJob = viewModelScope.launch {
+            val result = measurementRepository.context(vehicleId)
+            if (result is Outcome.Success) {
+                _state.update { if (it.vehicle == null) it else it.copy(measurements = result.value) }
+            }
+        }
     }
 
     /** Pull-to-refresh and "Try again". */

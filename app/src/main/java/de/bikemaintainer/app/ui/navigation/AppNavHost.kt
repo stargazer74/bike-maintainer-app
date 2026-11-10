@@ -4,6 +4,8 @@ import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.createSavedStateHandle
@@ -18,6 +20,7 @@ import androidx.navigation.toRoute
 import de.bikemaintainer.app.data.network.SessionStatus
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
+import de.bikemaintainer.app.data.repository.MeasurementRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.notifications.DueNotifications
 import de.bikemaintainer.app.notifications.ReminderScheduler
@@ -26,6 +29,13 @@ import de.bikemaintainer.app.ui.login.LoginScreen
 import de.bikemaintainer.app.ui.login.LoginViewModel
 import de.bikemaintainer.app.ui.logmaintenance.LogMaintenanceScreen
 import de.bikemaintainer.app.ui.logmaintenance.LogMaintenanceViewModel
+import de.bikemaintainer.app.ui.logmaintenance.ScanTransfer
+import de.bikemaintainer.app.ui.scan.ScanScreen
+import de.bikemaintainer.app.ui.scan.ScanViewModel
+import de.bikemaintainer.app.ui.scan.WorksheetScanner
+import de.bikemaintainer.app.domain.MeasurementTemplate
+import de.bikemaintainer.app.domain.scan.ScanOutcome
+import kotlinx.serialization.json.Json
 import de.bikemaintainer.app.ui.notifications.NotificationPermissionScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesViewModel
@@ -47,6 +57,7 @@ class AppDependencies(
     val auth: AuthRepository,
     val vehicles: VehicleRepository,
     val maintenance: MaintenanceRepository,
+    val measurements: MeasurementRepository,
     val sessionStatus: StateFlow<SessionStatus>,
     val reminders: ReminderScheduler,
     val notifications: DueNotifications,
@@ -54,6 +65,8 @@ class AppDependencies(
     /** Vehicle a tapped notification wants to open; reset via [onVehicleOpened] once handled or discarded. */
     val openVehicle: StateFlow<Long?>,
     val onVehicleOpened: () -> Unit,
+    /** Reads photographed worksheets; tests without a camera keep the default. */
+    val worksheetScanner: WorksheetScanner = WorksheetScanner { ScanOutcome.NoSheet },
 )
 
 @Composable
@@ -131,7 +144,7 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
             val viewModel: VehicleViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
-                        VehicleViewModel(route.vehicleId, deps.vehicles, deps.maintenance)
+                        VehicleViewModel(route.vehicleId, deps.vehicles, deps.maintenance, deps.measurements)
                     }
                 },
             )
@@ -149,17 +162,60 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
             val viewModel: LogMaintenanceViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
-                        LogMaintenanceViewModel(route.vehicleId, deps.vehicles, deps.maintenance, createSavedStateHandle())
+                        LogMaintenanceViewModel(
+                            route.vehicleId,
+                            deps.vehicles,
+                            deps.maintenance,
+                            createSavedStateHandle(),
+                            deps.measurements,
+                        )
                     }
                 },
             )
+            val scanResult by entry.savedStateHandle.getStateFlow<String?>(SCAN_RESULT_KEY, null).collectAsState()
+            LaunchedEffect(scanResult) {
+                scanResult?.let { json ->
+                    runCatching { Json.decodeFromString<ScanTransfer>(json) }.getOrNull()?.let(viewModel::applyScan)
+                    entry.savedStateHandle[SCAN_RESULT_KEY] = null
+                }
+            }
             LogMaintenanceScreen(
                 viewModel = viewModel,
                 onBack = back,
+                onScanWorksheet = dropUnlessResumed {
+                    val templates = viewModel.state.value.measurementContext?.templates.orEmpty()
+                    navController.navigate(ScanWorksheetRoute(route.vehicleId, templates.map { it.name }))
+                },
                 onDone = { result ->
                     // Idempotent: only the entry that is still on top may hand over its result and pop.
                     if (navController.currentBackStackEntry == entry) {
                         navController.previousBackStackEntry?.savedStateHandle?.set(LOG_RESULT_KEY, result.name)
+                        navController.popBackStack()
+                    }
+                },
+            )
+        }
+        composable<ScanWorksheetRoute> { entry ->
+            val route = entry.toRoute<ScanWorksheetRoute>()
+            val back = navController.popBackOnce()
+            val viewModel: ScanViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer {
+                        ScanViewModel(
+                            route.vehicleId,
+                            MeasurementTemplate.entries.filter { it.name in route.templates }.toSet(),
+                            deps.worksheetScanner,
+                        )
+                    }
+                },
+            )
+            ScanScreen(
+                viewModel = viewModel,
+                onBack = back,
+                onAccepted = { transfer ->
+                    // Only the entry still on top hands its values over, exactly once.
+                    if (navController.currentBackStackEntry == entry) {
+                        navController.previousBackStackEntry?.savedStateHandle?.set(SCAN_RESULT_KEY, Json.encodeToString(transfer))
                         navController.popBackStack()
                     }
                 },

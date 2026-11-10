@@ -40,12 +40,14 @@ class MainActivity : AppCompatActivity() {
                             container.authRepository,
                             container.vehicleRepository,
                             container.maintenanceRepository,
+                            container.measurementRepository,
                             container.sessionState.status,
                             container.reminderScheduler,
                             container.notifier,
                             { notificationsAllowed(applicationContext) },
                             openVehicle.asStateFlow(),
                             { openVehicle.value = null },
+                            container.worksheetScanner,
                         )
                     }
                     start?.let { AppNavHost(deps = deps, start = it) }

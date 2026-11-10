@@ -68,6 +68,15 @@ jobs:
           languages: java-kotlin
           build-mode: manual
           queries: security-and-quality
+          # Two Java quality rules only flag what the Kotlin compiler generates (#26): the casts in the equals() of a
+          # `data object` ("tmp0_other_with_cast is never read") and Compose's `$stable` fields in generated code.
+          # Unused variables are already reported by the Kotlin compiler, and Kotlin has no field hiding (`override`).
+          config: |
+            query-filters:
+              - exclude:
+                  id: java/local-variable-is-never-read
+              - exclude:
+                  id: java/field-masks-super-field
 
       # Only the code compiled after init is analysed; --no-build-cache and --rerun-tasks make sure Kotlin really
       # compiles instead of restoring outputs from the cache.

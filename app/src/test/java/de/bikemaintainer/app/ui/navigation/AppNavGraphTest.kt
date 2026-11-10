@@ -33,6 +33,7 @@ import de.bikemaintainer.app.domain.VehicleType
 import de.bikemaintainer.app.notifications.FakeDueNotifications
 import de.bikemaintainer.app.ui.FakeAuthRepository
 import de.bikemaintainer.app.ui.FakeMaintenanceRepository
+import de.bikemaintainer.app.ui.FakeMeasurementRepository
 import de.bikemaintainer.app.ui.FakeReminderScheduler
 import de.bikemaintainer.app.ui.FakeVehicleRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
@@ -73,7 +74,7 @@ class AppNavGraphTest {
         compose.setContent {
             nav = TestNavHostController(LocalContext.current).apply { navigatorProvider.addNavigator(ComposeNavigator()) }
             AppNavHost(AppDependencies(
-                    auth, vehicles, maintenance, session.status,
+                    auth, vehicles, maintenance, FakeMeasurementRepository(), session.status,
                     reminders, notifications, { true }, openVehicle, { vehicleOpened++; openVehicle.value = null },
                 ), start, nav)
         }

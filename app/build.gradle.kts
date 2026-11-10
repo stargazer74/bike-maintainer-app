@@ -168,6 +168,12 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx.serialization)
+    // Worksheet scan (Epic #120): camera in memory only, preview via camera-compose (camera-view would pull in
+    // camera-video, media3 and Guava); QR codes via zxing-cpp – offline, no telemetry, no Play Services.
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.compose)
+    implementation(libs.zxing.cpp)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

@@ -4,25 +4,43 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
+import de.bikemaintainer.app.data.repository.MeasurementRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
+import de.bikemaintainer.app.domain.MeasurementContext
+import de.bikemaintainer.app.domain.MeasurementTemplate
+import de.bikemaintainer.app.domain.ShimSuggestion
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
 import de.bikemaintainer.app.domain.parseMileage
 import de.bikemaintainer.app.ui.common.isNotFound
+import java.text.DecimalFormatSymbols
 import java.time.LocalDate
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
 
 const val MAX_NOTES_LENGTH = 1000
+
+const val SHIM_DEBOUNCE_MILLIS = 400L
+
+/** Shim suggestions for the valve rows (same order), or why there are none. */
+data class ShimState(
+    val suggestions: List<ShimSuggestion>? = null,
+    val error: AppError? = null,
+    val calculating: Boolean = false,
+)
 
 /** How a logged maintenance ended; the vehicle screen shows the matching message. */
 enum class LogResult { SAVED, SAVED_MILEAGE_FAILED }
@@ -31,6 +49,9 @@ sealed interface LogError {
     data object InvalidMileage : LogError
 
     data object NoTask : LogError
+
+    /** A measured value is invalid; the fields show what is wrong. */
+    data object Measurements : LogError
 
     data class Save(val error: AppError) : LogError
 }
@@ -47,6 +68,13 @@ data class LogMaintenanceUiState(
     val raiseMileage: Boolean = true,
     val saving: Boolean = false,
     val error: LogError? = null,
+    /** Templates, target values and last measurements; `null` until loaded. The form works without them. */
+    val measurementContext: MeasurementContext? = null,
+    val measurementLoadError: AppError? = null,
+    val measurements: MeasurementDrafts = MeasurementDrafts(),
+    /** Field problems are shown once the user tried to save. */
+    val showMeasurementErrors: Boolean = false,
+    val shim: ShimState = ShimState(),
     val done: LogResult? = null,
     /** The log is saved; the form stays locked until the screen is gone (also while [done] has been consumed). */
     val finished: Boolean = false,
@@ -69,7 +97,11 @@ class LogMaintenanceViewModel(
     private val maintenance: MaintenanceRepository,
     /** Keeps the form (and a finished save) across process death; only what the user can see or typed, never logged. */
     private val savedState: SavedStateHandle,
+    private val measurementRepository: MeasurementRepository,
     private val today: () -> LocalDate = LocalDate::now,
+    /** Waits this long after the last change of a valve row before asking the backend for shim suggestions. */
+    private val shimDebounceMillis: Long = SHIM_DEBOUNCE_MILLIS,
+    private val decimalSeparator: Char = DecimalFormatSymbols.getInstance().decimalSeparator,
 ) : ViewModel() {
     /** The latest selectable day. */
     val latestDate: LocalDate get() = today()
@@ -84,9 +116,32 @@ class LogMaintenanceViewModel(
     val state: StateFlow<LogMaintenanceUiState> = _state.asStateFlow()
 
     private var loading = false
+    private var loadingMeasurements = false
+    private var shimJob: Job? = null
 
     init {
         retryLoad()
+        retryMeasurements()
+    }
+
+    /** Loads what the measurements need; a failure only hides adding new templates, the rest of the form works. */
+    fun retryMeasurements() {
+        if (loadingMeasurements || _state.value.measurementContext != null || _state.value.finished) return
+        loadingMeasurements = true
+        _state.update { it.copy(measurementLoadError = null) }
+        viewModelScope.launch {
+            try {
+                when (val result = measurementRepository.context(vehicleId)) {
+                    is Outcome.Failure -> _state.update { it.copy(measurementLoadError = result.error) }
+                    is Outcome.Success -> {
+                        _state.update { it.copy(measurementContext = result.value) }
+                        scheduleShims()
+                    }
+                }
+            } finally {
+                loadingMeasurements = false
+            }
+        }
     }
 
     fun retryLoad() {
@@ -111,6 +166,7 @@ class LogMaintenanceViewModel(
                                     date = savedState.get<Long>(KEY_DATE)?.let(LocalDate::ofEpochDay) ?: today(),
                                     notes = savedState.get<String>(KEY_NOTES).orEmpty(),
                                     raiseMileage = savedState.get<Boolean>(KEY_RAISE) ?: true,
+                                    measurements = restoreMeasurements(),
                                 )
                             } else {
                                 it.copy(
@@ -123,6 +179,7 @@ class LogMaintenanceViewModel(
                             }
                         }
                         persist()
+                        scheduleShims()
                     }
                 }
             } finally {
@@ -144,6 +201,87 @@ class LogMaintenanceViewModel(
 
     fun onRaiseMileage(raise: Boolean) = edit { it.copy(raiseMileage = raise) }
 
+    /** Adds a template that fits the vehicle; valve rows and chain links are prefilled from the vehicle. */
+    fun addTemplate(template: MeasurementTemplate) {
+        val context = _state.value.measurementContext ?: return
+        if (template !in context.templates) return
+        editMeasurements { drafts ->
+            when (template) {
+                MeasurementTemplate.VALVE_CLEARANCE -> drafts.copy(
+                    valves = newValveDrafts(context.specification, context.latest.measurements.valves, decimalSeparator),
+                )
+                MeasurementTemplate.BRAKES -> drafts.copy(brakes = BrakeDraft())
+                MeasurementTemplate.CHAIN -> drafts.copy(chain = newChainDraft(context.specification))
+                MeasurementTemplate.TIRES -> drafts.copy(tires = TireDraft())
+            }
+        }
+    }
+
+    fun removeTemplate(template: MeasurementTemplate) = editMeasurements { it.without(template) }
+
+    /**
+     * Takes over the checked values of a photographed worksheet page (Epic #120). Like adding by hand, only templates
+     * that fit the vehicle; the scan screen only offers the photo once the context is loaded.
+     */
+    fun applyScan(scan: ScanTransfer) {
+        val context = _state.value.measurementContext ?: return
+        if (scan.template !in context.templates) return
+        editMeasurements { it.withScan(scan, context.specification, context.latest.measurements.valves, decimalSeparator) }
+    }
+
+    fun changeLayout(cylinders: Int, valvesPerCylinder: Int) = editMeasurements { drafts ->
+        drafts.valves?.let { drafts.copy(valves = valveLayout(cylinders, valvesPerCylinder, it)) } ?: drafts
+    }
+
+    fun onValve(index: Int, valve: ValveDraft) = editMeasurements { drafts ->
+        drafts.copy(valves = drafts.valves?.mapIndexed { i, old -> if (i == index) valve else old })
+    }
+
+    /** Takes the suggested shim of a row over as its new shim; it stays editable. */
+    fun applyShim(index: Int) {
+        val s = _state.value
+        val shim = s.shim.suggestions?.getOrNull(index)?.suggestedShim ?: return
+        val valve = s.measurements.valves?.getOrNull(index) ?: return
+        onValve(index, valve.copy(shimNew = shim.toInput(decimalSeparator)))
+    }
+
+    fun onBrakes(brakes: BrakeDraft) = editMeasurements { it.copy(brakes = it.brakes?.let { brakes }) }
+
+    fun onChain(chain: ChainDraft) = editMeasurements { it.copy(chain = it.chain?.let { chain }) }
+
+    fun onTires(tires: TireDraft) = editMeasurements { it.copy(tires = it.tires?.let { tires }) }
+
+    /** A measurement edit; a change of a measured value or an old shim asks for new shim suggestions. */
+    private fun editMeasurements(change: (MeasurementDrafts) -> MeasurementDrafts) {
+        val before = _state.value.measurements.valves?.shimInputs()
+        edit { it.copy(measurements = change(it.measurements)) }
+        if (_state.value.measurements.valves?.shimInputs() != before || _state.value.measurements.valves == null) {
+            scheduleShims()
+        }
+    }
+
+    /**
+     * Asks the backend for shim suggestions once typing pauses; a newer change cancels the pending request. Without
+     * the target values or a complete row there is nothing to ask. A failure (e.g. no connection) keeps the input.
+     */
+    private fun scheduleShims() {
+        shimJob?.cancel()
+        val s = _state.value
+        val inputs = s.measurements.valves?.shimInputs()
+        if (inputs == null || s.measurementContext?.specification?.canSuggestShims != true) {
+            _state.update { it.copy(shim = ShimState()) }
+            return
+        }
+        shimJob = viewModelScope.launch {
+            delay(shimDebounceMillis)
+            _state.update { it.copy(shim = it.shim.copy(calculating = true)) }
+            when (val result = measurementRepository.calculateShims(vehicleId, inputs)) {
+                is Outcome.Success -> _state.update { it.copy(shim = ShimState(suggestions = result.value)) }
+                is Outcome.Failure -> _state.update { it.copy(shim = ShimState(error = result.error)) }
+            }
+        }
+    }
+
     fun save() {
         val s = _state.value
         val vehicle = s.vehicle ?: return
@@ -152,11 +290,21 @@ class LogMaintenanceViewModel(
         when {
             km == null -> _state.update { it.copy(error = LogError.InvalidMileage) }
             s.selected.isEmpty() -> _state.update { it.copy(error = LogError.NoTask) }
+            s.measurements.firstError() != null ->
+                _state.update { it.copy(error = LogError.Measurements, showMeasurementErrors = true) }
             else -> {
                 _state.update { it.copy(saving = true, error = null) }
                 val raise = s.offerRaise && s.raiseMileage
                 viewModelScope.launch {
-                    when (val result = maintenance.logMaintenance(vehicleId, s.date, km, s.selected, s.notes.ifBlank { null })) {
+                    val result = maintenance.logMaintenance(
+                        vehicleId,
+                        s.date,
+                        km,
+                        s.selected,
+                        s.notes.ifBlank { null },
+                        s.measurements.toMeasurements().takeUnless { it.isEmpty },
+                    )
+                    when (result) {
                         is Outcome.Failure -> onSaveFailed(result.error)
                         is Outcome.Success -> {
                             // The log exists now; a failing raise must never lead to sending it again.
@@ -166,6 +314,7 @@ class LogMaintenanceViewModel(
                                 LogResult.SAVED
                             }
                             savedState[KEY_RESULT] = done.name
+                            shimJob?.cancel()
                             _state.update { it.copy(saving = false, finished = true, done = done) }
                         }
                     }
@@ -231,6 +380,18 @@ class LogMaintenanceViewModel(
         savedState[KEY_DATE] = s.date.toEpochDay()
         savedState[KEY_NOTES] = s.notes
         savedState[KEY_RAISE] = s.raiseMileage
+        savedState[KEY_MEASUREMENTS] = Json.encodeToString(s.measurements)
+    }
+
+    private fun restoreMeasurements(): MeasurementDrafts {
+        val json = savedState.get<String>(KEY_MEASUREMENTS) ?: return MeasurementDrafts()
+        return try {
+            Json.decodeFromString<MeasurementDrafts>(json)
+        } catch (_: SerializationException) {
+            MeasurementDrafts()
+        } catch (_: IllegalArgumentException) {
+            MeasurementDrafts()
+        }
     }
 
     private companion object {
@@ -240,6 +401,7 @@ class LogMaintenanceViewModel(
         const val KEY_NOTES = "log_notes"
         const val KEY_RAISE = "log_raise"
         const val KEY_RESULT = "log_done"
+        const val KEY_MEASUREMENTS = "log_measurements"
     }
 }
 

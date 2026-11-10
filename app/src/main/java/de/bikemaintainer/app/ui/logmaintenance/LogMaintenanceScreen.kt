@@ -65,7 +65,12 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 @Composable
-fun LogMaintenanceScreen(viewModel: LogMaintenanceViewModel, onBack: () -> Unit, onDone: (LogResult) -> Unit) {
+fun LogMaintenanceScreen(
+    viewModel: LogMaintenanceViewModel,
+    onBack: () -> Unit,
+    onDone: (LogResult) -> Unit,
+    onScanWorksheet: () -> Unit = {},
+) {
     val state by viewModel.state.collectAsState()
     val currentOnDone by rememberUpdatedState(onDone)
     LaunchedEffect(state.done) {
@@ -86,6 +91,18 @@ fun LogMaintenanceScreen(viewModel: LogMaintenanceViewModel, onBack: () -> Unit,
             onNotes = viewModel::onNotes,
             onRaise = viewModel::onRaiseMileage,
             onSave = viewModel::save,
+            measurements = MeasurementActions(
+                onRetry = viewModel::retryMeasurements,
+                onAdd = viewModel::addTemplate,
+                onRemove = viewModel::removeTemplate,
+                onLayout = viewModel::changeLayout,
+                onValve = viewModel::onValve,
+                onApplyShim = viewModel::applyShim,
+                onBrakes = viewModel::onBrakes,
+                onChain = viewModel::onChain,
+                onTires = viewModel::onTires,
+                onScan = onScanWorksheet,
+            ),
         ),
     )
 }
@@ -98,6 +115,7 @@ data class LogActions(
     val onNotes: (String) -> Unit,
     val onRaise: (Boolean) -> Unit,
     val onSave: () -> Unit,
+    val measurements: MeasurementActions,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -184,6 +202,7 @@ private fun Form(state: LogMaintenanceUiState, today: LocalDate, actions: LogAct
             enabled = !state.locked,
             modifier = Modifier.fillMaxWidth(),
         )
+        MeasurementSection(state, actions.measurements)
         Text(
             stringResource(R.string.log_costs_hint),
             style = MaterialTheme.typography.bodySmall,
@@ -193,6 +212,7 @@ private fun Form(state: LogMaintenanceUiState, today: LocalDate, actions: LogAct
             null -> {}
             LogError.InvalidMileage -> ErrorText(stringResource(R.string.error_mileage_invalid))
             LogError.NoTask -> ErrorText(stringResource(R.string.error_no_task_selected))
+            LogError.Measurements -> ErrorText(stringResource(R.string.error_measurements_invalid))
             is LogError.Save -> ErrorText(stringResource(error.error.saveMessageRes()))
         }
         Button(onClick = actions.onSave, enabled = !state.locked, modifier = Modifier.fillMaxWidth()) {
@@ -203,7 +223,7 @@ private fun Form(state: LogMaintenanceUiState, today: LocalDate, actions: LogAct
 
 /** A row that toggles as a whole (checkbox, role Checkbox); the checkbox itself is decoration for TalkBack. */
 @Composable
-private fun CheckRow(checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit, content: @Composable RowScope.() -> Unit) {
+internal fun CheckRow(checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit, content: @Composable RowScope.() -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
             value = checked,
