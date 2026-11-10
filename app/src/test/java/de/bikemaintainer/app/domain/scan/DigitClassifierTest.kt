@@ -39,4 +39,19 @@ class DigitClassifierTest {
         val badRank = java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.LITTLE_ENDIAN).put("BMD1".toByteArray()).putInt(9).array()
         assertThrows(IOException::class.java) { DigitClassifier.load(ByteArrayInputStream(badRank)) }
     }
+
+    private fun header(vararg dimensions: Int) =
+        java.nio.ByteBuffer.allocate(8 + 4 * dimensions.size).order(java.nio.ByteOrder.LITTLE_ENDIAN).apply {
+            put("BMD1".toByteArray())
+            putInt(dimensions.size)
+            dimensions.forEach { putInt(it) }
+        }.array()
+
+    @Test
+    fun rejectsBrokenTensorSizes() {
+        // Zero or negative dimensions, too large in total, and a product that would overflow an Int.
+        listOf(intArrayOf(0), intArrayOf(4, -2), intArrayOf(1_000_001), intArrayOf(65_536, 65_536)).forEach { dims ->
+            assertThrows(IOException::class.java) { DigitClassifier.load(ByteArrayInputStream(header(*dims))) }
+        }
+    }
 }
