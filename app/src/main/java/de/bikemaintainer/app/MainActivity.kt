@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
                             container.authRepository,
                             container.vehicleRepository,
                             container.maintenanceRepository,
+                            container.measurementRepository,
                             container.sessionState.status,
                             container.reminderScheduler,
                             container.notifier,

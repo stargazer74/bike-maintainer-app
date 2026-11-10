@@ -3,6 +3,7 @@ package de.bikemaintainer.app.data.repository
 import de.bikemaintainer.app.api.models.MaintenanceLogRequest
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.domain.MaintenanceTask
+import de.bikemaintainer.app.domain.Measurements
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import java.time.LocalDate
@@ -17,6 +18,7 @@ interface MaintenanceRepository {
         mileage: Int,
         taskIds: Set<Long>,
         notes: String?,
+        measurements: Measurements? = null,
     ): Outcome<Unit>
 }
 
@@ -31,19 +33,21 @@ class ApiMaintenanceRepository(private val provider: ApiProvider) : MaintenanceR
     private fun Outcome<Unit>.unreadableCreatedAsSaved(): Outcome<Unit> =
         if (this is Outcome.Failure && error == AppError.Http(-1, null)) Outcome.Success(Unit) else this
 
-    /** Blank [notes] are not sent (the spec requires at least one character). */
+    /** Blank [notes] are not sent (the spec requires at least one character); empty [measurements] neither. */
     override suspend fun logMaintenance(
         vehicleId: Long,
         performedAt: LocalDate,
         mileage: Int,
         taskIds: Set<Long>,
         notes: String?,
+        measurements: Measurements?,
     ): Outcome<Unit> {
         val request = MaintenanceLogRequest(
             performedAt = performedAt,
             mileageAtPerformed = mileage,
             notes = notes?.trim()?.takeIf { it.isNotEmpty() },
             performedTaskIds = taskIds,
+            measurements = measurements?.takeUnless { it.isEmpty }?.toRequest(),
         )
         return provider.callStored { it.logs.createMaintenanceLog(vehicleId, request) }.map { }.unreadableCreatedAsSaved()
     }

@@ -27,6 +27,7 @@ import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleType
 import de.bikemaintainer.app.ui.FakeMaintenanceRepository
+import de.bikemaintainer.app.ui.FakeMeasurementRepository
 import de.bikemaintainer.app.ui.FakeVehicleRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
 import java.time.LocalDate
@@ -58,7 +59,7 @@ class LogMaintenanceScreenTest {
         maintenance.tasksResult = Outcome.Success(
             listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE), task(2, "Kette", TaskStatus.DUE_SOON)),
         )
-        val vm = LogMaintenanceViewModel(3, vehicles, maintenance, SavedStateHandle()) { today }
+        val vm = LogMaintenanceViewModel(3, vehicles, maintenance, SavedStateHandle(), FakeMeasurementRepository(), today = { today })
         compose.setContent { LogMaintenanceScreen(vm, onBack = {}, onDone = { done += it }) }
     }
 
@@ -106,7 +107,7 @@ class LogMaintenanceScreenTest {
     @Test fun onDoneIsCalledOnceEvenWhenTheScreenIsRecreated() {
         vehicles.vehicleResult = Outcome.Success(vehicle)
         maintenance.tasksResult = Outcome.Success(listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE)))
-        val vm = LogMaintenanceViewModel(3, vehicles, maintenance, SavedStateHandle()) { today }
+        val vm = LogMaintenanceViewModel(3, vehicles, maintenance, SavedStateHandle(), FakeMeasurementRepository(), today = { today })
         var generation by mutableIntStateOf(0)
         compose.setContent {
             // A new key drops the old composition and builds a fresh one around the same ViewModel (like a rotation).
@@ -140,7 +141,7 @@ class LogMaintenanceScreenTest {
     @Test fun datePickerSurvivesStateRestoration() {
         vehicles.vehicleResult = Outcome.Success(vehicle)
         maintenance.tasksResult = Outcome.Success(listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE)))
-        val vm = LogMaintenanceViewModel(3, vehicles, maintenance, SavedStateHandle()) { today }
+        val vm = LogMaintenanceViewModel(3, vehicles, maintenance, SavedStateHandle(), FakeMeasurementRepository(), today = { today })
         val restoration = StateRestorationTester(compose)
         restoration.setContent { LogMaintenanceScreen(vm, onBack = {}, onDone = {}) }
         compose.onNode(hasText("Datum", substring = true) and hasClickAction()).performClick()

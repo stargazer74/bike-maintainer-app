@@ -3,6 +3,7 @@ package de.bikemaintainer.app.ui
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.domain.MaintenanceTask
+import de.bikemaintainer.app.domain.Measurements
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleSummary
@@ -60,6 +61,7 @@ class FakeMaintenanceRepository : MaintenanceRepository {
         val mileage: Int,
         val taskIds: Set<Long>,
         val notes: String?,
+        val measurements: Measurements? = null,
     )
 
     var tasksResult: Outcome<List<MaintenanceTask>> = Outcome.Success(emptyList())
@@ -82,8 +84,9 @@ class FakeMaintenanceRepository : MaintenanceRepository {
         mileage: Int,
         taskIds: Set<Long>,
         notes: String?,
+        measurements: Measurements?,
     ): Outcome<Unit> {
-        logCalls += LogCall(vehicleId, performedAt, mileage, taskIds, notes)
+        logCalls += LogCall(vehicleId, performedAt, mileage, taskIds, notes, measurements)
         logGate?.await()
         return logResult
     }
