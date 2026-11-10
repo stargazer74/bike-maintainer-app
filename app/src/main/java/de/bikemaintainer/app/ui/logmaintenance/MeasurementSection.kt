@@ -56,6 +56,8 @@ data class MeasurementActions(
     val onBrakes: (BrakeDraft) -> Unit,
     val onChain: (ChainDraft) -> Unit,
     val onTires: (TireDraft) -> Unit,
+    /** Opens the camera to read a filled-in worksheet (Epic #120). */
+    val onScan: () -> Unit = {},
 )
 
 private val CYLINDER_OPTIONS = 1..8
@@ -89,6 +91,11 @@ fun MeasurementSection(state: LogMaintenanceUiState, actions: MeasurementActions
             val name = stringResource(template.nameRes())
             OutlinedButton(onClick = { actions.onAdd(template) }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.measure_add, name))
+            }
+        }
+        if (templates.isNotEmpty()) {
+            OutlinedButton(onClick = actions.onScan, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.scan_open))
             }
         }
     }

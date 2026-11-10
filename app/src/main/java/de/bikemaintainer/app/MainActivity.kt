@@ -47,6 +47,7 @@ class MainActivity : AppCompatActivity() {
                             { notificationsAllowed(applicationContext) },
                             openVehicle.asStateFlow(),
                             { openVehicle.value = null },
+                            container.worksheetScanner,
                         )
                     }
                     start?.let { AppNavHost(deps = deps, start = it) }

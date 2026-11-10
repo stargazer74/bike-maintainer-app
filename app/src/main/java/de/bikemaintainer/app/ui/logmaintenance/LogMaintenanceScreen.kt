@@ -65,7 +65,12 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 @Composable
-fun LogMaintenanceScreen(viewModel: LogMaintenanceViewModel, onBack: () -> Unit, onDone: (LogResult) -> Unit) {
+fun LogMaintenanceScreen(
+    viewModel: LogMaintenanceViewModel,
+    onBack: () -> Unit,
+    onDone: (LogResult) -> Unit,
+    onScanWorksheet: () -> Unit = {},
+) {
     val state by viewModel.state.collectAsState()
     val currentOnDone by rememberUpdatedState(onDone)
     LaunchedEffect(state.done) {
@@ -96,6 +101,7 @@ fun LogMaintenanceScreen(viewModel: LogMaintenanceViewModel, onBack: () -> Unit,
                 onBrakes = viewModel::onBrakes,
                 onChain = viewModel::onChain,
                 onTires = viewModel::onTires,
+                onScan = onScanWorksheet,
             ),
         ),
     )

@@ -92,6 +92,22 @@ class LogMaintenanceMeasurementsTest {
         assertNull(vm.state.value.measurements.chain)
     }
 
+    @Test fun scannedWorksheetIsTakenOverOnlyForFittingTemplates() {
+        measurements.contextResult = Outcome.Success(MeasurementContext(listOf(MeasurementTemplate.BRAKES), spec, latest))
+        val vm = viewModel()
+        vm.applyScan(ScanTransfer(MeasurementTemplate.CHAIN, values = mapOf("chain.slack" to "30")))
+        assertNull(vm.state.value.measurements.chain)
+        vm.applyScan(ScanTransfer(MeasurementTemplate.BRAKES, values = mapOf("brakes.padFront" to "4,5")))
+        assertEquals("4,5", vm.state.value.measurements.brakes!!.padFront)
+    }
+
+    @Test fun scanIsIgnoredWithoutTheMeasurementContext() {
+        measurements.contextResult = Outcome.Failure(AppError.Network)
+        val vm = viewModel()
+        vm.applyScan(ScanTransfer(MeasurementTemplate.BRAKES, values = mapOf("brakes.padFront" to "4,5")))
+        assertNull(vm.state.value.measurements.brakes)
+    }
+
     @Test fun templatesNotFittingTheVehicleAreNotAdded() {
         measurements.contextResult = Outcome.Success(MeasurementContext(listOf(MeasurementTemplate.TIRES), spec, latest))
         val vm = viewModel()

@@ -1,0 +1,9 @@
+{
+ "qr": "BMWS;v=1;t=BRAKES;id=42;p=1/1",
+ "values": {
+  "brakes.discFront": "51.4",
+  "brakes.discRear": "7.21",
+  "brakes.padFront": "8.47",
+  "brakes.padRear": "9.8"
+ }
+}

@@ -1,0 +1,11 @@
+{
+ "qr": "BMWS;v=1;t=TIRES;id=42;p=1/1",
+ "values": {
+  "tires.dotFront": "",
+  "tires.dotRear": "9",
+  "tires.pressureFront": "2.57",
+  "tires.pressureRear": "1.5",
+  "tires.treadFront": "85.3",
+  "tires.treadRear": "47.1"
+ }
+}
