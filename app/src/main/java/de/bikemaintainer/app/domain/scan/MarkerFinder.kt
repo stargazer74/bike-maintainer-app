@@ -33,12 +33,14 @@ object MarkerFinder {
     internal fun threshold(image: GrayImage): BooleanArray {
         val w = image.width
         val h = image.height
-        val integral = LongArray((w + 1) * (h + 1))
+        val stride = w + 1
+        val integral = LongArray(stride * (h + 1))
         for (y in 0 until h) {
             var row = 0L
+            val nextY = y + 1
             for (x in 0 until w) {
                 row += image[x, y]
-                integral[(y + 1) * (w + 1) + x + 1] = integral[y * (w + 1) + x + 1] + row
+                integral[nextY * stride + x + 1] = integral[y * stride + x + 1] + row
             }
         }
         val r = max(8, max(w, h) / 24)
@@ -49,7 +51,7 @@ object MarkerFinder {
             for (x in 0 until w) {
                 val x0 = max(0, x - r)
                 val x1 = min(w, x + r + 1)
-                val sum = integral[y1 * (w + 1) + x1] - integral[y0 * (w + 1) + x1] - integral[y1 * (w + 1) + x0] + integral[y0 * (w + 1) + x0]
+                val sum = integral[y1 * stride + x1] - integral[y0 * stride + x1] - integral[y1 * stride + x0] + integral[y0 * stride + x0]
                 val mean = sum.toDouble() / ((x1 - x0) * (y1 - y0))
                 dark[y * w + x] = image[x, y] < mean * 0.7
             }
@@ -150,7 +152,11 @@ object MarkerFinder {
         var sign = 0
         for (i in 0 until 4) {
             val o = p[i]; val q = p[(i + 1) % 4]; val r = p[(i + 2) % 4]
-            val cross = (q.x - o.x) * (r.y - q.y) - (q.y - o.y) * (r.x - q.x)
+            val ax = q.x - o.x
+            val ay = q.y - o.y
+            val bx = r.x - q.x
+            val by = r.y - q.y
+            val cross = ax * by - ay * bx
             val s = if (cross > 0) 1 else -1
             if (sign == 0) sign = s else if (s != sign) return null
         }

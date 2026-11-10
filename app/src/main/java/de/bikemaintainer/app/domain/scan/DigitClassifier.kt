@@ -106,9 +106,7 @@ class DigitClassifier(private val layers: List<FloatArray>) {
             val tensors = List(8) {
                 val rank = readInt(data)
                 if (rank !in 1..4) throw IOException("Invalid tensor rank")
-                var count = 1
-                repeat(rank) { count *= readInt(data) }
-                if (count <= 0 || count > 1_000_000) throw IOException("Invalid tensor size")
+                val count = readTensorSize(data, rank)
                 val bytes = ByteArray(count * 4)
                 data.readFully(bytes)
                 FloatArray(count).also { ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(it) }
@@ -119,6 +117,23 @@ class DigitClassifier(private val layers: List<FloatArray>) {
                 throw IOException(e.message, e)
             }
         }
+
+        /**
+         * Product of the [rank] dimensions; each must be positive and the total at most [MAX_TENSOR_SIZE], checked
+         * per step so a broken file can neither overflow the count nor make us allocate a huge array.
+         */
+        private fun readTensorSize(data: DataInputStream, rank: Int): Int {
+            var count = 1L
+            for (i in 0 until rank) {
+                val dimension = readInt(data)
+                if (dimension <= 0) throw IOException("Invalid tensor dimension")
+                count *= dimension
+                if (count > MAX_TENSOR_SIZE) throw IOException("Invalid tensor size")
+            }
+            return count.toInt()
+        }
+
+        private const val MAX_TENSOR_SIZE = 1_000_000L
 
         private fun readInt(data: DataInputStream): Int {
             val bytes = ByteArray(4)
