@@ -3,11 +3,13 @@ package de.bikemaintainer.app.ui.scan
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -32,11 +35,13 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -69,22 +74,36 @@ import de.bikemaintainer.app.ui.common.valveLabel
 import de.bikemaintainer.app.ui.logmaintenance.ScanTransfer
 
 @Composable
-fun ScanScreen(viewModel: ScanViewModel, onBack: () -> Unit, onAccepted: (ScanTransfer) -> Unit) {
+fun ScanScreen(
+    viewModel: ScanViewModel,
+    onBack: () -> Unit,
+    onAccepted: (ScanTransfer) -> Unit,
+    camera: @Composable () -> Unit = {
+        CameraWithPermission(onPhoto = viewModel::onPhoto, onFailed = viewModel::onCaptureFailed)
+    },
+) {
     val state by viewModel.state.collectAsState()
+    val progress by viewModel.progress.collectAsState()
+    // Once a page of a multi-page sheet is taken over, back (arrow or gesture) hands the collected pages over like
+    // "Done" instead of dropping them.
+    val back: () -> Unit = { if (viewModel.progress.value != null) viewModel.finish() else onBack() }
+    BackHandler(enabled = progress != null) { viewModel.finish() }
     val currentOnAccepted by rememberUpdatedState(onAccepted)
     LaunchedEffect(state) {
         (state as? ScanUiState.Done)?.let { currentOnAccepted(it.transfer) }
     }
     ScanContent(
         state = state,
-        onBack = onBack,
+        progress = progress,
+        onBack = back,
         actions = ScanActions(
             onValue = viewModel::onValue,
             onChecked = viewModel::onChecked,
             onAccept = viewModel::accept,
             onRetake = viewModel::retake,
+            onFinish = viewModel::finish,
         ),
-        camera = { CameraWithPermission(onPhoto = viewModel::onPhoto, onFailed = viewModel::onCaptureFailed) },
+        camera = camera,
     )
 }
 
@@ -93,12 +112,20 @@ data class ScanActions(
     val onChecked: (Int, Boolean) -> Unit,
     val onAccept: () -> Unit,
     val onRetake: () -> Unit,
+    /** Takes the pages of a multi-page sheet collected so far over. */
+    val onFinish: () -> Unit = {},
 )
 
 /** Stateless screen; [camera] is the live preview (replaced in tests, which have no camera). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScanContent(state: ScanUiState, onBack: () -> Unit, actions: ScanActions, camera: @Composable () -> Unit) {
+fun ScanContent(
+    state: ScanUiState,
+    onBack: () -> Unit,
+    actions: ScanActions,
+    progress: SheetProgress? = null,
+    camera: @Composable () -> Unit,
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -111,35 +138,72 @@ fun ScanContent(state: ScanUiState, onBack: () -> Unit, actions: ScanActions, ca
             )
         },
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            when (state) {
-                ScanUiState.Camera -> camera()
-                ScanUiState.Reading, is ScanUiState.Done -> Column(
-                    Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    LoadingIndicator()
-                    Text(stringResource(R.string.scan_reading), Modifier.padding(top = 16.dp))
-                }
-                is ScanUiState.Problem -> Column(
-                    Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    ErrorText(stringResource(state.problem.messageRes()), Modifier.padding(bottom = 16.dp))
-                    Button(onClick = actions.onRetake) { Text(stringResource(R.string.scan_retake)) }
-                }
-                is ScanUiState.Review -> Review(state, actions)
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            if (progress != null && state != ScanUiState.Reading && state !is ScanUiState.Done) {
+                ProgressBanner(progress, actions.onFinish)
             }
+            Box(Modifier.weight(1f).fillMaxWidth()) { Phase(state, progress, actions, camera) }
         }
     }
 }
 
+/** Which pages are taken over, what to photograph next, and "Done" to take the collected values over. */
 @Composable
-private fun Review(state: ScanUiState.Review, actions: ScanActions) {
+private fun ProgressBanner(progress: SheetProgress, onFinish: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.scan_progress, progress.done.sorted().joinToString(", "), progress.pages),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            progress.nextPage?.let {
+                Text(
+                    stringResource(R.string.scan_next_page, it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
+        TextButton(onClick = onFinish) { Text(stringResource(R.string.scan_finish)) }
+    }
+}
+
+@Composable
+private fun Phase(state: ScanUiState, progress: SheetProgress?, actions: ScanActions, camera: @Composable () -> Unit) {
+    when (state) {
+        ScanUiState.Camera -> camera()
+        ScanUiState.Reading, is ScanUiState.Done -> Column(
+            Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            LoadingIndicator()
+            Text(stringResource(R.string.scan_reading), Modifier.padding(top = 16.dp))
+        }
+        is ScanUiState.Problem -> Column(
+            Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            ErrorText(stringResource(state.problem.messageRes()), Modifier.padding(bottom = 16.dp))
+            Button(onClick = actions.onRetake) { Text(stringResource(R.string.scan_retake)) }
+        }
+        is ScanUiState.Review -> Review(state, progress, actions)
+    }
+}
+
+@Composable
+private fun Review(state: ScanUiState.Review, progress: SheetProgress?, actions: ScanActions) {
+    // Every page starts at the top, not where the previous page was scrolled to.
+    val listState = key(state.code.page) { rememberLazyListState() }
     LazyColumn(
         Modifier.fillMaxSize(),
+        state = listState,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -155,16 +219,18 @@ private fun Review(state: ScanUiState.Review, actions: ScanActions) {
                 else -> stringResource(R.string.scan_review_compare)
             }
             Text(hint, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyMedium)
-            if (code.pages > 1) {
-                Text(stringResource(R.string.scan_review_more_pages), style = MaterialTheme.typography.bodySmall)
-            }
         }
         itemsIndexed(state.fields, key = { _, f -> f.field.id }) { index, field ->
             FieldRow(field, onValue = { actions.onValue(index, it) }, onChecked = { actions.onChecked(index, it) })
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = actions.onAccept, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.scan_accept)) }
+                // With pages still missing after this one, taking over leads on to the next page.
+                val code = state.code
+                val next = (1..code.pages).firstOrNull { it != code.page && it !in progress?.done.orEmpty() }
+                Button(onClick = actions.onAccept, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (next == null) stringResource(R.string.scan_accept) else stringResource(R.string.scan_accept_next, next))
+                }
                 OutlinedButton(onClick = actions.onRetake, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.scan_retake))
                 }
@@ -256,6 +322,7 @@ private fun ScanProblem.messageRes(): Int = when (this) {
     ScanProblem.NEWER_LAYOUT -> R.string.scan_error_newer_layout
     ScanProblem.OTHER_VEHICLE -> R.string.scan_error_other_vehicle
     ScanProblem.WRONG_TEMPLATE -> R.string.scan_error_template
+    ScanProblem.OTHER_SHEET -> R.string.scan_error_other_sheet
     ScanProblem.FAILED -> R.string.scan_error_failed
 }
 

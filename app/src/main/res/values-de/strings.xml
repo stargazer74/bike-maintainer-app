@@ -233,7 +233,6 @@
     <string name="scan_review_check">Bitte die markierten Werte (%1$d) mit dem Blatt vergleichen.</string>
     <string name="scan_review_compare">Vor der Übernahme die Werte mit dem Blatt vergleichen.</string>
     <string name="scan_review_empty">Auf dieser Seite stehen keine Werte.</string>
-    <string name="scan_review_more_pages">Die weiteren Seiten nacheinander fotografieren.</string>
     <string name="scan_uncertain">Bitte prüfen</string>
     <string name="scan_crop_description">Foto des Felds %1$s</string>
     <string name="scan_accept">Übernehmen</string>
@@ -244,4 +243,9 @@
     <string name="scan_error_other_vehicle">Dieses Arbeitsblatt gehört zu einem anderen Fahrzeug. Es wurde nichts übernommen.</string>
     <string name="scan_error_template">Dieses Arbeitsblatt passt nicht zu diesem Fahrzeug. Es wurde nichts übernommen.</string>
     <string name="scan_error_failed">Das Foto konnte nicht gelesen werden. Bitte noch einmal versuchen.</string>
+    <string name="scan_progress">Übernommene Seiten: %1$s von %2$d</string>
+    <string name="scan_next_page">Jetzt Seite %1$d fotografieren.</string>
+    <string name="scan_finish">Fertig</string>
+    <string name="scan_accept_next">Übernehmen, weiter mit Seite %1$d</string>
+    <string name="scan_error_other_sheet">Diese Seite gehört zu einem anderen Arbeitsblatt. Bitte die nächste Seite desselben Blatts fotografieren – die übernommenen Seiten bleiben erhalten.</string>
 </resources>

@@ -20,3 +20,11 @@ internal fun chainSheet(vehicleId: Long = 3) = ScannedSheet(
         }
     },
 )
+
+/** Page [page] of the valve clearance sheet for 8 cylinders with 3 valves (3 pages); every measured value is "0.1". */
+internal fun valveSheetPage(page: Int, vehicleId: Long = 3, cylinders: Int = 8) = ScannedSheet(
+    SheetCode(1, MeasurementTemplate.VALVE_CLEARANCE, vehicleId, cylinders, 3, page, ScanLayout.pageCount(MeasurementTemplate.VALVE_CLEARANCE, cylinders, 3)),
+    ScanLayout.pages(MeasurementTemplate.VALVE_CLEARANCE, cylinders, 3)[page - 1].map { field ->
+        FieldReading(field, value = if (field.id.endsWith("measured")) "0.1" else "", crop = CROP)
+    },
+)

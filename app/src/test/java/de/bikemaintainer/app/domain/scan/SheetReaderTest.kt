@@ -23,6 +23,10 @@ class SheetReaderTest {
     @Test
     fun tiresOblique() = check("tires-oblique")
 
+    /** Page 2 of 3: cylinders 4–6, read from the positions of page 2. */
+    @Test
+    fun valvesPage2Oblique() = check("valves-page2-oblique")
+
     @Test
     fun chainDim() = check("chain-dim")
 

@@ -22,7 +22,7 @@ fun interface WorksheetScanner {
 }
 
 /** Why nothing can be taken over; each has its own message. */
-enum class ScanProblem { NO_SHEET, NO_CODE, NEWER_LAYOUT, OTHER_VEHICLE, WRONG_TEMPLATE, FAILED }
+enum class ScanProblem { NO_SHEET, NO_CODE, NEWER_LAYOUT, OTHER_VEHICLE, WRONG_TEMPLATE, OTHER_SHEET, FAILED }
 
 /** One field in the review: [text] as the user would type it (decimal separator of the device). */
 data class ReviewField(
@@ -32,6 +32,15 @@ data class ReviewField(
     val uncertain: Boolean,
     val crop: GrayImage,
 )
+
+/**
+ * Pages of a multi-page worksheet taken over so far (Epic #120): the values are collected here and handed to the form
+ * together once all pages are done or the user finishes early.
+ */
+data class SheetProgress(val template: MeasurementTemplate, val pages: Int, val done: Set<Int>) {
+    /** The lowest page not taken over yet, or `null` if all are done. */
+    val nextPage: Int? get() = (1..pages).firstOrNull { it !in done }
+}
 
 sealed interface ScanUiState {
     /** Camera preview, waiting for the photo. */
@@ -50,8 +59,9 @@ sealed interface ScanUiState {
 }
 
 /**
- * Photo → recognised values → review → take over (Epic #120). The photo and the field crops only live in this
- * ViewModel's memory: nothing is saved (also not in the SavedStateHandle) – after process death the camera opens again.
+ * Photo → recognised values → review → take over, page by page (Epic #120). The photo and the field crops only live in
+ * this ViewModel's memory: nothing is saved (also not in the SavedStateHandle) – after process death the camera opens
+ * again.
  */
 class ScanViewModel(
     private val vehicleId: Long,
@@ -61,6 +71,15 @@ class ScanViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow<ScanUiState>(ScanUiState.Camera)
     val state: StateFlow<ScanUiState> = _state.asStateFlow()
+
+    private val _progress = MutableStateFlow<SheetProgress?>(null)
+
+    /** Set once the first page of a multi-page sheet is taken over. */
+    val progress: StateFlow<SheetProgress?> = _progress.asStateFlow()
+
+    /** The sheet the collected pages belong to (first taken-over page) and the values per page. */
+    private var sheet: SheetCode? = null
+    private val pageValues = sortedMapOf<Int, Pair<Map<String, String>, Map<String, Boolean>>>()
 
     fun onPhoto(photo: GrayImage) {
         if (_state.value != ScanUiState.Camera) return
@@ -88,21 +107,43 @@ class ScanViewModel(
 
     fun onChecked(index: Int, checked: Boolean) = editField(index) { it.copy(checked = checked) }
 
-    /** Back to the camera, e.g. for a sharper photo or the next page; the current values are dropped. */
+    /** Back to the camera, e.g. for a sharper photo; the reviewed page is dropped, pages taken over stay. */
     fun retake() {
         if (_state.value != ScanUiState.Reading) _state.value = ScanUiState.Camera
     }
 
+    /**
+     * Takes the reviewed page over. Photographing the same page again replaces its values. Once every page of the sheet
+     * is done, all values go to the form; otherwise the camera opens for the next page.
+     */
     fun accept() {
         val review = _state.value as? ScanUiState.Review ?: return
         val code = review.code
+        if (sheet == null) sheet = code
+        pageValues[code.page] = Pair(
+            review.fields.filter { it.field.kind == ScanLayout.FieldKind.DIGITS }.associate { it.field.id to it.text.trim() },
+            review.fields.filter { it.field.kind == ScanLayout.FieldKind.CHECKBOX }.associate { it.field.id to it.checked },
+        )
+        val progress = SheetProgress(code.template, code.pages, pageValues.keys.toSet())
+        if (progress.nextPage == null) {
+            finish()
+        } else {
+            _progress.value = progress
+            _state.value = ScanUiState.Camera
+        }
+    }
+
+    /** Hands the pages taken over so far to the form, also if not all pages were photographed. */
+    fun finish() {
+        val code = sheet ?: return
+        if (_state.value == ScanUiState.Reading) return
         _state.value = ScanUiState.Done(
             ScanTransfer(
                 template = code.template,
                 cylinders = code.cylinders,
                 valvesPerCylinder = code.valvesPerCylinder,
-                values = review.fields.filter { it.field.kind == ScanLayout.FieldKind.DIGITS }.associate { it.field.id to it.text.trim() },
-                checks = review.fields.filter { it.field.kind == ScanLayout.FieldKind.CHECKBOX }.associate { it.field.id to it.checked },
+                values = pageValues.values.fold(emptyMap()) { all, page -> all + page.first },
+                checks = pageValues.values.fold(emptyMap()) { all, page -> all + page.second },
             ),
         )
     }
@@ -127,6 +168,8 @@ class ScanViewModel(
                 // Another vehicle's sheet: nothing at all is taken over, not even partly.
                 code.vehicleId != vehicleId -> ScanUiState.Problem(ScanProblem.OTHER_VEHICLE)
                 code.template !in templates -> ScanUiState.Problem(ScanProblem.WRONG_TEMPLATE)
+                // A page of another sheet (template, engine layout, number of pages) does not mix with the collected ones.
+                sheet?.let { !it.sameSheetAs(code) } == true -> ScanUiState.Problem(ScanProblem.OTHER_SHEET)
                 else -> ScanUiState.Review(
                     code,
                     outcome.sheet.readings.map {
@@ -136,6 +179,9 @@ class ScanViewModel(
             }
         }
     }
+
+    private fun SheetCode.sameSheetAs(other: SheetCode) = template == other.template && cylinders == other.cylinders &&
+        valvesPerCylinder == other.valvesPerCylinder && pages == other.pages && version == other.version
 
     private companion object {
         const val MAX_LENGTH = 10

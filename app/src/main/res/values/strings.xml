@@ -233,7 +233,6 @@
     <string name="scan_review_check">Please check the highlighted values (%1$d) against the sheet.</string>
     <string name="scan_review_compare">Compare the values with the sheet before taking them over.</string>
     <string name="scan_review_empty">No values were written on this page.</string>
-    <string name="scan_review_more_pages">Photograph the other pages one after another.</string>
     <string name="scan_uncertain">Please check</string>
     <string name="scan_crop_description">Photo of the field %1$s</string>
     <string name="scan_accept">Take over</string>
@@ -244,4 +243,9 @@
     <string name="scan_error_other_vehicle">This worksheet belongs to another vehicle. Nothing was taken over.</string>
     <string name="scan_error_template">This worksheet does not fit this vehicle. Nothing was taken over.</string>
     <string name="scan_error_failed">The photo could not be read. Please try again.</string>
+    <string name="scan_progress">Pages taken over: %1$s of %2$d</string>
+    <string name="scan_next_page">Now photograph page %1$d.</string>
+    <string name="scan_finish">Done</string>
+    <string name="scan_accept_next">Take over, on to page %1$d</string>
+    <string name="scan_error_other_sheet">This page belongs to another worksheet. Please photograph the next page of the same sheet – the pages taken over are kept.</string>
 </resources>

@@ -19,7 +19,7 @@ class ScanViewModelTest {
     @get:Rule val mainRule = MainDispatcherRule(UnconfinedTestDispatcher())
 
     private val photo = GrayImage(4, 4)
-    private val templates = setOf(MeasurementTemplate.CHAIN, MeasurementTemplate.TIRES)
+    private val templates = setOf(MeasurementTemplate.CHAIN, MeasurementTemplate.TIRES, MeasurementTemplate.VALVE_CLEARANCE)
 
     private fun viewModel(scanner: WorksheetScanner) = ScanViewModel(3, templates, scanner, decimalSeparator = ',')
 
@@ -91,6 +91,71 @@ class ScanViewModelTest {
         val camera = viewModel { ScanOutcome.NoSheet }
         camera.onCaptureFailed()
         assertEquals(ScanUiState.Problem(ScanProblem.FAILED), camera.state.value)
+    }
+
+    /** A scanner that returns the given outcomes one after another. */
+    private fun sequence(vararg outcomes: ScanOutcome): WorksheetScanner {
+        val queue = ArrayDeque(outcomes.toList())
+        return WorksheetScanner { queue.removeFirst() }
+    }
+
+    @Test
+    fun multiPageSheet_pagesAreCollectedAndHandedOverTogether() {
+        val vm = viewModel(sequence(ScanOutcome.Read(valveSheetPage(2)), ScanOutcome.Read(valveSheetPage(1)), ScanOutcome.Read(valveSheetPage(3))))
+        vm.onPhoto(photo)
+        vm.accept()
+        // Page 2 first: the camera opens again for page 1, nothing is handed over yet.
+        assertEquals(ScanUiState.Camera, vm.state.value)
+        assertEquals(SheetProgress(MeasurementTemplate.VALVE_CLEARANCE, 3, setOf(2)), vm.progress.value)
+        assertEquals(1, vm.progress.value!!.nextPage)
+        vm.onPhoto(photo)
+        vm.accept()
+        assertEquals(3, vm.progress.value!!.nextPage)
+        vm.onPhoto(photo)
+        vm.accept()
+        val transfer = (vm.state.value as ScanUiState.Done).transfer
+        assertEquals(8, transfer.cylinders)
+        assertEquals(3, transfer.valvesPerCylinder)
+        // All 8 cylinders × 3 valves × 3 fields from the three pages.
+        assertEquals(8 * 3 * 3, transfer.values.size)
+        assertEquals("0,1", transfer.values["valves.8.EXHAUST.1.measured"])
+        assertEquals("0,1", transfer.values["valves.1.INTAKE.1.measured"])
+    }
+
+    @Test
+    fun multiPageSheet_canBeFinishedEarly() {
+        val vm = viewModel(sequence(ScanOutcome.Read(valveSheetPage(1))))
+        vm.finish()
+        assertEquals(ScanUiState.Camera, vm.state.value) // nothing taken over yet: nothing to finish
+        vm.onPhoto(photo)
+        vm.accept()
+        vm.finish()
+        val transfer = (vm.state.value as ScanUiState.Done).transfer
+        assertEquals(3 * 3 * 3, transfer.values.size) // only page 1: cylinders 1–3
+    }
+
+    @Test
+    fun multiPageSheet_pageOfAnotherSheetIsRefusedAndCollectedPagesStay() {
+        val vm = viewModel(
+            sequence(
+                ScanOutcome.Read(valveSheetPage(1)),
+                ScanOutcome.Read(valveSheetPage(2, cylinders = 6)),
+                ScanOutcome.Read(valveSheetPage(1)),
+            ),
+        )
+        vm.onPhoto(photo)
+        vm.accept()
+        vm.onPhoto(photo)
+        assertEquals(ScanUiState.Problem(ScanProblem.OTHER_SHEET), vm.state.value)
+        vm.retake()
+        assertEquals(setOf(1), vm.progress.value!!.done)
+        // The same page again replaces its values.
+        vm.onPhoto(photo)
+        vm.onValue(0, "0,2")
+        vm.accept()
+        assertEquals(setOf(1), vm.progress.value!!.done)
+        vm.finish()
+        assertEquals("0,2", (vm.state.value as ScanUiState.Done).transfer.values["valves.1.INTAKE.1.measured"])
     }
 
     @Test

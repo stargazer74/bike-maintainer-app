@@ -160,3 +160,6 @@ sample("tires-oblique", "TIRES-1.png", sheet("TIRES"), 1,
 sample("chain-dim", "CHAIN-1.png", sheet("CHAIN"), 1, turned(760, 990, 1260, 1782, -4), light=dim, noise=7)
 sample("brakes-oblique-dim", "BRAKES-1.png", sheet("BRAKES"), 1,
        [(180, 260), (1240, 120), (1430, 1900), (120, 1760)], light=dim, noise=6, blur=1.0)
+# Page 2 of a multi-page valve clearance sheet (cylinders 4–6), at an angle.
+sample("valves-page2-oblique", "VALVE_CLEARANCE-2.png", sheet("VALVE_CLEARANCE", 8, 3), 2,
+       [(150, 140), (1380, 230), (1300, 1930), (210, 1830)])
