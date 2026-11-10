@@ -219,6 +219,16 @@ class LogMaintenanceViewModel(
 
     fun removeTemplate(template: MeasurementTemplate) = editMeasurements { it.without(template) }
 
+    /**
+     * Takes over the checked values of a photographed worksheet page (Epic #120). Like adding by hand, only templates
+     * that fit the vehicle; the scan screen only offers the photo once the context is loaded.
+     */
+    fun applyScan(scan: ScanTransfer) {
+        val context = _state.value.measurementContext ?: return
+        if (scan.template !in context.templates) return
+        editMeasurements { it.withScan(scan, context.specification, context.latest.measurements.valves, decimalSeparator) }
+    }
+
     fun changeLayout(cylinders: Int, valvesPerCylinder: Int) = editMeasurements { drafts ->
         drafts.valves?.let { drafts.copy(valves = valveLayout(cylinders, valvesPerCylinder, it)) } ?: drafts
     }

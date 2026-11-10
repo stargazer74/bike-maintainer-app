@@ -12,3 +12,10 @@ this one (`../bike-maintainer-api`) or point to the spec with `-Pbm.apiSpec=<pat
 ```
 
 After changing dependencies: `./gradlew :app:dependencies --write-locks`.
+
+## Worksheet scan
+
+Photographing a filled-in worksheet (Epic backend#120) runs entirely on the phone – see `docs/digit-model.md` for
+the pipeline, the digit model and how to retrain it (`tools/digit-model/`).
+
+Third-party data: the digit model is trained on MNIST (Y. LeCun, C. Cortes, C. J. C. Burges, CC BY-SA 3.0).

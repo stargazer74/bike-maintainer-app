@@ -221,4 +221,27 @@
     <string name="measure_value_mm">%1$s mm</string>
     <string name="measure_value_bar">%1$s bar</string>
     <string name="measure_range">%1$s–%2$s</string>
+    <string name="scan_open">Photograph worksheet</string>
+    <string name="scan_title">Photograph worksheet</string>
+    <string name="scan_hint">Hold the phone above the filled-in worksheet so that all four black corner squares are in the picture.</string>
+    <string name="scan_privacy">The photo is read on this phone only – it is neither saved nor sent.</string>
+    <string name="scan_capture">Take photo</string>
+    <string name="scan_reading">Reading the worksheet …</string>
+    <string name="scan_permission_needed">To photograph the worksheet, the app needs access to the camera.</string>
+    <string name="scan_permission_allow">Allow camera</string>
+    <string name="scan_review_title">%1$s · page %2$d of %3$d</string>
+    <string name="scan_review_check">Please check the highlighted values (%1$d) against the sheet.</string>
+    <string name="scan_review_compare">Compare the values with the sheet before taking them over.</string>
+    <string name="scan_review_empty">No values were written on this page.</string>
+    <string name="scan_review_more_pages">Photograph the other pages one after another.</string>
+    <string name="scan_uncertain">Please check</string>
+    <string name="scan_crop_description">Photo of the field %1$s</string>
+    <string name="scan_accept">Take over</string>
+    <string name="scan_retake">Take a new photo</string>
+    <string name="scan_error_no_sheet">The worksheet was not found. All four black corner squares must be in the picture.</string>
+    <string name="scan_error_no_code">The QR code of the worksheet could not be read. Avoid glare and shadows on the code.</string>
+    <string name="scan_error_newer_layout">This worksheet was printed by a newer version of Bike Maintainer. Please update the app.</string>
+    <string name="scan_error_other_vehicle">This worksheet belongs to another vehicle. Nothing was taken over.</string>
+    <string name="scan_error_template">This worksheet does not fit this vehicle. Nothing was taken over.</string>
+    <string name="scan_error_failed">The photo could not be read. Please try again.</string>
 </resources>

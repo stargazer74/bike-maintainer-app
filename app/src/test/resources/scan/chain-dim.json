@@ -1,0 +1,9 @@
+{
+ "qr": "BMWS;v=1;t=CHAIN;id=42;p=1/1",
+ "values": {
+  "chain.cleaned": true,
+  "chain.lubricated": false,
+  "chain.slack": "2.3",
+  "chain.wearLength": ""
+ }
+}

@@ -1,0 +1,32 @@
+{
+ "qr": "BMWS;v=1;t=VALVE_CLEARANCE;id=42;c=8;vpc=3;p=1/3",
+ "values": {
+  "valves.1.EXHAUST.1.measured": "0.462",
+  "valves.1.EXHAUST.1.shimNew": "0.1",
+  "valves.1.EXHAUST.1.shimOld": "0.7",
+  "valves.1.INTAKE.1.measured": "0.1",
+  "valves.1.INTAKE.1.shimNew": "2.2",
+  "valves.1.INTAKE.1.shimOld": "6.0",
+  "valves.1.INTAKE.2.measured": "3.83",
+  "valves.1.INTAKE.2.shimNew": "0.887",
+  "valves.1.INTAKE.2.shimOld": "",
+  "valves.2.EXHAUST.1.measured": "",
+  "valves.2.EXHAUST.1.shimNew": "6.106",
+  "valves.2.EXHAUST.1.shimOld": "0.811",
+  "valves.2.INTAKE.1.measured": "0.1",
+  "valves.2.INTAKE.1.shimNew": "",
+  "valves.2.INTAKE.1.shimOld": "0.59",
+  "valves.2.INTAKE.2.measured": "8.9",
+  "valves.2.INTAKE.2.shimNew": "",
+  "valves.2.INTAKE.2.shimOld": "0.57",
+  "valves.3.EXHAUST.1.measured": "9.41",
+  "valves.3.EXHAUST.1.shimNew": "9.138",
+  "valves.3.EXHAUST.1.shimOld": "0.328",
+  "valves.3.INTAKE.1.measured": "0.88",
+  "valves.3.INTAKE.1.shimNew": "0.31",
+  "valves.3.INTAKE.1.shimOld": "0.48",
+  "valves.3.INTAKE.2.measured": "",
+  "valves.3.INTAKE.2.shimNew": "1.53",
+  "valves.3.INTAKE.2.shimOld": ""
+ }
+}

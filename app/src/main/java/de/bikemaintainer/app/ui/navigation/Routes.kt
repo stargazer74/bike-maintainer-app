@@ -20,3 +20,9 @@ import kotlinx.serialization.Serializable
 
 /** SavedStateHandle key under which the log screen hands its [de.bikemaintainer.app.ui.logmaintenance.LogResult] name to the detail. */
 const val LOG_RESULT_KEY = "log_result"
+
+/** Photograph a filled-in worksheet for the log form of [vehicleId]; [templates] are the names that fit the vehicle. */
+@Serializable data class ScanWorksheetRoute(val vehicleId: Long, val templates: List<String>)
+
+/** SavedStateHandle key under which the scan screen hands a [de.bikemaintainer.app.ui.logmaintenance.ScanTransfer] (JSON) to the log form. */
+const val SCAN_RESULT_KEY = "scan_result"

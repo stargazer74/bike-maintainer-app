@@ -22,6 +22,8 @@ import de.bikemaintainer.app.notifications.DueTaskNotifier
 import de.bikemaintainer.app.notifications.ReminderScheduler
 import de.bikemaintainer.app.notifications.WorkManagerReminderScheduler
 import de.bikemaintainer.app.notifications.notificationsAllowed
+import de.bikemaintainer.app.scan.AndroidWorksheetScanner
+import de.bikemaintainer.app.ui.scan.WorksheetScanner
 import java.io.File
 
 /**
@@ -50,5 +52,7 @@ class AppContainer(context: Context) {
     private val notificationsAllowed = { notificationsAllowed(context) }
     val notifier: DueNotifications = DueTaskNotifier(context)
     val reminderScheduler: ReminderScheduler = WorkManagerReminderScheduler(context, settings, notificationsAllowed)
+    /** Reads photographed worksheets on the device (Epic #120). */
+    val worksheetScanner: WorksheetScanner = AndroidWorksheetScanner(context.applicationContext)
     val dueTaskCheck = DueTaskCheck(vehicleRepository, maintenanceRepository, settings, notifier, notificationsAllowed)
 }

@@ -4,6 +4,13 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Only to photograph a filled-in worksheet; asked for when the user does so for the first time (Epic #120). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- The app works without a camera; only the worksheet photo is not offered then. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
 
     <application
         android:name=".BikeMaintainerApp"
