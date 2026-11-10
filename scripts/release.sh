@@ -42,7 +42,7 @@ aab=app/build/outputs/bundle/release/app-release.aab
 certs=$("$apksigner" verify --print-certs "$apk" 2> /dev/null) || fail "apksigner verify failed"
 fingerprint=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<< "$certs")
 # jarsigner exits 0 for unsigned files as well, so check its verdict.
-jarsigner -verify "$aab" | grep -q '^jar verified' || fail "AAB is not signed"
+jarsigner -J-Duser.language=en -verify "$aab" | grep -q '^jar verified' || fail "AAB is not signed"
 
 mkdir -p dist
 name="bike-maintainer-$version"
