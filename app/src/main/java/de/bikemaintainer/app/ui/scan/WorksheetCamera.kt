@@ -5,21 +5,24 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
+import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.core.Preview
+import androidx.camera.core.SurfaceRequest
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import de.bikemaintainer.app.domain.scan.GrayImage
@@ -35,7 +38,7 @@ internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit)
     val owner = LocalLifecycleOwner.current
     val currentOnPhoto = rememberUpdatedState(onPhoto)
     val currentOnFailed = rememberUpdatedState(onFailed)
-    val previewView = remember { PreviewView(context) }
+    var surfaceRequest by remember { mutableStateOf<SurfaceRequest?>(null) }
     val capture = remember {
         ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
@@ -56,7 +59,7 @@ internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit)
                 try {
                     val p = future.get()
                     provider = p
-                    val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+                    val preview = Preview.Builder().build().also { it.setSurfaceProvider { request -> surfaceRequest = request } }
                     p.unbindAll()
                     p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
                 } catch (_: Exception) {
@@ -69,7 +72,7 @@ internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit)
     }
     DisposableEffect(Unit) { onDispose { worker.shutdown() } }
     Box(Modifier.fillMaxSize()) {
-        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+        surfaceRequest?.let { CameraXViewfinder(surfaceRequest = it, modifier = Modifier.fillMaxSize()) }
         SheetFrame(Modifier.fillMaxSize())
         CameraHints(
             onCapture = {
