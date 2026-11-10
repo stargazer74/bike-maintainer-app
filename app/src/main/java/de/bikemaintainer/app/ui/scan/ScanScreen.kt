@@ -317,10 +317,13 @@ internal fun SheetFrame(modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun CameraHints(onCapture: () -> Unit, modifier: Modifier = Modifier) {
+internal fun CameraHints(capturing: Boolean, onCapture: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.scan_hint), color = Color.White, style = MaterialTheme.typography.bodyMedium)
         Text(stringResource(R.string.scan_privacy), color = Color.White, style = MaterialTheme.typography.bodySmall)
-        Button(onClick = onCapture, modifier = Modifier.width(220.dp)) { Text(stringResource(R.string.scan_capture)) }
+        // Disabled while the picture is taken, so a second tap does not start another capture.
+        Button(onClick = onCapture, enabled = !capturing, modifier = Modifier.width(220.dp)) {
+            if (capturing) LoadingIndicator(small = true) else Text(stringResource(R.string.scan_capture))
+        }
     }
 }

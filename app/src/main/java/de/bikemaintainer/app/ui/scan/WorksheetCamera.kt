@@ -11,22 +11,28 @@ import androidx.camera.core.SurfaceRequest
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import de.bikemaintainer.app.domain.scan.GrayImage
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
+import kotlinx.coroutines.delay
 
 /**
  * Live preview of the back camera and a shutter button. The picture is taken into memory (no file, no gallery),
@@ -51,6 +57,8 @@ internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit)
             .build()
     }
     val worker = remember { Executors.newSingleThreadExecutor() }
+    // Callbacks that arrive after the screen is gone are dropped instead of crashing the app.
+    val callbacks = remember { Executor { task -> if (!worker.isShutdown) runCatching { worker.execute(task) } } }
     DisposableEffect(owner) {
         val future = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
@@ -68,16 +76,39 @@ internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit)
             },
             ContextCompat.getMainExecutor(context),
         )
-        onDispose { provider?.unbindAll() }
+        // Unbinding aborts a running capture and reports it to the worker, so the worker stops only afterwards.
+        onDispose {
+            provider?.unbindAll()
+            worker.shutdown()
+        }
     }
-    DisposableEffect(Unit) { onDispose { worker.shutdown() } }
-    Box(Modifier.fillMaxSize()) {
-        surfaceRequest?.let { CameraXViewfinder(surfaceRequest = it, modifier = Modifier.fillMaxSize()) }
-        SheetFrame(Modifier.fillMaxSize())
+    // A capture that never returns (no frames, e.g. a camera without picture) ends as a failure instead of hanging.
+    var capturing by remember { mutableStateOf(false) }
+    LaunchedEffect(capturing) {
+        if (capturing) {
+            delay(CAPTURE_TIMEOUT_MILLIS)
+            capturing = false
+            currentOnFailed.value()
+        }
+    }
+    val done: (GrayImage?) -> Unit = { gray ->
+        if (capturing) {
+            capturing = false
+            if (gray == null) currentOnFailed.value() else currentOnPhoto.value(gray)
+        }
+    }
+    // Preview and frame above, hints and shutter below, so the text never covers the frame.
+    Column(Modifier.fillMaxSize().background(Color.Black)) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            surfaceRequest?.let { CameraXViewfinder(surfaceRequest = it, modifier = Modifier.fillMaxSize()) }
+            SheetFrame(Modifier.fillMaxSize())
+        }
         CameraHints(
+            capturing = capturing,
             onCapture = {
+                capturing = true
                 capture.takePicture(
-                    worker,
+                    callbacks,
                     object : ImageCapture.OnImageCapturedCallback() {
                         override fun onCaptureSuccess(image: ImageProxy) {
                             val gray = try {
@@ -89,21 +120,21 @@ internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit)
                             } finally {
                                 image.close()
                             }
-                            ContextCompat.getMainExecutor(context).execute {
-                                if (gray == null) currentOnFailed.value() else currentOnPhoto.value(gray)
-                            }
+                            ContextCompat.getMainExecutor(context).execute { done(gray) }
                         }
 
                         override fun onError(exception: ImageCaptureException) {
-                            ContextCompat.getMainExecutor(context).execute { currentOnFailed.value() }
+                            ContextCompat.getMainExecutor(context).execute { done(null) }
                         }
                     },
                 )
             },
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
+
+private const val CAPTURE_TIMEOUT_MILLIS = 15_000L
 
 /** Upright grey copy of the captured frame; the bitmap is converted row by row and recycled. */
 private fun ImageProxy.toGrayImage(): GrayImage {
