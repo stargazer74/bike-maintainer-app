@@ -1,5 +1,6 @@
 package de.bikemaintainer.app.domain.scan
 
+import de.bikemaintainer.app.domain.MeasurementTemplate
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.booleanOrNull
@@ -33,6 +34,31 @@ class SheetReaderTest {
     @Test
     fun brakesObliqueDim() = check("brakes-oblique-dim")
 
+    /**
+     * A phone lens bends straight lines (barrel distortion) and paper is rarely flat; the four corner markers cannot
+     * correct that, so fields sit a few points off their computed position. Box borders must still not be read as
+     * digits (a stray border line looked like a confident "1"), and empty boxes must stay empty.
+     */
+    @Test
+    fun valvesStraightLensDistortion() = check("valves-straight") { barrel(it, 0.02) }
+
+    @Test
+    fun tiresObliqueLensDistortion() = check("tires-oblique") { barrel(it, -0.04) }
+
+    /** The page as a whole is 2 pt right and 1.5 pt down of where the markers put it: every field finds its frame. */
+    @Test
+    fun fieldsAreAlignedToTheirPrintedFrame() {
+        val photo = loadGray(testResource("scan/valves-straight.jpg"))
+        val markers = MarkerFinder.find(photo)!!
+        val shifted = Homography.fromPoints(ScanLayout.markerCentres.map { Point(it.x + 2.0, it.y + 1.5) }, markers)!!
+        val fields = ScanLayout.pages(MeasurementTemplate.VALVE_CLEARANCE, 8, 3)[0]
+        for (field in fields) {
+            val (dx, dy) = SheetReader.frameOffset(photo, shifted, field)
+            assertEquals("${field.id} dx", 2f, dx, 0.5f)
+            assertEquals("${field.id} dy", 1.5f, dy, 0.5f)
+        }
+    }
+
     @Test
     fun noSheetInThePicture() {
         val blank = GrayImage(800, 600).apply { pixels.fill(200.toByte()) }
@@ -50,12 +76,12 @@ class SheetReaderTest {
         )
     }
 
-    private fun check(name: String) {
+    private fun check(name: String, distort: (GrayImage) -> GrayImage = { it }) {
         val expected = Json.parseToJsonElement(testResource("scan/$name.json").readText()).jsonObject
         val qr = expected["qr"]!!.jsonPrimitive.content
         val values = expected["values"]!!.jsonObject
         val reader = SheetReader(classifier, FinderPatternCheck(qr))
-        val outcome = reader.read(loadGray(testResource("scan/$name.jpg")))
+        val outcome = reader.read(distort(loadGray(testResource("scan/$name.jpg"))))
         if (outcome !is ScanOutcome.Read) fail("$name: $outcome")
         val sheet = (outcome as ScanOutcome.Read).sheet
         assertEquals(SheetCode.parse(qr), sheet.code)
@@ -66,6 +92,10 @@ class SheetReaderTest {
             val want = values[reading.field.id]!!.jsonPrimitive
             val ok = if (want.booleanOrNull != null) reading.checked == want.boolean else reading.value == want.content
             report.append("${reading.field.id}: want ${want.content}, got ${reading.value}${reading.checked}${if (reading.uncertain) " (uncertain)" else ""}\n")
+            // Nothing is invented: an empty field stays empty.
+            if (want.booleanOrNull == null && want.content.isEmpty()) {
+                assertEquals("$name ${reading.field.id} is empty on the sheet:\n$report", "", reading.value)
+            }
             if (!ok) {
                 wrong++
                 // A wrong value must never look certain: the user checks highlighted fields before taking them over.
@@ -78,6 +108,21 @@ class SheetReaderTest {
         println("$name: $wrong of ${sheet.readings.size} wrong\n$report")
     }
 
+    /** Radial lens distortion around the image centre; [k] > 0 barrel, < 0 pincushion (relative to the half diagonal). */
+    private fun barrel(image: GrayImage, k: Double): GrayImage {
+        val cx = image.width / 2.0
+        val cy = image.height / 2.0
+        val r2max = cx * cx + cy * cy
+        val out = GrayImage(image.width, image.height)
+        for (y in 0 until image.height) for (x in 0 until image.width) {
+            val dx = x - cx
+            val dy = y - cy
+            val f = 1 + k * (dx * dx + dy * dy) / r2max
+            out[x, y] = image.sample(cx + dx * f, cy + dy * f).toInt()
+        }
+        return out
+    }
+
     /**
      * Stands in for zxing-cpp (native, not available on the JVM): returns [content] only if the straightened QR area
      * really shows the three finder patterns where they belong – i.e. the perspective was found correctly.
@@ -88,7 +133,9 @@ class SheetReaderTest {
             fun dark(xPt: Float, yPt: Float) = image[(xPt * scale).toInt(), (yPt * scale).toInt()] < 110
             val qr0 = 10f
             val qr1 = 10f + ScanLayout.QR_SIZE
-            val corners = listOf(qr0 + 1f to qr0 + 1f, qr1 - 1f to qr0 + 1f, qr0 + 1f to qr1 - 1f)
+            // Centres of the three finder patterns (their solid 3×3 core), so a few points of lens distortion still pass.
+            val inset = 8f
+            val corners = listOf(qr0 + inset to qr0 + inset, qr1 - inset to qr0 + inset, qr0 + inset to qr1 - inset)
             val quiet = listOf(qr0 - 5f to qr0 - 5f, qr1 + 5f to qr0 + 30f, qr0 + 30f to qr1 + 5f)
             return content.takeIf { corners.all { (x, y) -> dark(x, y) } && quiet.none { (x, y) -> dark(x, y) } }
         }
