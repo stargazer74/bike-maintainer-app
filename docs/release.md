@@ -18,6 +18,7 @@ The signing key is the app's identity. Android only installs an update that is s
 
 ```bash
 export BM_KEYSTORE_FILE=/path/outside/the/repo/bike-maintainer-release.p12   # private directory, chmod 700
+mkdir -p "$(dirname "$BM_KEYSTORE_FILE")" && chmod 700 "$(dirname "$BM_KEYSTORE_FILE")"   # keytool does not create it
 keytool -genkeypair -v -storetype PKCS12 -keystore "$BM_KEYSTORE_FILE" \
   -alias bike-maintainer -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=Bike Maintainer"
 chmod 600 "$BM_KEYSTORE_FILE"
