@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+    # Release tags (vX.Y.Z) also build the release with that version; signing and upload stay local (docs/release.md).
+    tags: ['v*.*.*']
 
 permissions:
   contents: read
@@ -65,6 +67,14 @@ jobs:
       # koverVerifyDebug: line coverage of data and domain must stay >= 90 % (rule in app/build.gradle.kts).
       - name: Build and test
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest koverVerifyDebug
+
+      # Unsigned release build (R8), so shrinking problems show up in every PR and not only at release time. The key
+      # never reaches CI: signing happens locally with scripts/release.sh.
+      - name: Release build (unsigned)
+        run: |
+          args=()
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then args=(-Pbm.version="${GITHUB_REF_NAME#v}"); fi
+          ./gradlew --no-daemon assembleRelease bundleRelease "${args[@]}"
 
       # Android Lint incl. security checks (exported components, cleartext traffic, …); warnings are errors.
       - name: Lint
