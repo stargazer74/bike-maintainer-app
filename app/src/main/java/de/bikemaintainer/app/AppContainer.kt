@@ -6,9 +6,11 @@ import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.repository.ApiAuthRepository
 import de.bikemaintainer.app.data.repository.ApiMaintenanceRepository
+import de.bikemaintainer.app.data.repository.ApiMeasurementRepository
 import de.bikemaintainer.app.data.repository.ApiVehicleRepository
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
+import de.bikemaintainer.app.data.repository.MeasurementRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.KeystoreTokenCipher
@@ -43,6 +45,7 @@ class AppContainer(context: Context) {
     val authRepository: AuthRepository = ApiAuthRepository(provider, settings, tokens, sessionState)
     val vehicleRepository: VehicleRepository = ApiVehicleRepository(provider)
     val maintenanceRepository: MaintenanceRepository = ApiMaintenanceRepository(provider)
+    val measurementRepository: MeasurementRepository = ApiMeasurementRepository(provider)
 
     private val notificationsAllowed = { notificationsAllowed(context) }
     val notifier: DueNotifications = DueTaskNotifier(context)

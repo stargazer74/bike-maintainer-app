@@ -4,8 +4,10 @@ import de.bikemaintainer.app.api.apis.AuthApi
 import de.bikemaintainer.app.api.apis.ConfigApi
 import de.bikemaintainer.app.api.apis.MaintenanceLogsApi
 import de.bikemaintainer.app.api.apis.MaintenanceTasksApi
+import de.bikemaintainer.app.api.apis.MeasurementsApi
 import de.bikemaintainer.app.api.apis.ProfilesApi
 import de.bikemaintainer.app.api.apis.VehiclesApi
+import de.bikemaintainer.app.api.apis.WorksheetsApi
 import de.bikemaintainer.app.api.infrastructure.Serializer
 import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.SettingsStore
@@ -34,6 +36,8 @@ class ApiProvider(
         val vehicles: VehiclesApi,
         val tasks: MaintenanceTasksApi,
         val logs: MaintenanceLogsApi,
+        val measurements: MeasurementsApi,
+        val worksheets: WorksheetsApi,
     )
 
     /** The APIs of one address with the cookie jar they share. */
@@ -84,6 +88,8 @@ class ApiProvider(
             vehicles = retrofit.create(VehiclesApi::class.java),
             tasks = retrofit.create(MaintenanceTasksApi::class.java),
             logs = retrofit.create(MaintenanceLogsApi::class.java),
+            measurements = retrofit.create(MeasurementsApi::class.java),
+            worksheets = retrofit.create(WorksheetsApi::class.java),
         )
         return Entry(apis, cookieJar)
     }

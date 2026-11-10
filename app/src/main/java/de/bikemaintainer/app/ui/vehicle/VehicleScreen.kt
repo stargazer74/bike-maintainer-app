@@ -207,6 +207,10 @@ fun VehicleContent(
                             }
                         }
                         items(state.tasks, key = { it.id }) { TaskCard(it) }
+                        state.measurements?.takeIf { it.templates.isNotEmpty() }?.let { context ->
+                            item(key = "measurements") { LatestMeasurementsCard(context) }
+                            item(key = "specification") { SpecificationCard(context.specification) }
+                        }
                     }
                 }
             }

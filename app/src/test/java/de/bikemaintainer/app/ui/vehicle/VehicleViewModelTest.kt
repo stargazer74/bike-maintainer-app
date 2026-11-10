@@ -7,6 +7,7 @@ import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleType
 import de.bikemaintainer.app.ui.FakeMaintenanceRepository
+import de.bikemaintainer.app.ui.FakeMeasurementRepository
 import de.bikemaintainer.app.ui.FakeVehicleRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
 import de.bikemaintainer.app.ui.common.isNotFound
@@ -24,6 +25,7 @@ class VehicleViewModelTest {
 
     private val vehicles = FakeVehicleRepository()
     private val maintenance = FakeMaintenanceRepository()
+    private val measurements = FakeMeasurementRepository()
     private val vehicle = Vehicle(7, "Africa Twin", VehicleType.MOTORCYCLE, null, null, 2020, LocalDate.of(2020, 5, 1), 12345)
 
     private fun task(id: Long, status: TaskStatus, active: Boolean = true) =
@@ -31,7 +33,7 @@ class VehicleViewModelTest {
 
     private fun viewModel(): VehicleViewModel {
         if (vehicles.vehicleResult == null) vehicles.vehicleResult = Outcome.Success(vehicle)
-        return VehicleViewModel(7, vehicles, maintenance)
+        return VehicleViewModel(7, vehicles, maintenance, measurements)
     }
 
     @Test fun loadsVehicleAndSortedTasks() {

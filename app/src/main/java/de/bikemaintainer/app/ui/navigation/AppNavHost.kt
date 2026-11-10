@@ -18,6 +18,7 @@ import androidx.navigation.toRoute
 import de.bikemaintainer.app.data.network.SessionStatus
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
+import de.bikemaintainer.app.data.repository.MeasurementRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.notifications.DueNotifications
 import de.bikemaintainer.app.notifications.ReminderScheduler
@@ -47,6 +48,7 @@ class AppDependencies(
     val auth: AuthRepository,
     val vehicles: VehicleRepository,
     val maintenance: MaintenanceRepository,
+    val measurements: MeasurementRepository,
     val sessionStatus: StateFlow<SessionStatus>,
     val reminders: ReminderScheduler,
     val notifications: DueNotifications,
@@ -131,7 +133,7 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
             val viewModel: VehicleViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
-                        VehicleViewModel(route.vehicleId, deps.vehicles, deps.maintenance)
+                        VehicleViewModel(route.vehicleId, deps.vehicles, deps.maintenance, deps.measurements)
                     }
                 },
             )
@@ -149,7 +151,13 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
             val viewModel: LogMaintenanceViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
-                        LogMaintenanceViewModel(route.vehicleId, deps.vehicles, deps.maintenance, createSavedStateHandle())
+                        LogMaintenanceViewModel(
+                            route.vehicleId,
+                            deps.vehicles,
+                            deps.maintenance,
+                            createSavedStateHandle(),
+                            deps.measurements,
+                        )
                     }
                 },
             )
