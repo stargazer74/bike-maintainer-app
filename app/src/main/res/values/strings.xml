@@ -131,8 +131,14 @@
     <string name="notif_relogin_title">Please sign in again</string>
     <string name="notif_relogin_text">Please sign in again, otherwise no reminders.</string>
     <string name="measure_title">Measurements (optional)</string>
-    <string name="measure_add">Add %1$s</string>
-    <string name="measure_remove">Remove %1$s</string>
+    <string name="measure_add_valve_clearance">Add valve clearance</string>
+    <string name="measure_add_brakes">Add brakes</string>
+    <string name="measure_add_chain">Add chain</string>
+    <string name="measure_add_tires">Add tyres</string>
+    <string name="measure_remove_valve_clearance">Remove valve clearance</string>
+    <string name="measure_remove_brakes">Remove brakes</string>
+    <string name="measure_remove_chain">Remove chain</string>
+    <string name="measure_remove_tires">Remove tyres</string>
     <string name="measure_load_failed">Templates and target values could not be loaded.</string>
     <string name="measure_template_valve_clearance">Valve clearance</string>
     <string name="measure_template_brakes">Brakes</string>

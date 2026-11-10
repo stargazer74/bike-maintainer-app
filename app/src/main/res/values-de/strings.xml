@@ -131,8 +131,14 @@
     <string name="notif_relogin_title">Bitte erneut anmelden</string>
     <string name="notif_relogin_text">Bitte erneut anmelden, sonst keine Erinnerungen.</string>
     <string name="measure_title">Messwerte (optional)</string>
-    <string name="measure_add">%1$s hinzufügen</string>
-    <string name="measure_remove">%1$s entfernen</string>
+    <string name="measure_add_valve_clearance">Ventilspiel hinzufügen</string>
+    <string name="measure_add_brakes">Bremsen hinzufügen</string>
+    <string name="measure_add_chain">Kette hinzufügen</string>
+    <string name="measure_add_tires">Reifen hinzufügen</string>
+    <string name="measure_remove_valve_clearance">Ventilspiel entfernen</string>
+    <string name="measure_remove_brakes">Bremsen entfernen</string>
+    <string name="measure_remove_chain">Kette entfernen</string>
+    <string name="measure_remove_tires">Reifen entfernen</string>
     <string name="measure_load_failed">Vorlagen und Sollwerte konnten nicht geladen werden.</string>
     <string name="measure_template_valve_clearance">Ventilspiel</string>
     <string name="measure_template_brakes">Bremsen</string>

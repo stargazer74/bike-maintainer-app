@@ -164,4 +164,11 @@ class MeasurementSectionTest {
         compose.onNodeWithText("Kette entfernen").performScrollTo().performClick()
         assertEquals(null, vm.state.value.measurements.chain)
     }
+
+    @Test @Config(qualifiers = "en-h4000dp") fun buttonTextsReadNaturallyInEnglish() {
+        show()
+        compose.onNodeWithText("Add valve clearance").assertExists()
+        compose.onNodeWithText("Add tyres").performScrollTo().performClick()
+        compose.onNodeWithText("Remove tyres").assertExists()
+    }
 }

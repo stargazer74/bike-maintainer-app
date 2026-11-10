@@ -35,10 +35,12 @@ import de.bikemaintainer.app.domain.Specification
 import de.bikemaintainer.app.domain.ValveAdjustment
 import de.bikemaintainer.app.domain.valueOrNull
 import de.bikemaintainer.app.ui.common.AppCard
+import de.bikemaintainer.app.ui.common.addRes
 import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.color
 import de.bikemaintainer.app.ui.common.formatNumber
 import de.bikemaintainer.app.ui.common.nameRes
+import de.bikemaintainer.app.ui.common.removeRes
 import de.bikemaintainer.app.ui.common.shown
 import de.bikemaintainer.app.ui.common.targetText
 import de.bikemaintainer.app.ui.common.valveLabel
@@ -88,9 +90,8 @@ fun MeasurementSection(state: LogMaintenanceUiState, actions: MeasurementActions
         drafts.chain?.let { ChainCard(it, spec, latest, f, actions) }
         drafts.tires?.let { TireCard(it, spec, latest, f, actions) }
         templates.filterNot { drafts.has(it) }.forEach { template ->
-            val name = stringResource(template.nameRes())
             OutlinedButton(onClick = { actions.onAdd(template) }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.measure_add, name))
+                Text(stringResource(template.addRes()))
             }
         }
         if (templates.isNotEmpty()) {
@@ -119,7 +120,7 @@ private fun TemplateCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 TextButton(onClick = { onRemove(template) }, enabled = f.enabled) {
-                    Text(stringResource(R.string.measure_remove, name))
+                    Text(stringResource(template.removeRes()))
                 }
             }
             latest.sources[template]?.let { source ->

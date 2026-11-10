@@ -22,6 +22,23 @@ fun MeasurementTemplate.nameRes(): Int = when (this) {
     MeasurementTemplate.TIRES -> R.string.measure_template_tires
 }
 
+/** "Add valve clearance" – one text per template, so each language can phrase and capitalise it properly. */
+@StringRes
+fun MeasurementTemplate.addRes(): Int = when (this) {
+    MeasurementTemplate.VALVE_CLEARANCE -> R.string.measure_add_valve_clearance
+    MeasurementTemplate.BRAKES -> R.string.measure_add_brakes
+    MeasurementTemplate.CHAIN -> R.string.measure_add_chain
+    MeasurementTemplate.TIRES -> R.string.measure_add_tires
+}
+
+@StringRes
+fun MeasurementTemplate.removeRes(): Int = when (this) {
+    MeasurementTemplate.VALVE_CLEARANCE -> R.string.measure_remove_valve_clearance
+    MeasurementTemplate.BRAKES -> R.string.measure_remove_brakes
+    MeasurementTemplate.CHAIN -> R.string.measure_remove_chain
+    MeasurementTemplate.TIRES -> R.string.measure_remove_tires
+}
+
 /** The decimal separator of the app language (',' in German, '.' in English). */
 @Composable
 fun decimalSeparator(): Char = DecimalFormatSymbols.getInstance(LocalConfiguration.current.locales[0]).decimalSeparator
