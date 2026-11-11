@@ -35,6 +35,21 @@ class SheetReaderTest {
     fun brakesObliqueDim() = check("brakes-oblique-dim")
 
     /**
+     * Real photos (phone camera, handwriting with a 9 bent to the left and a 1 with a long flag), metadata stripped.
+     * A dark knot in the table next to the page bottom right once made a bigger "frame" than the real marker.
+     */
+    @Test
+    fun realPhotoWithKnotInTheTable() = check("real-valves-table-knot")
+
+    /** The marker of another sheet in the picture once replaced the page's own top left marker. */
+    @Test
+    fun realPhotoWithAnotherSheetInThePicture() = check("real-valves-other-sheet")
+
+    /** Pale, slightly blurred strokes once vanished, whole fields came out empty. */
+    @Test
+    fun realPhotoWithPaleWriting() = check("real-valves-pale")
+
+    /**
      * A phone lens bends straight lines (barrel distortion) and paper is rarely flat; the four corner markers cannot
      * correct that, so fields sit a few points off their computed position. Box borders must still not be read as
      * digits (a stray border line looked like a confident "1"), and empty boxes must stay empty.
@@ -130,14 +145,18 @@ class SheetReaderTest {
     private class FinderPatternCheck(private val content: String) : QrReader {
         override fun read(image: GrayImage): String? {
             val scale = image.width / (ScanLayout.QR_SIZE + 20f)
-            fun dark(xPt: Float, yPt: Float) = image[(xPt * scale).toInt(), (yPt * scale).toInt()] < 110
+            // Relative to the paper: on real photos the printed modules are grey, not black.
+            val limit = SheetReader.paperLevel(image) * 0.6
+            fun dark(xPt: Float, yPt: Float) = image[(xPt * scale).toInt(), (yPt * scale).toInt()] < limit
             val qr0 = 10f
             val qr1 = 10f + ScanLayout.QR_SIZE
             // Centres of the three finder patterns (their solid 3×3 core), so a few points of lens distortion still pass.
             val inset = 8f
             val corners = listOf(qr0 + inset to qr0 + inset, qr1 - inset to qr0 + inset, qr0 + inset to qr1 - inset)
             val quiet = listOf(qr0 - 5f to qr0 - 5f, qr1 + 5f to qr0 + 30f, qr0 + 30f to qr1 + 5f)
-            return content.takeIf { corners.all { (x, y) -> dark(x, y) } && quiet.none { (x, y) -> dark(x, y) } }
+            // Paper that is not flat moves the patterns by a few points, as it moves the fields; zxing finds them anyway.
+            fun darkNear(xPt: Float, yPt: Float) = (-3..3).any { dx -> (-3..3).any { dy -> dark(xPt + dx, yPt + dy) } }
+            return content.takeIf { corners.all { (x, y) -> darkNear(x, y) } && quiet.none { (x, y) -> dark(x, y) } }
         }
     }
 }
