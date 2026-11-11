@@ -172,7 +172,13 @@ object MarkerFinder {
      */
     private fun otherMarkerInside(candidates: List<Blob>, ordered: List<Blob>): Boolean {
         val corners = ordered.map { Point(it.cx, it.cy) }
-        val toPage = Homography.fromPoints(corners, ScanLayout.markerCentres) ?: return true
+        // The page may lie turned in the photo (phone held sideways): the QR code can be next to any of the four
+        // corners, so it is left out in all four orientations.
+        val ring = listOf(corners[0], corners[1], corners[3], corners[2])
+        val toPages = (0 until 4).map { turn ->
+            val r = List(4) { ring[(it + turn) % 4] }
+            Homography.fromPoints(listOf(r[0], r[1], r[3], r[2]), ScanLayout.markerCentres) ?: return true
+        }
         val markerSized = ordered.minOf { it.area } / 2
         val qr = QR_MARGIN.let { m ->
             (ScanLayout.QR_LEFT - m).toDouble()..(ScanLayout.QR_LEFT + ScanLayout.QR_SIZE + m).toDouble() to
@@ -180,8 +186,10 @@ object MarkerFinder {
         }
         return candidates.any { blob ->
             if (blob in ordered || blob.area < markerSized || !inside(corners, Point(blob.cx, blob.cy))) return@any false
-            val p = toPage.map(blob.cx, blob.cy)
-            p.x !in qr.first || p.y !in qr.second
+            toPages.none { toPage ->
+                val p = toPage.map(blob.cx, blob.cy)
+                p.x in qr.first && p.y in qr.second
+            }
         }
     }
 

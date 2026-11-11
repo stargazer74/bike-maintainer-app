@@ -60,6 +60,19 @@ class SheetReaderTest {
     @Test
     fun tiresObliqueLensDistortion() = check("tires-oblique") { barrel(it, -0.04) }
 
+    /**
+     * Phone held sideways or the sheet upside down: the page lies turned in the photo. The QR code tells which corner
+     * is which; its finder patterns, now next to another corner, must not be taken for a corner marker.
+     */
+    @Test
+    fun sheetTurnedClockwise() = check("valves-straight") { it.rotated(90) }
+
+    @Test
+    fun sheetUpsideDown() = check("tires-oblique") { it.rotated(180) }
+
+    @Test
+    fun sheetTurnedCounterClockwise() = check("chain-dim") { it.rotated(270) }
+
     /** The page as a whole is 2 pt right and 1.5 pt down of where the markers put it: every field finds its frame. */
     @Test
     fun fieldsAreAlignedToTheirPrintedFrame() {

@@ -4,7 +4,8 @@ Trained on the MNIST database of handwritten digits by Yann LeCun, Corinna Corte
 Christopher J. C. Burges (http://yann.lecun.com/exdb/mnist/), licensed under CC BY-SA 3.0,
 together with handwritten digits (c) 2026 Chris Wohlbrecht. Changes: weights of a neural
 network trained on these digits with augmentation (affine jitter, stroke width, blur, noise,
-European 1, 7 and 9).
+European 1, 7 and 9; a 7 without crossbar and a 1 with a long flag with a soft
+target, so the model is unsure about them).
 
 digits.bin is licensed under the Creative Commons Attribution-ShareAlike 3.0 Unported
 license: https://creativecommons.org/licenses/by-sa/3.0/

@@ -9,7 +9,10 @@ request; the photo stays in memory until the values are taken over and is never 
    Of all frames, the largest one wins whose four marker sizes fit the perspective they span and that has no other
    marker-sized square on the page (the QR code's solid patches excepted). Without these checks a dark knot in the
    table or the marker of another sheet next to the page made a bigger frame and won.
-2. `Homography` – page points → photo pixels from the four marker centres.
+2. `Homography` – page points → photo pixels from the four marker centres. The page may lie turned in the photo (phone
+   held sideways, sheet upside down): of the four ways to assign the markers to the page corners, the one with the
+   dense QR square in its place wins (`SheetReader.uprightPage`). The marker check above leaves the QR code out in all
+   four orientations, or its finder patterns next to another corner pass for a marker.
 3. QR code – the QR area is straightened and handed to `QrReader` (on the device: zxing-cpp, Apache 2.0, native,
    offline). `SheetCode` parses `BMWS;v=1;t=…;id=…;…;p=x/y`.
 4. `ScanLayout` – field positions for template, layout and page. Twin of the backend's `WorksheetScanLayout`; both are
@@ -28,11 +31,24 @@ request; the photo stays in memory until the values are taken over and is never 
 Small CNN (conv 3×3 ×16 → pool → conv 3×3 ×32 → pool → dense 64 → dense 10), inference in plain Kotlin
 (`DigitClassifier`). Trained with `tools/digit-model/train.py` (PyTorch, CPU, ~5 min) on the MNIST training set with
 augmentation: affine jitter, stroke width, blur, noise, and **European 1 (short or long upstroke), 7 (crossbar) and
-9 (tail bent to the left)** – plus **real digits** from photos of filled-in worksheets (`real-digits.npz`, 1,140
-digits of four sheets, 16 per batch).
-MNIST test set: 99.0 %, augmented test set: 98.2 %. Real digits of sheets not trained on (`REAL_TRAIN` /
-`REAL_TEST`): 94.4 % and 99.5 % in the two directions; the misses are 9s written like an "S", which only the other
-sheet had.
+9 (tail bent to the left)** – plus **real digits** from photos of filled-in worksheets (`real-digits.npz`, 2,756
+digits from 47 photos in eight series, 16 per batch).
+
+**A 7 without crossbar and a 1 with a long flag look the same.** Which one it is depends on the hand: whoever crosses
+the 7 writes the 1 like that, MNIST's 7s mostly have no crossbar. Both shapes are trained with a soft target (60 %
+the digit, 40 % the other one), so the model is unsure about them and the field is flagged, instead of a 1 being read
+as a confident 7.
+
+Checks on real digits the model was not trained on (`REAL_TRAIN` / `REAL_TEST`), soft target vs. before:
+
+| Trained on → checked on | Right | Confidently wrong | Right but flagged |
+|---|---|---|---|
+| 4 older series → 4 newer (1,616 digits) | 96.5 % (95.9 %) | 1 (21) | 181 (136) |
+| older + portrait → landscape (812) | 97.7 % (97.0 %) | 0 (14) | 103 (87) |
+| older + landscape → portrait (804) | 95.8 % (94.9 %) | 3 (10) | 81 (55) |
+
+The model in the app is trained on all eight series. MNIST test set: 97.9 % (plain 7s now count as unsure),
+augmented test set: 97.6 %.
 
 ```bash
 cd tools/digit-model   # MNIST idx files in data/ (not in the repo)
