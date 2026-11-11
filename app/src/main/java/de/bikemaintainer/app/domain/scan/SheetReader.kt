@@ -72,7 +72,7 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
             ScanLayout.FieldKind.DIGITS -> {
                 val digits = field.boxLefts().map { boxLeft ->
                     val inner = rectify(photo, page, boxLeft + dx + BOX_INSET, top + BOX_INSET, ScanLayout.DIGIT_WIDTH - 2 * BOX_INSET, ScanLayout.DIGIT_HEIGHT - 2 * BOX_INSET, READ_SCALE)
-                    DigitBox.normalise(inkMap(inner, paper), inner.width, inner.height)?.let(classifier::classify)
+                    DigitBox.normalise(digitInkMap(inner, paper), inner.width, inner.height)?.let(classifier::classify)
                 }
                 val (value, uncertain) = assemble(digits, field.integerDigits)
                 FieldReading(field, value = value, uncertain = uncertain, crop = crop)
@@ -98,6 +98,8 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
         private val TICK_UNSURE = 0.03..0.15
         /** Below this, a digit is marked for checking. */
         const val MIN_CONFIDENCE = 0.8
+        /** Darkest stroke at least this much darker than the paper, or the digit box is empty. */
+        private const val MIN_DIGIT_CONTRAST = 0.18f
 
         /** The part of the page from ([left], [top]) of size [width] × [height] points, upright, [scale] px per point. */
         fun rectify(photo: GrayImage, page: Homography, left: Float, top: Float, width: Float, height: Float, scale: Float): GrayImage {
@@ -191,6 +193,41 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
                 }
                 val darker = (paper - sum.toFloat() / n) / paper
                 ((darker - 0.25f) / 0.35f).coerceIn(0f, 1f)
+            }
+        }
+
+        /**
+         * Ink of a digit box, relative to its own darkest stroke: pale or blurred writing (a soft pencil, a photo slightly
+         * out of focus) came out at only about 30 % darker than the paper and vanished under the fixed limits of
+         * [inkMap]. Below [MIN_DIGIT_CONTRAST] the box counts as empty; strong ink gives about the same map as [inkMap].
+         */
+        internal fun digitInkMap(image: GrayImage, paper: Int): FloatArray {
+            val smooth = smoothed(image)
+            val darkest = smooth.sorted()[(smooth.size * 0.01).toInt()]
+            val contrast = (paper - darkest) / paper
+            if (contrast < MIN_DIGIT_CONTRAST) return FloatArray(smooth.size)
+            val low = contrast * 0.35f
+            val span = max(contrast * 0.5f, 0.05f)
+            return FloatArray(smooth.size) { i -> (((paper - smooth[i]) / paper - low) / span).coerceIn(0f, 1f) }
+        }
+
+        private fun smoothed(image: GrayImage): FloatArray {
+            val w = image.width
+            val h = image.height
+            return FloatArray(w * h) { i ->
+                val x = i % w
+                val y = i / w
+                var sum = 0
+                var n = 0
+                for (dy in -1..1) for (dx in -1..1) {
+                    val nx = x + dx
+                    val ny = y + dy
+                    if (nx in 0 until w && ny in 0 until h) {
+                        sum += image[nx, ny]
+                        n++
+                    }
+                }
+                sum.toFloat() / n
             }
         }
 

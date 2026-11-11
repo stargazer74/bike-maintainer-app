@@ -35,7 +35,7 @@ class ScanDiagnosticsTest {
             report.append("${field.id} (paper $paper, frame offset $ax/$ay pt):")
             field.boxLefts().forEachIndexed { i, left ->
                 val inner = SheetReader.rectify(photo, page, left + ax + 1.5f + sx, field.top + ay + 1.5f + sy, ScanLayout.DIGIT_WIDTH - 3f, ScanLayout.DIGIT_HEIGHT - 3f, 4f)
-                val ink = SheetReader.inkMap(inner, paper)
+                val ink = SheetReader.digitInkMap(inner, paper)
                 val input = DigitBox.normalise(ink, inner.width, inner.height)
                 val guess = input?.let { top3(classifier.logits(it)) } ?: "empty"
                 report.append("  [$i] $guess")
