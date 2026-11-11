@@ -70,10 +70,7 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
                 FieldReading(field, checked = filled > TICK_THRESHOLD, uncertain = filled in TICK_UNSURE, crop = crop)
             }
             ScanLayout.FieldKind.DIGITS -> {
-                val digits = field.boxLefts().map { boxLeft ->
-                    val inner = rectify(photo, page, boxLeft + dx + BOX_INSET, top + BOX_INSET, ScanLayout.DIGIT_WIDTH - 2 * BOX_INSET, ScanLayout.DIGIT_HEIGHT - 2 * BOX_INSET, READ_SCALE)
-                    DigitBox.normalise(digitInkMap(inner, paper), inner.width, inner.height)?.let(classifier::classify)
-                }
+                val digits = digitInputs(photo, page, field, dx to dy, paper).map { it?.let(classifier::classify) }
                 val (value, uncertain) = assemble(digits, field.integerDigits)
                 FieldReading(field, value = value, uncertain = uncertain, crop = crop)
             }
@@ -111,6 +108,28 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
                 out[x, y] = photo.sample(p.x, p.y).roundToInt()
             }
             return out
+        }
+
+        /**
+         * The model input (28×28) of every digit box of [field], `null` for an empty box – what the classifier sees.
+         * [offset] and [paper] are computed when not given.
+         */
+        internal fun digitInputs(
+            photo: GrayImage,
+            page: Homography,
+            field: ScanLayout.Field,
+            offset: Pair<Float, Float> = frameOffset(photo, page, field),
+            paper: Int? = null,
+        ): List<FloatArray?> {
+            val (dx, dy) = offset
+            val top = field.top + dy
+            val level = paper ?: paperLevel(
+                rectify(photo, page, field.left + dx - CROP_MARGIN, top - CROP_MARGIN, field.width + 2 * CROP_MARGIN, field.height + 2 * CROP_MARGIN, CROP_SCALE),
+            )
+            return field.boxLefts().map { boxLeft ->
+                val inner = rectify(photo, page, boxLeft + dx + BOX_INSET, top + BOX_INSET, ScanLayout.DIGIT_WIDTH - 2 * BOX_INSET, ScanLayout.DIGIT_HEIGHT - 2 * BOX_INSET, READ_SCALE)
+                DigitBox.normalise(digitInkMap(inner, level), inner.width, inner.height)
+            }
         }
 
         /**
