@@ -49,8 +49,10 @@ it from the known values (`BM_SCAN_SAMPLES=<list of jpg|json|group> BM_SCAN_OUT=
 --tests '*ScanSampleExportTest*' --rerun`); the text is packed into `real-digits.npz` (28×28 uint8, label, group).
 More sheets from other hands make the model better – add them with a new group name.
 
-**Data:** MNIST, Y. LeCun, C. Cortes, C. J. C. Burges, licensed CC BY-SA 3.0. The weights are derived from it.
-`real-digits.npz`: handwriting of the project owner, contributed to this repository.
+**License:** MNIST (Y. LeCun, C. Cortes, C. J. C. Burges) is licensed CC BY-SA 3.0. The weights are treated as an
+adaptation and shared under CC BY-SA 3.0, like `real-digits.npz`, `digit-reference.txt` and the test photos – not
+under the MIT license of the code. Details: `NOTICE.md`; the APK carries `assets/digits-NOTICE.txt` next to the model.
+After retraining, keep the list of changes in both up to date.
 
 ## Sample photos (`app/src/test/resources/scan/`)
 

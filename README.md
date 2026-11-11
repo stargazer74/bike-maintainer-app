@@ -39,4 +39,5 @@ Third-party data: the digit model is trained on MNIST (Y. LeCun, C. Cortes, C. J
 
 ## License
 
-[MIT](LICENSE)
+Source code: [MIT](LICENSE). The digit model (`app/src/main/assets/digits.bin`), its training digits and the scan
+test photos are licensed under CC BY-SA 3.0 – see [NOTICE.md](NOTICE.md).
