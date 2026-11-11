@@ -1,5 +1,6 @@
 package de.bikemaintainer.app.domain.scan
 
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -56,20 +57,20 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
     }
 
     private fun readField(photo: GrayImage, page: Homography, field: ScanLayout.Field): FieldReading {
-        val crop = rectify(photo, page, field.left - CROP_MARGIN, field.top - CROP_MARGIN, field.width + 2 * CROP_MARGIN, field.height + 2 * CROP_MARGIN, CROP_SCALE)
+        val (dx, dy) = frameOffset(photo, page, field)
+        val left = field.left + dx
+        val top = field.top + dy
+        val crop = rectify(photo, page, left - CROP_MARGIN, top - CROP_MARGIN, field.width + 2 * CROP_MARGIN, field.height + 2 * CROP_MARGIN, CROP_SCALE)
         val paper = paperLevel(crop)
         return when (field.kind) {
             ScanLayout.FieldKind.CHECKBOX -> {
-                val inner = rectify(photo, page, field.left + BOX_INSET, field.top + BOX_INSET, ScanLayout.CHECKBOX_SIZE - 2 * BOX_INSET, ScanLayout.CHECKBOX_SIZE - 2 * BOX_INSET, READ_SCALE)
+                val inner = rectify(photo, page, left + BOX_INSET, top + BOX_INSET, ScanLayout.CHECKBOX_SIZE - 2 * BOX_INSET, ScanLayout.CHECKBOX_SIZE - 2 * BOX_INSET, READ_SCALE)
                 val ink = inkMap(inner, paper)
                 val filled = ink.count { it > 0.5f }.toDouble() / ink.size
                 FieldReading(field, checked = filled > TICK_THRESHOLD, uncertain = filled in TICK_UNSURE, crop = crop)
             }
             ScanLayout.FieldKind.DIGITS -> {
-                val digits = field.boxLefts().map { left ->
-                    val inner = rectify(photo, page, left + BOX_INSET, field.top + BOX_INSET, ScanLayout.DIGIT_WIDTH - 2 * BOX_INSET, ScanLayout.DIGIT_HEIGHT - 2 * BOX_INSET, READ_SCALE)
-                    DigitBox.normalise(inkMap(inner, paper), inner.width, inner.height)?.let(classifier::classify)
-                }
+                val digits = digitInputs(photo, page, field, dx to dy, paper).map { it?.let(classifier::classify) }
                 val (value, uncertain) = assemble(digits, field.integerDigits)
                 FieldReading(field, value = value, uncertain = uncertain, crop = crop)
             }
@@ -77,6 +78,12 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
     }
 
     companion object {
+        /** How far (points) a printed frame may sit from its computed position and still be found. */
+        private const val ALIGN_RANGE = 5f
+        private const val ALIGN_SCALE = 4f
+        /** Average darkness along the frame lines below which no frame is taken as found (the field stays put). */
+        private const val MIN_FRAME_DARKNESS = 12
+
         /** Pixels per point of the straightened images. */
         private const val QR_SCALE = 4f
         private const val READ_SCALE = 4f
@@ -88,6 +95,8 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
         private val TICK_UNSURE = 0.03..0.15
         /** Below this, a digit is marked for checking. */
         const val MIN_CONFIDENCE = 0.8
+        /** Darkest stroke at least this much darker than the paper, or the digit box is empty. */
+        private const val MIN_DIGIT_CONTRAST = 0.18f
 
         /** The part of the page from ([left], [top]) of size [width] × [height] points, upright, [scale] px per point. */
         fun rectify(photo: GrayImage, page: Homography, left: Float, top: Float, width: Float, height: Float, scale: Float): GrayImage {
@@ -99,6 +108,73 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
                 out[x, y] = photo.sample(p.x, p.y).roundToInt()
             }
             return out
+        }
+
+        /**
+         * The model input (28×28) of every digit box of [field], `null` for an empty box – what the classifier sees.
+         * [offset] and [paper] are computed when not given.
+         */
+        internal fun digitInputs(
+            photo: GrayImage,
+            page: Homography,
+            field: ScanLayout.Field,
+            offset: Pair<Float, Float> = frameOffset(photo, page, field),
+            paper: Int? = null,
+        ): List<FloatArray?> {
+            val (dx, dy) = offset
+            val top = field.top + dy
+            val level = paper ?: paperLevel(
+                rectify(photo, page, field.left + dx - CROP_MARGIN, top - CROP_MARGIN, field.width + 2 * CROP_MARGIN, field.height + 2 * CROP_MARGIN, CROP_SCALE),
+            )
+            return field.boxLefts().map { boxLeft ->
+                val inner = rectify(photo, page, boxLeft + dx + BOX_INSET, top + BOX_INSET, ScanLayout.DIGIT_WIDTH - 2 * BOX_INSET, ScanLayout.DIGIT_HEIGHT - 2 * BOX_INSET, READ_SCALE)
+                DigitBox.normalise(digitInkMap(inner, level), inner.width, inner.height)
+            }
+        }
+
+        /**
+         * Where the printed frame of [field] really is, as an offset in points from its computed position. The four
+         * corner markers fix the page as a whole, but lens distortion and paper that is not flat move single fields by a
+         * few points – enough for a box border to end up inside the area that is read, where it looks like a "1". So
+         * every field is aligned to its own frame: the offset within ±[ALIGN_RANGE] where the frame lines are darkest.
+         */
+        internal fun frameOffset(photo: GrayImage, page: Homography, field: ScanLayout.Field): Pair<Float, Float> {
+            val range = (ALIGN_RANGE * ALIGN_SCALE).roundToInt()
+            val area = rectify(photo, page, field.left - ALIGN_RANGE, field.top - ALIGN_RANGE, field.width + 2 * ALIGN_RANGE, field.height + 2 * ALIGN_RANGE, ALIGN_SCALE)
+            val paper = paperLevel(area)
+            val w = area.width
+            val h = area.height
+            val dark = IntArray(w * h) { max(0, paper - (area.pixels[it].toInt() and 0xff)) }
+            fun px(points: Float) = (points * ALIGN_SCALE).roundToInt()
+            val boxWidth = if (field.kind == ScanLayout.FieldKind.CHECKBOX) ScanLayout.CHECKBOX_SIZE else ScanLayout.DIGIT_WIDTH
+            val boxes = if (field.kind == ScanLayout.FieldKind.CHECKBOX) listOf(0f) else field.boxLefts().map { it - field.left }
+            // Frame lines relative to the field: top and bottom of every box (not across the separator), and every side.
+            val horizontal = boxes.flatMap { b -> listOf(0f, field.height).map { y -> Triple(px(y), px(b), px(b + boxWidth)) } }
+            val vertical = boxes.flatMap { listOf(px(it), px(it + boxWidth)) }.distinct()
+            val lineHeight = px(field.height)
+            val pixelsOnLines = horizontal.sumOf { it.third - it.second } + vertical.size * lineHeight
+            var best = -1L
+            var bestX = 0
+            var bestY = 0
+            for (oy in -range..range) for (ox in -range..range) {
+                var score = 0L
+                for ((y, x0, x1) in horizontal) {
+                    val row = (range + y + oy).coerceIn(0, h - 1) * w
+                    for (x in x0 until x1) score += dark[row + (range + x + ox).coerceIn(0, w - 1)]
+                }
+                for (x in vertical) {
+                    val col = (range + x + ox).coerceIn(0, w - 1)
+                    for (y in 0 until lineHeight) score += dark[(range + y + oy).coerceIn(0, h - 1) * w + col]
+                }
+                // Equal scores: the smaller correction wins.
+                if (score > best || (score == best && abs(ox) + abs(oy) < abs(bestX) + abs(bestY))) {
+                    best = score
+                    bestX = ox
+                    bestY = oy
+                }
+            }
+            if (best < MIN_FRAME_DARKNESS.toLong() * pixelsOnLines) return 0f to 0f
+            return bestX / ALIGN_SCALE to bestY / ALIGN_SCALE
         }
 
         /** Brightness of the paper around a field: a high percentile, so ink and box lines do not count. */
@@ -140,6 +216,41 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
         }
 
         /**
+         * Ink of a digit box, relative to its own darkest stroke: pale or blurred writing (a soft pencil, a photo slightly
+         * out of focus) came out at only about 30 % darker than the paper and vanished under the fixed limits of
+         * [inkMap]. Below [MIN_DIGIT_CONTRAST] the box counts as empty; strong ink gives about the same map as [inkMap].
+         */
+        internal fun digitInkMap(image: GrayImage, paper: Int): FloatArray {
+            val smooth = smoothed(image)
+            val darkest = smooth.sorted()[(smooth.size * 0.01).toInt()]
+            val contrast = (paper - darkest) / paper
+            if (contrast < MIN_DIGIT_CONTRAST) return FloatArray(smooth.size)
+            val low = contrast * 0.35f
+            val span = max(contrast * 0.5f, 0.05f)
+            return FloatArray(smooth.size) { i -> (((paper - smooth[i]) / paper - low) / span).coerceIn(0f, 1f) }
+        }
+
+        private fun smoothed(image: GrayImage): FloatArray {
+            val w = image.width
+            val h = image.height
+            return FloatArray(w * h) { i ->
+                val x = i % w
+                val y = i / w
+                var sum = 0
+                var n = 0
+                for (dy in -1..1) for (dx in -1..1) {
+                    val nx = x + dx
+                    val ny = y + dy
+                    if (nx in 0 until w && ny in 0 until h) {
+                        sum += image[nx, ny]
+                        n++
+                    }
+                }
+                sum.toFloat() / n
+            }
+        }
+
+        /**
          * The digits of a field as text: integer digits right-aligned, decimals left-aligned; e.g. boxes `_ , 1 5 _`
          * give `0.15`. Uncertain if a digit is unsure, digits have a gap, or nothing but decimals is missing a whole.
          */
@@ -168,6 +279,7 @@ internal object DigitBox {
     /** Less ink than this (in pixels at full strength) is an empty box or a speck of dirt. */
     private const val MIN_INK = 40f
     private const val EDGE = 5
+    private const val BORDER_INK = 0.1f
 
     fun normalise(ink: FloatArray, width: Int, height: Int): FloatArray? {
         val cleaned = ink.copyOf()
@@ -224,14 +336,17 @@ internal object DigitBox {
         return out
     }
 
-    /** Remnants of the box border: rows/columns near the edge that are dark over most of their length. */
+    /**
+     * Remnants of the box border: rows/columns near the edge that carry ink over most of their length. The printed
+     * border is grey and comes out faint, so any ink counts here – a faint line left in was read as a confident "1".
+     */
     private fun removeBorderLines(ink: FloatArray, width: Int, height: Int) {
         for (y in (0 until min(EDGE, height)) + (max(0, height - EDGE) until height)) {
-            val dark = (0 until width).count { ink[y * width + it] > 0.4f }
+            val dark = (0 until width).count { ink[y * width + it] > BORDER_INK }
             if (dark > width * 0.5) for (x in 0 until width) ink[y * width + x] = 0f
         }
         for (x in (0 until min(EDGE, width)) + (max(0, width - EDGE) until width)) {
-            val dark = (0 until height).count { ink[it * width + x] > 0.4f }
+            val dark = (0 until height).count { ink[it * width + x] > BORDER_INK }
             if (dark > height * 0.5) for (y in 0 until height) ink[y * width + x] = 0f
         }
     }

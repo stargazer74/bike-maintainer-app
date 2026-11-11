@@ -3,9 +3,15 @@
 
 Input: MNIST idx files in data/. Output: digits.bin (little-endian float32 weights, see DigitClassifier.kt).
 Augmentation makes MNIST look more like digits written into worksheet boxes and photographed:
-affine jitter, stroke thickness, blur, noise, European 1 (flag) and 7 (crossbar).
+affine jitter, stroke thickness, blur, noise, European 1 (flag, also long) and 7 (crossbar), 9 with a tail bent
+to the left (as often written in Germany; the straight MNIST 9 alone made the model read it as 5 or 3).
+
+Real digits: real-digits.npz holds digits cut from photos of filled-in worksheets, exactly as the app feeds them to
+the model (ScanSampleExportTest), labelled from the known values, with a group per sheet. They are mixed into every
+batch. REAL_TRAIN / REAL_TEST (comma-separated groups) split them for an honest check on sheets not trained on;
+by default all groups are trained on.
 """
-import gzip, math, struct, sys
+import gzip, math, os, struct, sys
 import numpy as np
 import torch
 import torch.nn as nn
@@ -28,6 +34,18 @@ x_train = torch.tensor(load("train-images-idx3-ubyte")).unsqueeze(1)
 y_train = torch.tensor(load("train-labels-idx1-ubyte"))
 x_test = torch.tensor(load("t10k-images-idx3-ubyte")).unsqueeze(1)
 y_test = torch.tensor(load("t10k-labels-idx1-ubyte"))
+
+
+real = np.load("real-digits.npz")
+real_x = torch.tensor(real["x"].astype(np.float32) / 255.0).unsqueeze(1)
+real_y = torch.tensor(real["y"].astype(np.int64))
+real_group = real["group"]
+all_groups = sorted(set(real_group))
+train_groups = os.environ.get("REAL_TRAIN", ",".join(all_groups)).split(",")
+test_groups = [g for g in os.environ.get("REAL_TEST", "").split(",") if g]
+real_train = torch.tensor(np.isin(real_group, train_groups))
+real_test = torch.tensor(np.isin(real_group, test_groups))
+REAL_PER_BATCH = 16
 
 
 class Net(nn.Module):
@@ -59,13 +77,50 @@ def line(img, x0, y0, x1, y1, width):
     img.copy_(torch.maximum(img, stroke))
 
 
+def bezier(img, p0, p1, p2, width, steps=8):
+    """Quadratic Bezier curve as a chain of strokes."""
+    prev = p0
+    for k in range(1, steps + 1):
+        t = k / steps
+        pt = tuple((1 - t) ** 2 * a + 2 * (1 - t) * t * b + t * t * c for a, b, c in zip(p0, p1, p2))
+        line(img, prev[0], prev[1], pt[0], pt[1], width)
+        prev = pt
+
+
+def hook_nine(img):
+    """Replaces the tail of a 9 below its loop by one that bends to the left at the bottom."""
+    rows = torch.nonzero(img.sum(1) > 0.5).flatten()
+    if len(rows) < 8:
+        return
+    top, bottom = rows[0].item(), rows[-1].item()
+    # Lowest row of the loop: the last row (in the upper 70 %) with two separate runs of ink.
+    loop_bottom = None
+    for y in range(top, top + int(0.7 * (bottom - top)) + 1):
+        ink = (img[y] > 0.5).int()
+        if int((ink[1:] - ink[:-1]).clamp(min=0).sum()) + int(ink[0]) >= 2:
+            loop_bottom = y
+    if loop_bottom is None or bottom - loop_bottom < 5:
+        return
+    ink = torch.nonzero(img[loop_bottom] > 0.5).flatten()
+    xr = ink.max().item()
+    img[loop_bottom + 2:] = 0
+    width = np.random.uniform(1.6, 2.6)
+    end_y = bottom - np.random.uniform(0, 2.5)
+    bezier(img, (xr, loop_bottom), (xr + np.random.uniform(-0.5, 2.0), bottom + np.random.uniform(0, 1.5)),
+           (xr - np.random.uniform(4.0, 9.0), end_y), width)
+
+
 def europeanise(x, y):
-    """Crossbar on half of the 7s, an upstroke flag on half of the 1s (how digits are written in Germany)."""
+    """Crossbar on half of the 7s, an upstroke flag (short or long) on half of the 1s, a bent tail on half of the 9s
+    (how digits are written in Germany)."""
     x = x.clone()
     for i in range(len(y)):
         img = x[i, 0]
         label = int(y[i])
-        if label not in (1, 7) or np.random.rand() < 0.5:
+        if label not in (1, 7, 9) or np.random.rand() < 0.5:
+            continue
+        if label == 9:
+            hook_nine(img)
             continue
         rows = torch.nonzero(img.sum(1) > 0.5).flatten()
         cols = torch.nonzero(img.sum(0) > 0.5).flatten()
@@ -82,7 +137,12 @@ def europeanise(x, y):
         else:
             top_ink = torch.nonzero(img[top] > 0.5).flatten()
             tx = top_ink.float().mean().item() if len(top_ink) else 14.0
-            line(img, tx, top, tx - np.random.uniform(3.5, 6.0), top + np.random.uniform(3.0, 6.0), width)
+            # Short flag, or a long one reaching down to half the height (a "1" that looks like "^").
+            if np.random.rand() < 0.5:
+                dx, dy = np.random.uniform(3.5, 6.0), np.random.uniform(3.0, 6.0)
+            else:
+                dx, dy = np.random.uniform(5.0, 9.0), np.random.uniform(6.0, 0.5 * (bottom - top) + 6.0)
+            line(img, tx, top, tx - dx, top + dy, width)
     return x
 
 
@@ -114,6 +174,19 @@ def augment(x):
     return x.clamp(0, 1)
 
 
+def augment_light(x):
+    """Small shifts, rotation and scale for the real digits."""
+    n = x.shape[0]
+    angle = torch.empty(n).uniform_(-0.1, 0.1)
+    scale = torch.empty(n).uniform_(0.92, 1.08)
+    tx = torch.empty(n).uniform_(-0.06, 0.06)
+    ty = torch.empty(n).uniform_(-0.06, 0.06)
+    cos, sin = torch.cos(angle) / scale, torch.sin(angle) / scale
+    theta = torch.stack([torch.stack([cos, -sin, tx], 1), torch.stack([sin, cos, ty], 1)], 1)
+    grid = F.affine_grid(theta, x.shape, align_corners=False)
+    return F.grid_sample(x, grid, align_corners=False, padding_mode="zeros").clamp(0, 1)
+
+
 def main():
     model = Net()
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
@@ -126,7 +199,14 @@ def main():
         for i in range(0, len(perm), 128):
             idx = perm[i:i + 128]
             xb = augment(euro_train[idx])
-            loss = F.cross_entropy(model(xb), y_train[idx], label_smoothing=0.05)
+            yb = y_train[idx]
+            pool = torch.nonzero(real_train).flatten()
+            if len(pool):
+                pick = pool[torch.randint(len(pool), (REAL_PER_BATCH,))]
+                # Real digits are already photographed: mild jitter only.
+                xb = torch.cat([xb, augment_light(real_x[pick])])
+                yb = torch.cat([yb, real_y[pick]])
+            loss = F.cross_entropy(model(xb), yb, label_smoothing=0.05)
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -135,7 +215,15 @@ def main():
         with torch.no_grad():
             acc = (model(x_test).argmax(1) == y_test).float().mean().item()
             acc_aug = (model(augment(europeanise(x_test, y_test))).argmax(1) == y_test).float().mean().item()
-        print(f"epoch {epoch + 1}: test {acc:.4f}, augmented test {acc_aug:.4f}", flush=True)
+            line_ = f"epoch {epoch + 1}: test {acc:.4f}, augmented test {acc_aug:.4f}"
+            if real_test.any():
+                pred = model(real_x[real_test]).argmax(1)
+                truth = real_y[real_test]
+                line_ += f", real held-out {(pred == truth).float().mean().item():.4f}"
+                wrong = [(int(t), int(p)) for t, p in zip(truth, pred) if t != p]
+                if epoch == epochs - 1:
+                    print("real held-out confusions (true, read):", sorted(set((w, wrong.count(w)) for w in wrong), key=lambda z: -z[1]))
+        print(line_, flush=True)
     export(model)
 
 
@@ -151,14 +239,34 @@ def export(model):
             for d in a.shape:
                 f.write(struct.pack("<i", d))
             f.write(a.tobytes())
-    # Reference outputs for the Kotlin test: logits of the first 20 test digits.
+    # Reference outputs for DigitClassifierTest (copy to app/src/test/resources/scan/digit-reference.txt): the first 10
+    # MNIST test digits with the logits of this model.
     with torch.no_grad():
-        logits = model(x_test[:20]).numpy()
-    np.save("reference_logits.npy", logits)
+        logits = model(x_test[:10]).numpy()
     with open("reference.txt", "w") as f:
-        for i in range(20):
-            f.write(f"{int(y_test[i])} " + " ".join(f"{v:.5f}" for v in logits[i]) + "\n")
+        f.write("# label, 784 pixels (0..255, MNIST test set), 10 logits of the PyTorch model\n")
+        for i in range(10):
+            pixels = " ".join(str(int(round(v * 255))) for v in x_test[i, 0].flatten().tolist())
+            f.write(f"{int(y_test[i])} {pixels} | " + " ".join(f"{v:.5f}" for v in logits[i]) + "\n")
+
+def load_bin(path):
+    """The model from a digits.bin written by export()."""
+    model = Net()
+    tensors = [model.c1.weight, model.c1.bias, model.c2.weight, model.c2.bias,
+               model.f1.weight, model.f1.bias, model.f2.weight, model.f2.bias]
+    with open(path, "rb") as f:
+        assert f.read(4) == b"BMD1"
+        for t in tensors:
+            rank = struct.unpack("<i", f.read(4))[0]
+            shape = [struct.unpack("<i", f.read(4))[0] for _ in range(rank)]
+            data = np.frombuffer(f.read(4 * int(np.prod(shape))), "<f4").reshape(shape)
+            t.data.copy_(torch.tensor(data))
+    return model.eval()
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 2 and sys.argv[1] == "--export-from":
+        # Rewrites reference.txt (and digits.bin, unchanged) from an existing model without training.
+        export(load_bin(sys.argv[2]))
+    else:
+        main()

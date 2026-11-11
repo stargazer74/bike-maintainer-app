@@ -11,7 +11,15 @@ import kotlin.math.min
 object MarkerFinder {
     /** Marker search runs on a copy of about this size; the centres are refined on the full image. */
     private const val SEARCH_SIZE = 1000
-    private const val MAX_CANDIDATES = 12
+    private const val MAX_CANDIDATES = 20
+    /**
+     * Dark = below this share of the local mean. The markers print dark grey, not black; next to a bright table they
+     * came out at about 0.7 of the mean, and a limit of 0.7 missed them.
+     */
+    private const val DARK_RATIO = 0.8
+    /** Largest spread (max / min) of measured vs. predicted marker size over the four corners of a frame. */
+    private const val MAX_SIZE_SPREAD = 2.0
+    private const val QR_MARGIN = 10f
 
     internal data class Blob(val area: Int, val minX: Int, val minY: Int, val maxX: Int, val maxY: Int, val cx: Double, val cy: Double) {
         val w get() = maxX - minX + 1
@@ -53,7 +61,7 @@ object MarkerFinder {
                 val x1 = min(w, x + r + 1)
                 val sum = integral[y1 * stride + x1] - integral[y0 * stride + x1] - integral[y1 * stride + x0] + integral[y0 * stride + x0]
                 val mean = sum.toDouble() / ((x1 - x0) * (y1 - y0))
-                dark[y * w + x] = image[x, y] < mean * 0.7
+                dark[y * w + x] = image[x, y] < mean * DARK_RATIO
             }
         }
         return dark
@@ -112,8 +120,10 @@ object MarkerFinder {
     }
 
     /**
-     * The four candidates that form the page frame best: one per corner of a convex quadrilateral, of similar size,
-     * and each as big as the page geometry predicts. Among those, the largest frame wins.
+     * The four candidates that form the page frame: one per corner of a convex quadrilateral, of similar size and
+     * each as big as the perspective of the frame predicts, with no other marker-sized candidate inside. Among those,
+     * the largest frame wins. Without the last two checks a dark knot in the table or the marker of another sheet next
+     * to the page made a bigger frame and won – the page was then warped and no field sat where it was read.
      */
     internal fun bestFrame(candidates: List<Blob>): List<Blob>? {
         var best: List<Blob>? = null
@@ -124,20 +134,68 @@ object MarkerFinder {
             val ordered = order(four) ?: continue
             val areas = ordered.map { it.area.toDouble() }
             if (areas.max() / areas.min() > 4.0) continue
-            val frame = quadArea(ordered.map { Point(it.cx, it.cy) })
-            if (frame <= 0) continue
+            val corners = ordered.map { Point(it.cx, it.cy) }
+            val frame = quadArea(corners)
+            if (frame <= bestScore) continue
             // Page frame (between marker centres) vs one marker: about 30 × 45 cm² / 0.4 cm² ≈ 1500 on paper.
             val pageW = ScanLayout.markerCentres[1].x - ScanLayout.markerCentres[0].x
             val pageH = ScanLayout.markerCentres[2].y - ScanLayout.markerCentres[0].y
             val expected = pageW * pageH / (ScanLayout.MARKER_SIZE * ScanLayout.MARKER_SIZE)
             val ratio = frame / areas.average()
             if (ratio < expected / 3 || ratio > expected * 3) continue
-            if (frame > bestScore) {
-                bestScore = frame
-                best = ordered
-            }
+            if (sizeSpread(ordered) > MAX_SIZE_SPREAD) continue
+            if (otherMarkerInside(candidates, ordered)) continue
+            bestScore = frame
+            best = ordered
         }
         return best
+    }
+
+    /**
+     * How well the four blobs fit the perspective they span: per corner the measured area over the area of an 18 pt
+     * marker mapped through the frame's homography; max over min (1 = perfect). A blob that is not the page's own
+     * marker bends the homography, and the predicted sizes no longer match the measured ones.
+     */
+    internal fun sizeSpread(ordered: List<Blob>): Double {
+        val page = Homography.fromPoints(ScanLayout.markerCentres, ordered.map { Point(it.cx, it.cy) }) ?: return Double.MAX_VALUE
+        val half = ScanLayout.MARKER_SIZE / 2.0
+        val r = ScanLayout.markerCentres.zip(ordered).map { (c, blob) ->
+            val square = listOf(page.map(c.x - half, c.y - half), page.map(c.x + half, c.y - half), page.map(c.x - half, c.y + half), page.map(c.x + half, c.y + half))
+            blob.area / quadArea(square)
+        }
+        return r.max() / r.min()
+    }
+
+    /**
+     * Whether another marker-sized solid square lies on the page spanned by [ordered] – then one of the four is not
+     * the page's own marker. The QR code is left out: its solid patches look like small markers.
+     */
+    private fun otherMarkerInside(candidates: List<Blob>, ordered: List<Blob>): Boolean {
+        val corners = ordered.map { Point(it.cx, it.cy) }
+        val toPage = Homography.fromPoints(corners, ScanLayout.markerCentres) ?: return true
+        val markerSized = ordered.minOf { it.area } / 2
+        val qr = QR_MARGIN.let { m ->
+            (ScanLayout.QR_LEFT - m).toDouble()..(ScanLayout.QR_LEFT + ScanLayout.QR_SIZE + m).toDouble() to
+                (ScanLayout.QR_TOP - m).toDouble()..(ScanLayout.QR_TOP + ScanLayout.QR_SIZE + m).toDouble()
+        }
+        return candidates.any { blob ->
+            if (blob in ordered || blob.area < markerSized || !inside(corners, Point(blob.cx, blob.cy))) return@any false
+            val p = toPage.map(blob.cx, blob.cy)
+            p.x !in qr.first || p.y !in qr.second
+        }
+    }
+
+    /** Whether [p] lies inside the convex quadrilateral tl, tr, bl, br. */
+    private fun inside(corners: List<Point>, p: Point): Boolean {
+        val ring = listOf(corners[0], corners[1], corners[3], corners[2])
+        var sign = 0
+        for (i in 0 until 4) {
+            val a = ring[i]; val b = ring[(i + 1) % 4]
+            val cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+            val s = if (cross > 0) 1 else -1
+            if (sign == 0) sign = s else if (s != sign) return false
+        }
+        return true
     }
 
     /** Top left, top right, bottom left, bottom right – or `null` if the four do not form a convex quadrilateral. */
