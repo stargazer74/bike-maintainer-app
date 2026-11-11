@@ -29,7 +29,7 @@ class ScanSampleExportTest {
             val values = expected.getValue("values").jsonObject
             val photo = loadGray(File(photoPath))
             val markers = MarkerFinder.find(photo) ?: error("no markers in $photoPath")
-            val page = Homography.fromPoints(ScanLayout.markerCentres, markers) ?: error("no homography for $photoPath")
+            val page = SheetReader.uprightPage(photo, markers) ?: error("no homography for $photoPath")
             val fields = ScanLayout.pages(code.template, code.cylinders, code.valvesPerCylinder)[code.page - 1]
             for (field in fields.filter { it.kind == ScanLayout.FieldKind.DIGITS }) {
                 val value = values[field.id]?.jsonPrimitive?.content ?: continue

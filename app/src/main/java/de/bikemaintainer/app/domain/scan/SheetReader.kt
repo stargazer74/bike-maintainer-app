@@ -46,7 +46,7 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
 
     fun read(photo: GrayImage): ScanOutcome {
         val markers = MarkerFinder.find(photo) ?: return ScanOutcome.NoSheet
-        val page = Homography.fromPoints(ScanLayout.markerCentres, markers) ?: return ScanOutcome.NoSheet
+        val page = uprightPage(photo, markers) ?: return ScanOutcome.NoSheet
         val margin = 10f
         val qr = rectify(photo, page, ScanLayout.QR_LEFT - margin, ScanLayout.QR_TOP - margin, ScanLayout.QR_SIZE + 2 * margin, ScanLayout.QR_SIZE + 2 * margin, QR_SCALE)
         val code = qrReader.read(qr)?.let(SheetCode::parse) ?: return ScanOutcome.NoCode
@@ -78,6 +78,29 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
     }
 
     companion object {
+        /**
+         * The page as photographed, whichever way it lies: held sideways, the phone sees the sheet turned by 90°, and
+         * the markers in image order are not the page's corners. The four corners are equal, but only one of them has
+         * the QR code next to it – the dense black square wins over the logo, the heading and the footer. Without this
+         * the QR code was looked for in the wrong corner (zxing even reads it turned, and every field came from the
+         * wrong place).
+         */
+        internal fun uprightPage(photo: GrayImage, markers: List<Point>): Homography? {
+            // Image order is tl, tr, bl, br; around the page: tl, tr, br, bl.
+            val ring = listOf(markers[0], markers[1], markers[3], markers[2])
+            return (0 until 4).mapNotNull { turn ->
+                val r = List(4) { ring[(it + turn) % 4] }
+                Homography.fromPoints(ScanLayout.markerCentres, listOf(r[0], r[1], r[3], r[2]))
+            }.maxByOrNull { qrDensity(photo, it) }
+        }
+
+        /** Share of dark pixels where the QR code belongs (about half for a QR code, little for text or paper). */
+        internal fun qrDensity(photo: GrayImage, page: Homography): Double {
+            val area = rectify(photo, page, ScanLayout.QR_LEFT, ScanLayout.QR_TOP, ScanLayout.QR_SIZE, ScanLayout.QR_SIZE, 1f)
+            val limit = paperLevel(area) * 0.6
+            return area.pixels.count { (it.toInt() and 0xff) < limit }.toDouble() / area.pixels.size
+        }
+
         /** How far (points) a printed frame may sit from its computed position and still be found. */
         private const val ALIGN_RANGE = 5f
         private const val ALIGN_SCALE = 4f
