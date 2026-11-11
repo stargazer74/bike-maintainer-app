@@ -10,6 +10,11 @@ Real digits: real-digits.npz holds digits cut from photos of filled-in worksheet
 the model (ScanSampleExportTest), labelled from the known values, with a group per sheet. They are mixed into every
 batch. REAL_TRAIN / REAL_TEST (comma-separated groups) split them for an honest check on sheets not trained on;
 by default all groups are trained on.
+
+Ambiguous shapes: a 7 without crossbar and a 1 with a long flag are trained with a soft target (AMBIG, default 0.4 on
+the other digit), so the model is unsure about them and the app flags the field, instead of reading the 1 of someone
+who crosses the 7 as a confident 7. On sheets not trained on this cut the confidently wrong digits from 21 to 1 of
+1,616 (more right digits are flagged in turn).
 """
 import gzip, math, os, struct, sys
 import numpy as np
@@ -19,7 +24,7 @@ import torch.nn.functional as F
 
 torch.manual_seed(7)
 np.random.seed(7)
-torch.set_num_threads(16)
+torch.set_num_threads(int(os.environ.get("THREADS", "16")))
 
 
 def load(name):
@@ -112,12 +117,16 @@ def hook_nine(img):
 
 def europeanise(x, y):
     """Crossbar on half of the 7s, an upstroke flag (short or long) on half of the 1s, a bent tail on half of the 9s
-    (how digits are written in Germany)."""
+    (how digits are written in Germany). Also returns which digits are ambiguous: a 7 without crossbar and a 1 with a
+    long flag look the same – which one it is depends on the hand (the one who crosses the 7 writes the 1 like that)."""
     x = x.clone()
+    ambiguous = torch.zeros(len(y), dtype=torch.bool)
     for i in range(len(y)):
         img = x[i, 0]
         label = int(y[i])
         if label not in (1, 7, 9) or np.random.rand() < 0.5:
+            # A 7 without crossbar looks like a 1 with a long flag.
+            ambiguous[i] = label == 7
             continue
         if label == 9:
             hook_nine(img)
@@ -142,8 +151,9 @@ def europeanise(x, y):
                 dx, dy = np.random.uniform(3.5, 6.0), np.random.uniform(3.0, 6.0)
             else:
                 dx, dy = np.random.uniform(5.0, 9.0), np.random.uniform(6.0, 0.5 * (bottom - top) + 6.0)
+                ambiguous[i] = True
             line(img, tx, top, tx - dx, top + dy, width)
-    return x
+    return x, ambiguous
 
 
 def augment(x):
@@ -192,7 +202,8 @@ def main():
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
     epochs = int(sys.argv[1]) if len(sys.argv) > 1 else 12
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=3e-3, total_steps=epochs * (len(x_train) // 128 + 1))
-    euro_train = europeanise(x_train, y_train)
+    euro_train, ambiguous = europeanise(x_train, y_train)
+    share = float(os.environ.get("AMBIG", "0.4"))
     for epoch in range(epochs):
         model.train()
         perm = torch.randperm(len(x_train))
@@ -200,13 +211,18 @@ def main():
             idx = perm[i:i + 128]
             xb = augment(euro_train[idx])
             yb = y_train[idx]
+            target = F.one_hot(yb, 10).float()
+            amb = ambiguous[idx]
+            other = torch.where(yb == 7, 1, 7)
+            target[amb] = target[amb] * (1 - share) + F.one_hot(other[amb], 10).float() * share
             pool = torch.nonzero(real_train).flatten()
             if len(pool):
                 pick = pool[torch.randint(len(pool), (REAL_PER_BATCH,))]
                 # Real digits are already photographed: mild jitter only.
                 xb = torch.cat([xb, augment_light(real_x[pick])])
                 yb = torch.cat([yb, real_y[pick]])
-            loss = F.cross_entropy(model(xb), yb, label_smoothing=0.05)
+                target = torch.cat([target, F.one_hot(real_y[pick], 10).float()])
+            loss = F.cross_entropy(model(xb), target, label_smoothing=0.05)
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -214,7 +230,7 @@ def main():
         model.eval()
         with torch.no_grad():
             acc = (model(x_test).argmax(1) == y_test).float().mean().item()
-            acc_aug = (model(augment(europeanise(x_test, y_test))).argmax(1) == y_test).float().mean().item()
+            acc_aug = (model(augment(europeanise(x_test, y_test)[0])).argmax(1) == y_test).float().mean().item()
             line_ = f"epoch {epoch + 1}: test {acc:.4f}, augmented test {acc_aug:.4f}"
             if real_test.any():
                 pred = model(real_x[real_test]).argmax(1)
