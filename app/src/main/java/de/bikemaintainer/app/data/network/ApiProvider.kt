@@ -101,6 +101,8 @@ class ApiProvider(
     private fun retrofit(client: OkHttpClient, base: HttpUrl): Retrofit = Retrofit.Builder()
         .baseUrl(base)
         .client(client)
+        // Before the kotlinx converter: users of older servers get the access fields they lack.
+        .addConverterFactory(UserDefaultsConverterFactory(Serializer.kotlinxSerializationJson))
         .addConverterFactory(Serializer.kotlinxSerializationJson.asConverterFactory("application/json".toMediaType()))
         .build()
 

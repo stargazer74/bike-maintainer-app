@@ -1,11 +1,15 @@
 package de.bikemaintainer.app.ui.vehicle
 
+import de.bikemaintainer.app.domain.Access
+import de.bikemaintainer.app.domain.AccessStatus
+import de.bikemaintainer.app.domain.Account
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleType
+import de.bikemaintainer.app.ui.FakeAuthRepository
 import de.bikemaintainer.app.ui.FakeMaintenanceRepository
 import de.bikemaintainer.app.ui.FakeMeasurementRepository
 import de.bikemaintainer.app.ui.FakeVehicleRepository
@@ -31,9 +35,38 @@ class VehicleViewModelTest {
     private fun task(id: Long, status: TaskStatus, active: Boolean = true) =
         MaintenanceTask(id, 7, "T$id", false, active, status, null, null, null, null, null, null)
 
+    private val auth = FakeAuthRepository()
+
     private fun viewModel(): VehicleViewModel {
         if (vehicles.vehicleResult == null) vehicles.vehicleResult = Outcome.Success(vehicle)
-        return VehicleViewModel(7, vehicles, maintenance, measurements)
+        return VehicleViewModel(7, vehicles, maintenance, measurements, auth)
+    }
+
+    @Test fun asksTheServerForTheAccess() {
+        auth.currentAccountResult = Outcome.Success(Account("a@b.de", null, Access(AccessStatus.TRIAL)))
+        val vm = viewModel()
+        assertEquals(AccessStatus.TRIAL, vm.state.value.access.status)
+        assertEquals(1, auth.currentAccountCalls)
+    }
+
+    @Test fun readOnlyAccountCannotEnterTheMileage() {
+        auth.currentAccountResult = Outcome.Success(Account("a@b.de", null, Access(AccessStatus.EXPIRED)))
+        val vm = openDialog()
+        assertFalse(vm.state.value.access.canWrite)
+        assertNull(vm.state.value.mileageDialog)
+    }
+
+    @Test fun refusedWriteMakesTheAccountReadOnly() {
+        vehicles.updateMileageResult = Outcome.Failure(AppError.Http(403, "SUBSCRIPTION_REQUIRED"))
+        val vm = openDialog()
+        vm.onMileageInput("12400")
+        vm.saveMileage()
+        assertEquals(1, auth.subscriptionRequiredCalls)
+        assertFalse(vm.state.value.access.canWrite)
+        assertEquals(
+            MileageError.Save(AppError.Http(403, "SUBSCRIPTION_REQUIRED")),
+            vm.state.value.mileageDialog!!.error,
+        )
     }
 
     @Test fun loadsVehicleAndSortedTasks() {

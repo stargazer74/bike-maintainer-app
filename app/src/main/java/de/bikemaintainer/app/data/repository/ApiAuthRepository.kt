@@ -11,6 +11,8 @@ import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.SettingsStore
 import de.bikemaintainer.app.data.storage.StoredSettings
+import de.bikemaintainer.app.domain.Access
+import de.bikemaintainer.app.domain.AccessStatus
 import de.bikemaintainer.app.domain.Account
 import de.bikemaintainer.app.domain.AltchaSolver
 import de.bikemaintainer.app.domain.AppError
@@ -21,6 +23,10 @@ import java.io.IOException
 import java.security.GeneralSecurityException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
@@ -35,6 +41,15 @@ class ApiAuthRepository(
     private val state: SessionState,
 ) : AuthRepository {
     override val settings: Flow<StoredSettings> = store.settings
+
+    private val _access = MutableStateFlow(Access.FULL)
+    override val access: StateFlow<Access> = _access.asStateFlow()
+
+    override suspend fun refreshAccess() {
+        currentAccount()
+    }
+
+    override fun subscriptionRequired() = _access.update { it.copy(status = AccessStatus.EXPIRED) }
 
     /** Also sets the CSRF cookie in the jar of this address. */
     override suspend fun fetchConfig(serverUrl: String): Outcome<ServerConfig> =
@@ -115,6 +130,7 @@ class ApiAuthRepository(
                 Outcome.Failure(AppError.Storage)
             } finally {
                 provider.reset()
+                _access.value = Access.FULL
             }
         }
     }
@@ -151,13 +167,16 @@ class ApiAuthRepository(
                 // intentionally ignored: the account and its token are gone on the server anyway
             } finally {
                 provider.reset()
+                _access.value = Access.FULL
             }
         }
         return Outcome.Success(Unit)
     }
 
     override suspend fun currentAccount(): Outcome<Account> =
-        provider.callStored { it.auth.getCurrentUser() }.map { Account(it.email, it.displayName) }
+        provider.callStored { it.auth.getCurrentUser() }
+            .map { Account(it.email, it.displayName, Access.of(it.accessStatus.value, it.accessUntil, it.hasSubscription)) }
+            .also { result -> if (result is Outcome.Success) _access.value = result.value.access }
 
     override suspend fun setNotificationsEnabled(enabled: Boolean) {
         try {

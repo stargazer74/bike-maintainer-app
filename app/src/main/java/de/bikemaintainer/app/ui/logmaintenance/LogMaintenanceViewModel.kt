@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.MeasurementRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
+import de.bikemaintainer.app.domain.Access
+import de.bikemaintainer.app.domain.AccessSource
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.MeasurementContext
@@ -15,6 +17,7 @@ import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
+import de.bikemaintainer.app.domain.isSubscriptionRequired
 import de.bikemaintainer.app.domain.parseMileage
 import de.bikemaintainer.app.ui.common.isNotFound
 import java.text.DecimalFormatSymbols
@@ -78,6 +81,8 @@ data class LogMaintenanceUiState(
     val done: LogResult? = null,
     /** The log is saved; the form stays locked until the screen is gone (also while [done] has been consumed). */
     val finished: Boolean = false,
+    /** Scanning needs [Access.canScan]; worksheets of the trial carry a demo code. */
+    val access: Access = Access.FULL,
 ) {
     /** No edits and no save: a save is running or the log is already saved. */
     val locked: Boolean get() = saving || finished
@@ -102,6 +107,7 @@ class LogMaintenanceViewModel(
     /** Waits this long after the last change of a valve row before asking the backend for shim suggestions. */
     private val shimDebounceMillis: Long = SHIM_DEBOUNCE_MILLIS,
     private val decimalSeparator: Char = DecimalFormatSymbols.getInstance().decimalSeparator,
+    private val accessSource: AccessSource = AccessSource.Unrestricted,
 ) : ViewModel() {
     /** The latest selectable day. */
     val latestDate: LocalDate get() = today()
@@ -120,6 +126,7 @@ class LogMaintenanceViewModel(
     private var shimJob: Job? = null
 
     init {
+        viewModelScope.launch { accessSource.access.collect { a -> _state.update { it.copy(access = a) } } }
         retryLoad()
         retryMeasurements()
     }
@@ -324,6 +331,7 @@ class LogMaintenanceViewModel(
     }
 
     private suspend fun onSaveFailed(error: AppError) {
+        if (error.isSubscriptionRequired()) accessSource.subscriptionRequired()
         when {
             // Deleted meanwhile: the same terminal state as when loading (message and Back, no form).
             error.isNotFound() -> showNotFound()

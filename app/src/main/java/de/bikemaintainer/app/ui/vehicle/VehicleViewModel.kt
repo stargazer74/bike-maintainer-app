@@ -5,12 +5,15 @@ import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.MeasurementRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
+import de.bikemaintainer.app.domain.Access
+import de.bikemaintainer.app.domain.AccessSource
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.MeasurementContext
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
+import de.bikemaintainer.app.domain.isSubscriptionRequired
 import de.bikemaintainer.app.domain.parseMileage
 import de.bikemaintainer.app.ui.common.ReloadableLoader
 import de.bikemaintainer.app.ui.common.isNotFound
@@ -35,6 +38,8 @@ data class VehicleUiState(
     val mileageDialog: MileageDialogState? = null,
     /** Target values and last measurements; `null` until loaded. A failure only hides them, the screen works on. */
     val measurements: MeasurementContext? = null,
+    /** Read-only accounts ([Access.canWrite] false) cannot enter the mileage or log maintenance. */
+    val access: Access = Access.FULL,
 )
 
 data class MileageDialogState(val input: String, val error: MileageError? = null, val saving: Boolean = false)
@@ -52,6 +57,7 @@ class VehicleViewModel(
     private val vehicles: VehicleRepository,
     maintenance: MaintenanceRepository,
     private val measurementRepository: MeasurementRepository,
+    private val accessSource: AccessSource = AccessSource.Unrestricted,
 ) : ViewModel() {
     private val _state = MutableStateFlow(VehicleUiState())
     val state: StateFlow<VehicleUiState> = _state.asStateFlow()
@@ -89,10 +95,13 @@ class VehicleViewModel(
                         // The dialog outlives silent reloads, but not the vehicle (deleted).
                         mileageDialog = if (l.data == null) null else it.mileageDialog,
                         measurements = if (l.data == null) null else it.measurements,
+                        access = it.access,
                     )
                 }
             }
         }
+        viewModelScope.launch { accessSource.access.collect { a -> _state.update { it.copy(access = a) } } }
+        viewModelScope.launch { accessSource.refreshAccess() }
         loader.refresh()
     }
 
@@ -118,6 +127,7 @@ class VehicleViewModel(
     fun onResume() = loader.onResume()
 
     fun openMileageDialog() {
+        if (!_state.value.access.canWrite) return
         val vehicle = loader.state.value.data?.first ?: return
         _state.update { it.copy(mileageDialog = MileageDialogState(vehicle.currentMileage.toString())) }
     }
@@ -151,6 +161,7 @@ class VehicleViewModel(
                             _state.update { it.copy(mileageDialog = null) }
                             loader.refresh()
                         } else {
+                            if (result.error.isSubscriptionRequired()) accessSource.subscriptionRequired()
                             updateDialog { it.copy(saving = false, error = MileageError.Save(result.error)) }
                         }
                     }

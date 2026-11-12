@@ -36,6 +36,9 @@ sealed interface ScanOutcome {
 
     /** Printed by a newer server with another layout; the app needs an update. */
     data class UnsupportedVersion(val version: Int) : ScanOutcome
+
+    /** Printed during the trial: the demo code carries no vehicle, so nothing can be taken over (backend#138). */
+    data object DemoSheet : ScanOutcome
 }
 
 /**
@@ -49,7 +52,9 @@ class SheetReader(private val classifier: DigitClassifier, private val qrReader:
         val page = uprightPage(photo, markers) ?: return ScanOutcome.NoSheet
         val margin = 10f
         val qr = rectify(photo, page, ScanLayout.QR_LEFT - margin, ScanLayout.QR_TOP - margin, ScanLayout.QR_SIZE + 2 * margin, ScanLayout.QR_SIZE + 2 * margin, QR_SCALE)
-        val code = qrReader.read(qr)?.let(SheetCode::parse) ?: return ScanOutcome.NoCode
+        val content = qrReader.read(qr) ?: return ScanOutcome.NoCode
+        if (SheetCode.isDemo(content)) return ScanOutcome.DemoSheet
+        val code = SheetCode.parse(content) ?: return ScanOutcome.NoCode
         if (code.version != ScanLayout.VERSION) return ScanOutcome.UnsupportedVersion(code.version)
         val fields = ScanLayout.pages(code.template, code.cylinders, code.valvesPerCylinder).getOrNull(code.page - 1)
             ?: return ScanOutcome.NoCode

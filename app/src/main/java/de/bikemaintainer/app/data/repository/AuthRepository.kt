@@ -1,14 +1,18 @@
 package de.bikemaintainer.app.data.repository
 
 import de.bikemaintainer.app.data.storage.StoredSettings
+import de.bikemaintainer.app.domain.AccessSource
 import de.bikemaintainer.app.domain.Account
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Profile
 import de.bikemaintainer.app.domain.ServerConfig
 import kotlinx.coroutines.flow.Flow
 
-/** Setup, login, profile selection and account data; implemented by [ApiAuthRepository], faked in UI tests. */
-interface AuthRepository {
+/**
+ * Setup, login, profile selection and account data; implemented by [ApiAuthRepository], faked in UI tests. As
+ * [AccessSource] it keeps the access of the signed-in account that [currentAccount] fetched last.
+ */
+interface AuthRepository : AccessSource {
     /** The stored settings, so the UI does not need the store itself. */
     val settings: Flow<StoredSettings>
 
@@ -42,7 +46,7 @@ interface AuthRepository {
      */
     suspend fun deleteAccount(password: String): Outcome<Unit>
 
-    /** `GET auth/me` on the stored server. */
+    /** `GET auth/me` on the stored server; also updates [access]. */
     suspend fun currentAccount(): Outcome<Account>
 
     /** Saves the reminder switch; a storage failure is swallowed (the switch then simply keeps its old value). */

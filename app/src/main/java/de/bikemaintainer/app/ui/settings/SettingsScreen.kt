@@ -59,9 +59,11 @@ import de.bikemaintainer.app.R
 import de.bikemaintainer.app.domain.ServerMode
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.WebLinks
+import de.bikemaintainer.app.ui.common.accessStatusText
 import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
 import de.bikemaintainer.app.ui.theme.ThemeMode
 import de.bikemaintainer.app.ui.theme.ThemeSetting
+import java.time.LocalDate
 
 private enum class Confirm { LOGOUT, SWITCH_SERVER }
 
@@ -176,6 +178,12 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate:
             state.serverUrl?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
             val who = state.account?.let { it.email ?: it.displayName }
             who?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
+            // Trial or read-only; nothing in household mode, with a subscription or full access.
+            if (state.mode == ServerMode.PORTAL) {
+                state.account?.let { accessStatusText(it.access, LocalDate.now()) }?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             OutlinedButton(
                 onClick = { confirm = Confirm.LOGOUT },
                 enabled = !state.busy,

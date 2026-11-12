@@ -59,6 +59,7 @@ import de.bikemaintainer.app.ui.common.formatNumber
 import de.bikemaintainer.app.ui.common.isNotFound
 import de.bikemaintainer.app.ui.common.mileageText
 import de.bikemaintainer.app.ui.common.saveMessageRes
+import de.bikemaintainer.app.ui.common.ReadOnlyNotice
 import de.bikemaintainer.app.ui.common.statusColor
 import de.bikemaintainer.app.ui.common.vehicleLoadMessageRes
 import de.bikemaintainer.app.ui.logmaintenance.LogResult
@@ -185,13 +186,17 @@ fun VehicleContent(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                OutlinedButton(onClick = actions.onOpenMileage) {
-                                    Text(stringResource(R.string.mileage_enter))
-                                }
-                                if (state.tasks.isNotEmpty()) {
-                                    Button(onClick = actions.onLogMaintenance) {
-                                        Text(stringResource(R.string.log_title))
+                                if (state.access.canWrite) {
+                                    OutlinedButton(onClick = actions.onOpenMileage) {
+                                        Text(stringResource(R.string.mileage_enter))
                                     }
+                                    if (state.tasks.isNotEmpty()) {
+                                        Button(onClick = actions.onLogMaintenance) {
+                                            Text(stringResource(R.string.log_title))
+                                        }
+                                    }
+                                } else {
+                                    ReadOnlyNotice(state.access)
                                 }
                             }
                         }

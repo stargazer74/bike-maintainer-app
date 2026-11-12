@@ -104,6 +104,16 @@ class SheetReaderTest {
         )
     }
 
+    /** A sheet of the trial (backend#138): its demo code has no vehicle, so nothing is read. */
+    @Test
+    fun demoSheetOfTheTrial() {
+        val photo = loadGray(testResource("scan/tires-oblique.jpg"))
+        assertEquals(ScanOutcome.DemoSheet, SheetReader(classifier) { "BMWD;v=1;t=TIRES;p=1/1" }.read(photo))
+        assertEquals(true, SheetCode.isDemo(" BMWD;v=1;t=VALVE_CLEARANCE;c=4;vpc=4;p=2/2"))
+        assertEquals(false, SheetCode.isDemo("BMWS;v=1;t=TIRES;id=42;p=1/1"))
+        assertEquals(null, SheetCode.parse("BMWD;v=1;t=TIRES;p=1/1"))
+    }
+
     private fun check(name: String, distort: (GrayImage) -> GrayImage = { it }) {
         val expected = Json.parseToJsonElement(testResource("scan/$name.json").readText()).jsonObject
         val qr = expected["qr"]!!.jsonPrimitive.content

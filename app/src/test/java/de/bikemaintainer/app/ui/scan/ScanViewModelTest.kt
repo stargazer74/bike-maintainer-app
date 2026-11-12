@@ -74,6 +74,7 @@ class ScanViewModelTest {
             ScanOutcome.NoSheet to ScanProblem.NO_SHEET,
             ScanOutcome.NoCode to ScanProblem.NO_CODE,
             ScanOutcome.UnsupportedVersion(2) to ScanProblem.NEWER_LAYOUT,
+            ScanOutcome.DemoSheet to ScanProblem.DEMO_SHEET,
         )
         for ((outcome, problem) in outcomes) {
             val vm = viewModel { outcome }

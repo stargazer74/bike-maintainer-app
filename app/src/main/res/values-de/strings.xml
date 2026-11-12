@@ -305,4 +305,15 @@
     <string name="profiles_error_name_required">Bitte gib einen Namen ein.</string>
     <string name="profiles_error_name_taken">Diesen Namen gibt es schon.</string>
     <string name="profiles_error_create_failed">Die Person konnte nicht angelegt werden.</string>
+    <!-- Zugang des Kontos (Epic backend#136): neutral, kein Preis, kein Link, kein Hinweis, wo man kauft. -->
+    <string name="access_trial">Testphase</string>
+    <plurals name="access_trial_days_left">
+        <item quantity="one">Testphase: noch %d Tag</item>
+        <item quantity="other">Testphase: noch %d Tage</item>
+    </plurals>
+    <string name="access_trial_expired">Testphase abgelaufen – deine Daten bleiben erhalten, Erfassen ist nicht mehr möglich.</string>
+    <string name="access_expired">Zugang abgelaufen – deine Daten bleiben erhalten, Erfassen ist nicht mehr möglich.</string>
+    <string name="error_read_only">Erfassen ist nicht mehr möglich – deine Daten bleiben erhalten.</string>
+    <string name="scan_unavailable_trial">Arbeitsblätter aus der Testphase können nicht eingescannt werden. Trag die Werte hier von Hand ein.</string>
+    <string name="scan_error_demo_sheet">Arbeitsblätter aus der Testphase können nicht eingescannt werden. Bitte die Werte von Hand eintragen.</string>
 </resources>

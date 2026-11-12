@@ -2,6 +2,8 @@ package de.bikemaintainer.app.ui
 
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.data.storage.StoredSettings
+import de.bikemaintainer.app.domain.Access
+import de.bikemaintainer.app.domain.AccessStatus
 import de.bikemaintainer.app.domain.Account
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Profile
@@ -126,7 +128,20 @@ class FakeAuthRepository : AuthRepository {
 
     override suspend fun currentAccount(): Outcome<Account> {
         currentAccountCalls++
+        (currentAccountResult as? Outcome.Success)?.let { access.value = it.value.access }
         return currentAccountResult
+    }
+
+    override val access = MutableStateFlow(Access.FULL)
+    var subscriptionRequiredCalls = 0
+
+    override suspend fun refreshAccess() {
+        currentAccount()
+    }
+
+    override fun subscriptionRequired() {
+        subscriptionRequiredCalls++
+        access.value = access.value.copy(status = AccessStatus.EXPIRED)
     }
 
     override suspend fun setNotificationsEnabled(enabled: Boolean) {

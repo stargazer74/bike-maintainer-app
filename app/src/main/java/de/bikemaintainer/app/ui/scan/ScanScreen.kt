@@ -312,6 +312,7 @@ private fun ScanProblem.messageRes(): Int = when (this) {
     ScanProblem.NO_SHEET -> R.string.scan_error_no_sheet
     ScanProblem.NO_CODE -> R.string.scan_error_no_code
     ScanProblem.NEWER_LAYOUT -> R.string.scan_error_newer_layout
+    ScanProblem.DEMO_SHEET -> R.string.scan_error_demo_sheet
     ScanProblem.OTHER_VEHICLE -> R.string.scan_error_other_vehicle
     ScanProblem.WRONG_TEMPLATE -> R.string.scan_error_template
     ScanProblem.OTHER_SHEET -> R.string.scan_error_other_sheet

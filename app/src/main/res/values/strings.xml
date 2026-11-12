@@ -305,4 +305,15 @@
     <string name="profiles_error_name_required">Please enter a name.</string>
     <string name="profiles_error_name_taken">This name already exists.</string>
     <string name="profiles_error_create_failed">The person could not be created.</string>
+    <!-- Access of the account (Epic backend#136): neutral, no price, no link, no hint where to buy. -->
+    <string name="access_trial">Trial</string>
+    <plurals name="access_trial_days_left">
+        <item quantity="one">Trial: %d day left</item>
+        <item quantity="other">Trial: %d days left</item>
+    </plurals>
+    <string name="access_trial_expired">Trial expired – your data is kept, but nothing can be recorded any more.</string>
+    <string name="access_expired">Access expired – your data is kept, but nothing can be recorded any more.</string>
+    <string name="error_read_only">Nothing can be recorded any more – your data is kept.</string>
+    <string name="scan_unavailable_trial">Worksheets from the trial cannot be scanned. Enter the values here by hand.</string>
+    <string name="scan_error_demo_sheet">Worksheets from the trial cannot be scanned. Enter the values by hand.</string>
 </resources>

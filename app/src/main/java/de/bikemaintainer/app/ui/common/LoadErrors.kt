@@ -3,6 +3,7 @@ package de.bikemaintainer.app.ui.common
 import androidx.annotation.StringRes
 import de.bikemaintainer.app.R
 import de.bikemaintainer.app.domain.AppError
+import de.bikemaintainer.app.domain.isSubscriptionRequired
 
 /** User-facing message for a failed load of the vehicle list; NotFound there is just a failed load. */
 @StringRes
@@ -29,6 +30,7 @@ fun AppError.saveMessageRes(): Int =
         this is AppError.Http && status >= 500 -> R.string.error_server_not_responding
         this == AppError.CleartextNotAllowed -> R.string.error_cleartext_not_allowed
         this == AppError.NotFound -> R.string.error_vehicle_not_found
+        isSubscriptionRequired() -> R.string.error_read_only
         this is AppError.Http && status == 400 -> R.string.error_input_rejected
         else -> R.string.error_save_failed
     }
