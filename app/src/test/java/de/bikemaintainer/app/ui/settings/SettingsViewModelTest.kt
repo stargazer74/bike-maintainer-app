@@ -143,4 +143,55 @@ class SettingsViewModelTest {
         vm.refreshPermission()
         assertEquals(2, reminders.syncCalls)
     }
+
+    @Test fun deleteAccountStopsRemindersAndReturnsToTheStart() {
+        store(ServerMode.PORTAL)
+        val vm = SettingsViewModel(auth)
+        vm.deleteAccount("geheim-1234")
+        assertEquals(listOf("geheim-1234"), auth.deleteAccountCalls)
+        assertEquals(SetupRoute, vm.state.value.next)
+        assertTrue(vm.state.value.accountDeleted)
+        assertFalse(vm.state.value.deleting)
+        assertEquals(1, reminders.cancelCalls)
+        assertEquals(1, notifications.cancelAllCalls)
+        vm.navigated()
+        assertFalse(vm.state.value.accountDeleted)
+        // The password is not kept anywhere in the state.
+        assertFalse(vm.state.value.toString().contains("geheim-1234"))
+    }
+
+    @Test fun deleteAccountFailuresStayOnTheScreen() {
+        store(ServerMode.PORTAL)
+        val cases = listOf(
+            AppError.Http(403, "WRONG_PASSWORD") to DeleteAccountError.WRONG_PASSWORD,
+            AppError.Http(403, "FORBIDDEN") to DeleteAccountError.UNKNOWN,
+            AppError.Http(409, "LAST_ADMIN") to DeleteAccountError.LAST_ADMIN,
+            AppError.Http(429, null) to DeleteAccountError.TOO_MANY_ATTEMPTS,
+            AppError.Network to DeleteAccountError.NOT_REACHABLE,
+            AppError.Unauthorized to DeleteAccountError.UNKNOWN,
+        )
+        for ((error, expected) in cases) {
+            auth.deleteAccountResult = Outcome.Failure(error)
+            val vm = SettingsViewModel(auth)
+            vm.deleteAccount("pw")
+            assertEquals(error.toString(), expected, vm.state.value.deleteError)
+            assertNull(vm.state.value.next)
+            assertFalse(vm.state.value.accountDeleted)
+            vm.clearDeleteError()
+            assertNull(vm.state.value.deleteError)
+        }
+        assertEquals(0, reminders.cancelCalls)
+    }
+
+    @Test fun deleteAccountRunsOnlyOnceAtATime() {
+        store(ServerMode.PORTAL)
+        auth.deleteAccountGate = kotlinx.coroutines.CompletableDeferred()
+        val vm = SettingsViewModel(auth)
+        vm.deleteAccount("pw")
+        vm.deleteAccount("pw")
+        assertTrue(vm.state.value.deleting)
+        auth.deleteAccountGate!!.complete(Unit)
+        assertEquals(1, auth.deleteAccountCalls.size)
+        assertFalse(vm.state.value.deleting)
+    }
 }

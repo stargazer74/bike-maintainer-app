@@ -95,6 +95,13 @@ Benachrichtigungen an/aus; Sprache (System, Deutsch, Englisch – Android „Spr
 Konto bzw. Profil; **Abmelden**; **Server wechseln**; Links zu Datenschutz und Impressum, wenn `config` eine
 `websiteUrl` meldet.
 
+**Konto löschen** (nur Portal, Vorgabe von Google Play, #48): zwei Schritte. Erst ein Dialog mit den Folgen (alle
+Fahrzeuge, Aufgaben, Einträge und Kosten, kein Rückgängig) und dem Passwort, dann eine zweite Nachfrage „Wirklich
+löschen?“; erst sie ruft `DELETE /auth/me`. Fehler (falsches Passwort, letzter Admin, 429, Netz) führen zurück zum
+ersten Schritt. Danach Erinnerungen stoppen, alles Lokale löschen wie bei **Server wechseln**, zurück zur Auswahl.
+Das Passwort liegt nur im Speicher des Dialogs. Der generierte Client schickt `DELETE` mit Body über `@DELETE`, was
+Retrofit ablehnt; daher `AccountApi` mit `@HTTP(hasBody = true)`.
+
 ### Fehler im Betrieb
 
 „Keine Verbindung“ bzw. „Server antwortet nicht“ mit „Erneut versuchen“; ungültiges Geräte-Token → zurück zur

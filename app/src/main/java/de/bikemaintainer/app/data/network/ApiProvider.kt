@@ -39,6 +39,7 @@ class ApiProvider(
         val measurements: MeasurementsApi,
         val worksheets: WorksheetsApi,
         val challenge: ChallengeApi,
+        val account: AccountApi,
     )
 
     /** The APIs of one address with the cookie jar they share. */
@@ -92,6 +93,7 @@ class ApiProvider(
             measurements = retrofit.create(MeasurementsApi::class.java),
             worksheets = retrofit.create(WorksheetsApi::class.java),
             challenge = retrofit.create(ChallengeApi::class.java),
+            account = retrofit.create(AccountApi::class.java),
         )
         return Entry(apis, cookieJar)
     }

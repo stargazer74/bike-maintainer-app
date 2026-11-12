@@ -459,4 +459,50 @@ class AuthRepositoryTest {
         taken = true
         assertEquals(Outcome.Failure(AppError.Http(409, "CONFLICT")), runBlocking { repo.createProfile(env.url, "Chris") })
     }
+
+    @Test
+    fun deleteAccountSendsThePasswordAndDropsEverythingLocal() {
+        val deletes = mutableListOf<mockwebserver3.RecordedRequest>()
+        val repo = setUp(handler = withConfig { req ->
+            if (req.method == "DELETE") deletes += req
+            MockResponse.Builder().code(204).build()
+        })
+        runBlocking {
+            env.settings.setServer(env.url, ServerMode.PORTAL)
+            env.tokens.set("tok")
+        }
+        assertEquals(Outcome.Success(Unit), runBlocking { repo.deleteAccount("geheim-1234") })
+        val delete = deletes.single()
+        assertEquals("/api/v1/auth/me", delete.url.encodedPath)
+        assertEquals("csrf-1", delete.headers["X-XSRF-TOKEN"])
+        val body = kotlinx.serialization.json.Json.parseToJsonElement(delete.body!!.utf8()).jsonObject
+        assertEquals("geheim-1234", body.getValue("password").jsonPrimitive.content)
+        val stored = runBlocking { env.settings.current() }
+        assertNull(stored.serverUrl)
+        assertNull(stored.mode)
+        assertNull(stored.encryptedDeviceToken)
+    }
+
+    @Test
+    fun deleteAccountKeepsEverythingWhenTheServerRefuses() {
+        val repo = setUp(handler = withConfig { json("""{"code":"WRONG_PASSWORD"}""", 403) })
+        runBlocking {
+            env.settings.setServer(env.url, ServerMode.PORTAL)
+            env.tokens.set("tok")
+        }
+        assertEquals(
+            Outcome.Failure(AppError.Http(403, "WRONG_PASSWORD")),
+            runBlocking { repo.deleteAccount("falsch") },
+        )
+        val stored = runBlocking { env.settings.current() }
+        assertEquals(env.url, stored.serverUrl)
+        assertNotNull(stored.encryptedDeviceToken)
+    }
+
+    @Test
+    fun deleteAccountWithoutServerIsNotConfigured() {
+        val repo = setUp()
+        assertEquals(Outcome.Failure(AppError.NotConfigured), runBlocking { repo.deleteAccount("pw") })
+        assertTrue(env.requests.isEmpty())
+    }
 }

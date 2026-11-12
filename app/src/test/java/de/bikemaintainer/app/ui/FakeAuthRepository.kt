@@ -53,6 +53,10 @@ class FakeAuthRepository : AuthRepository {
     var switchServerResult: Outcome<Unit> = Outcome.Success(Unit)
     var switchServerCalls = 0
 
+    var deleteAccountResult: Outcome<Unit> = Outcome.Success(Unit)
+    var deleteAccountGate: CompletableDeferred<Unit>? = null
+    val deleteAccountCalls = mutableListOf<String>() // password
+
     var currentAccountResult: Outcome<Account> = Outcome.Success(Account("max@example.org", null))
     var currentAccountCalls = 0
 
@@ -112,6 +116,12 @@ class FakeAuthRepository : AuthRepository {
     override suspend fun switchServer(): Outcome<Unit> {
         switchServerCalls++
         return switchServerResult
+    }
+
+    override suspend fun deleteAccount(password: String): Outcome<Unit> {
+        deleteAccountCalls += password
+        deleteAccountGate?.await()
+        return deleteAccountResult
     }
 
     override suspend fun currentAccount(): Outcome<Account> {

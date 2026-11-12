@@ -11,6 +11,10 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.assertIsNotEnabled
+import de.bikemaintainer.app.domain.AppError
+import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.data.storage.StoredSettings
 import de.bikemaintainer.app.domain.ServerMode
 import de.bikemaintainer.app.notifications.FakeDueNotifications
@@ -88,5 +92,51 @@ class SettingsScreenTest {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         show()
         compose.onNodeWithText("Dunkel").assertIsSelected()
+    }
+
+    @Test fun deleteAccountAsksTwiceBeforeDeleting() {
+        show()
+        compose.onNodeWithText("Konto löschen").performScrollTo().performClick()
+        compose.onNodeWithText("Weiter").assertIsNotEnabled()
+        compose.onNodeWithText("Passwort").performTextInput("geheim-1234")
+        compose.onNodeWithText("Weiter").performClick()
+        compose.onNodeWithText("Wirklich löschen?").assertExists()
+        compose.onNodeWithText("Das Konto max@example.org und alle seine Daten werden jetzt endgültig gelöscht.")
+            .assertExists()
+        assertEquals(emptyList<String>(), auth.deleteAccountCalls)
+        compose.onNodeWithText("Endgültig löschen").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("geheim-1234"), auth.deleteAccountCalls)
+    }
+
+    @Test fun deleteAccountBackOnTheSecondStepDeletesNothing() {
+        show()
+        compose.onNodeWithText("Konto löschen").performScrollTo().performClick()
+        compose.onNodeWithText("Passwort").performTextInput("geheim-1234")
+        compose.onNodeWithText("Weiter").performClick()
+        compose.onNodeWithText("Zurück").performClick()
+        compose.onNodeWithText("Bitte bestätige mit deinem Passwort.", substring = true).assertExists()
+        compose.onNodeWithText("Abbrechen").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Wirklich löschen?").assertDoesNotExist()
+        assertEquals(emptyList<String>(), auth.deleteAccountCalls)
+    }
+
+    @Test fun wrongPasswordShowsTheFirstStepAgain() {
+        auth.deleteAccountResult = Outcome.Failure(AppError.Http(403, "WRONG_PASSWORD"))
+        show()
+        compose.onNodeWithText("Konto löschen").performScrollTo().performClick()
+        compose.onNodeWithText("Passwort").performTextInput("falsch")
+        compose.onNodeWithText("Weiter").performClick()
+        compose.onNodeWithText("Endgültig löschen").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Das Passwort ist falsch.").assertExists()
+        compose.onNodeWithText("Weiter").assertIsNotEnabled()
+    }
+
+    @Test fun householdHasNoDeleteAccount() {
+        auth.settings.value = StoredSettings("https://h", ServerMode.HOUSEHOLD, null, 3)
+        show()
+        compose.onNodeWithText("Konto löschen").assertDoesNotExist()
     }
 }
