@@ -1,0 +1,4 @@
+• Neuer Einstieg: Online-Konto oder eigener Server
+• Konto direkt in der App anlegen
+• Haushalts-Server per QR-Code verbinden, neue Personen in der App anlegen
+• Konto in der App löschen

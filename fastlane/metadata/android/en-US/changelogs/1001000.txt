@@ -1,0 +1,4 @@
+• New start: online account or your own server
+• Create an account right in the app
+• Connect to a household server with a QR code, add people in the app
+• Delete your account in the app

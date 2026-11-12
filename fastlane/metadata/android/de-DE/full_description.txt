@@ -1,0 +1,23 @@
+Bike Maintainer erinnert dich an fällige Wartungen deiner Motorräder und Autos – nach Kilometern oder nach Zeit, je nachdem, was zuerst eintritt. Die App begleitet die Web-App: Kilometerstand und erledigte Arbeiten trägst du direkt am Fahrzeug ein.
+
+Was die App kann
+• Alle Fahrzeuge mit ihrem Fälligkeitsstatus auf einen Blick: rot überfällig, gelb bald fällig
+• Jedes Fahrzeug im Detail mit seinen Wartungsaufgaben, den letzten Messwerten und den Sollwerten
+• Kilometerstand in wenigen Tipps eintragen
+• Wartung erfassen: erledigte Arbeiten abhaken, Datum, Kilometerstand und Notiz eintragen, dazu Messwerte wie Ventilspiel, Bremsen, Kette oder Reifen
+• Arbeitsblätter fotografieren: Dein Handy liest die von Hand eingetragenen Werte selbst aus, das Foto verlässt es nie
+• Eine Benachrichtigung, sobald eine Wartung fällig wird
+• Deutsch und Englisch, helles und dunkles Design
+
+Online-Konto oder eigener Server
+Die App arbeitet mit einem Bike-Maintainer-Server:
+• Online-Konto auf bike-maintainer.de – du kannst es direkt in der App anlegen.
+• Eigener Server, zum Beispiel zu Hause auf einem PC oder Raspberry Pi. Im Haushaltsmodus wählt jede Person ihr Profil ohne Passwort, und die Serveradresse übernimmst du per QR-Code.
+Fahrzeuge und Wartungspläne legst du in der Web-App an.
+
+Privatsphäre
+• Keine Werbung, kein Tracking, keine Analyse
+• Keine Google-Dienste: Die App spricht nur mit dem Server, den du einrichtest.
+• Dein Konto kannst du jederzeit in der App löschen, mit allen Daten.
+
+Open Source (MIT): https://github.com/stargazer74/bike-maintainer-app

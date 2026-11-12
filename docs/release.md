@@ -63,3 +63,25 @@ Builds without a version (`./gradlew assembleRelease`) are `0.0.0-dev` with `ver
   mileage, log maintenance and a forced reminder run.
 - Install the next version over it: it must update without losing data (`adb install -r`), and installing an older
   version must be refused (`INSTALL_FAILED_VERSION_DOWNGRADE`).
+
+## Store listing (Google Play, F-Droid)
+
+The texts of the store entry live in `fastlane/metadata/android/<locale>/` (`de-DE`, `en-US`) – the layout both
+Google Play and F-Droid read, so there is only one copy:
+
+| File | Limit | Content |
+|---|---|---|
+| `title.txt` | 30 | App name |
+| `short_description.txt` | 80 | One line under the name |
+| `full_description.txt` | 4000 | Plain text; `•` for lists (no Markdown) |
+| `changelogs/<versionCode>.txt` | 500 | "What's new" of that release, e.g. `1001000.txt` for 1.1.0 |
+
+Rules for the texts:
+
+- **No subscription, prices or purchase** – neither in the app nor in its store entry (Google Play payments policy);
+  the subscription only exists on the website.
+- No superlatives, rankings or calls like "download now" (Play metadata policy); no personal data.
+- Describe only what the released version can do; add the changelog of each release before uploading it.
+- Keep the German and English versions in step.
+
+In Play Console, copy the texts into the store entry of each language (or upload them with fastlane `supply`).
