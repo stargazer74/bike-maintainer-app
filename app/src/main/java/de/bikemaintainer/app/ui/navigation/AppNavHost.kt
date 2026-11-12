@@ -193,7 +193,7 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
             val viewModel: VehicleViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
-                        VehicleViewModel(route.vehicleId, deps.vehicles, deps.maintenance, deps.measurements)
+                        VehicleViewModel(route.vehicleId, deps.vehicles, deps.maintenance, deps.measurements, deps.auth)
                     }
                 },
             )
@@ -217,6 +217,7 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                             deps.maintenance,
                             createSavedStateHandle(),
                             deps.measurements,
+                            accessSource = deps.auth,
                         )
                     }
                 },

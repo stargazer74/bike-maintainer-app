@@ -95,8 +95,16 @@ fun MeasurementSection(state: LogMaintenanceUiState, actions: MeasurementActions
             }
         }
         if (templates.isNotEmpty()) {
-            OutlinedButton(onClick = actions.onScan, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.scan_open))
+            if (state.access.canScan) {
+                OutlinedButton(onClick = actions.onScan, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.scan_open))
+                }
+            } else {
+                Text(
+                    stringResource(R.string.scan_unavailable_trial),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

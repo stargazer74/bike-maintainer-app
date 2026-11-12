@@ -205,6 +205,9 @@ data class SheetCode(
     val pages: Int,
 ) {
     companion object {
+        /** The code of a sheet printed during the trial, e.g. `BMWD;v=1;t=TIRES;p=1/1` (twin of `demoQrContent`). */
+        fun isDemo(content: String): Boolean = content.trim().substringBefore(';') == "BMWD"
+
         /** `null` for anything that is not a worksheet code (another QR code, damaged content, unknown template). */
         fun parse(content: String): SheetCode? {
             val parts = content.trim().split(';')

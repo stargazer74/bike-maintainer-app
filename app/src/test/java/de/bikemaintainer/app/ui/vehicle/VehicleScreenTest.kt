@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import de.bikemaintainer.app.domain.Access
+import de.bikemaintainer.app.domain.AccessStatus
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Outcome
@@ -69,6 +71,33 @@ class VehicleScreenTest {
         compose.onNodeWithText("Überfällig um 350 km").assertExists()
         compose.onNodeWithText("Erstfällig in 1 Tag").assertExists()
         compose.onNodeWithText("Fällig in 12 Tagen").assertExists()
+    }
+
+    @Test fun readOnlyAccountShowsTheNoticeInsteadOfTheButtons() {
+        show(
+            VehicleUiState(
+                vehicle = vehicle,
+                tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK)),
+                access = Access(AccessStatus.EXPIRED),
+            ),
+        )
+        compose.onNodeWithText(
+            "Testphase abgelaufen – deine Daten bleiben erhalten, Erfassen ist nicht mehr möglich.",
+        ).assertExists()
+        compose.onNodeWithText("Kilometerstand eintragen").assertDoesNotExist()
+        compose.onNodeWithText("Wartung erfassen").assertDoesNotExist()
+    }
+
+    @Test fun trialKeepsTheButtons() {
+        show(
+            VehicleUiState(
+                vehicle = vehicle,
+                tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK)),
+                access = Access(AccessStatus.TRIAL),
+            ),
+        )
+        compose.onNodeWithText("Kilometerstand eintragen").assertExists()
+        compose.onNodeWithText("Wartung erfassen").assertExists()
     }
 
     @Test fun statusIsReadOnceAndEachTaskIsOneStop() {

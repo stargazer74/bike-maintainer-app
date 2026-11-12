@@ -22,7 +22,7 @@ fun interface WorksheetScanner {
 }
 
 /** Why nothing can be taken over; each has its own message. */
-enum class ScanProblem { NO_SHEET, NO_CODE, NEWER_LAYOUT, OTHER_VEHICLE, WRONG_TEMPLATE, OTHER_SHEET, FAILED }
+enum class ScanProblem { NO_SHEET, NO_CODE, NEWER_LAYOUT, DEMO_SHEET, OTHER_VEHICLE, WRONG_TEMPLATE, OTHER_SHEET, FAILED }
 
 /** One field in the review: [text] as the user would type it (decimal separator of the device). */
 data class ReviewField(
@@ -162,6 +162,7 @@ class ScanViewModel(
         ScanOutcome.NoSheet -> ScanUiState.Problem(ScanProblem.NO_SHEET)
         ScanOutcome.NoCode -> ScanUiState.Problem(ScanProblem.NO_CODE)
         is ScanOutcome.UnsupportedVersion -> ScanUiState.Problem(ScanProblem.NEWER_LAYOUT)
+        ScanOutcome.DemoSheet -> ScanUiState.Problem(ScanProblem.DEMO_SHEET)
         is ScanOutcome.Read -> {
             val code = outcome.sheet.code
             when {

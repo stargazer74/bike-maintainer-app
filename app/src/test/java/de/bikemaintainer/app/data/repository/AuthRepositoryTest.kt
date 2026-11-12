@@ -1,6 +1,8 @@
 package de.bikemaintainer.app.data.repository
 
 import de.bikemaintainer.app.data.repository.RepositoryTestEnv.Companion.json
+import de.bikemaintainer.app.domain.Access
+import de.bikemaintainer.app.domain.AccessStatus
 import de.bikemaintainer.app.domain.Account
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
@@ -342,13 +344,49 @@ class AuthRepositoryTest {
                 "createdAt":"2026-01-01T00:00:00Z","email":"a@b.de"}""")
         }
         runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
-        assertEquals(Outcome.Success(Account("a@b.de", null)), runBlocking { repo.currentAccount() })
+        val expected = Account("a@b.de", null, Access(AccessStatus.TRIAL, null, false))
+        assertEquals(Outcome.Success(expected), runBlocking { repo.currentAccount() })
+        assertEquals(expected.access, repo.access.value)
+    }
+
+    @Test
+    fun olderServerWithoutAccessFieldsMeansFullAccess() {
+        val repo = setUp {
+            json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"emailVerified":true,
+                "createdAt":"2026-01-01T00:00:00Z","displayName":"Chris"}""")
+        }
+        runBlocking { env.settings.setServer(env.url, ServerMode.HOUSEHOLD) }
+        assertEquals(Outcome.Success(Account(null, "Chris", Access.FULL)), runBlocking { repo.currentAccount() })
+    }
+
+    @Test
+    fun accessComesFromTheServerAndEndsWithTheLogout() {
+        val repo = setUp { req ->
+            if (req.url.encodedPath == "/api/v1/auth/me") {
+                json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"accessStatus":"EXPIRED",
+                    "accessUntil":"2026-11-01","hasSubscription":true,"emailVerified":true,"createdAt":"2026-01-01T00:00:00Z"}""")
+            } else {
+                json("{}")
+            }
+        }
+        runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
+        runBlocking { repo.refreshAccess() }
+        assertEquals(Access(AccessStatus.EXPIRED, java.time.LocalDate.of(2026, 11, 1), true), repo.access.value)
+        runBlocking { repo.logout() }
+        assertEquals(Access.FULL, repo.access.value)
+    }
+
+    @Test
+    fun subscriptionRequiredMakesTheAccountReadOnly() {
+        val repo = setUp()
+        repo.subscriptionRequired()
+        assertEquals(AccessStatus.EXPIRED, repo.access.value.status)
     }
 
     @Test
     fun currentAccountMapsDisplayNameInHouseholdMode() {
         val repo = setUp {
-            json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"accessStatus":"TRIAL","hasSubscription":false,"emailVerified":true,
+            json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"accessStatus":"FULL","hasSubscription":false,"emailVerified":true,
                 "createdAt":"2026-01-01T00:00:00Z","displayName":"Chris"}""")
         }
         runBlocking { env.settings.setServer(env.url, ServerMode.HOUSEHOLD) }
