@@ -7,7 +7,6 @@ import de.bikemaintainer.app.domain.AccessSource
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TaskDraft
-import de.bikemaintainer.app.domain.TaskField
 import de.bikemaintainer.app.domain.isSubscriptionRequired
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,11 +52,6 @@ class TaskFormViewModel(
                 is Outcome.Failure -> _state.update { it.copy(loadError = result.error) }
             }
         }
-    }
-
-    fun invalidFields(): Set<TaskField> {
-        val s = _state.value
-        return if (s.showErrors) s.draft?.invalidFields().orEmpty() else emptySet()
     }
 
     fun edit(change: (TaskDraft) -> TaskDraft) = _state.update { s ->

@@ -7,7 +7,6 @@ import de.bikemaintainer.app.domain.AccessSource
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.VehicleDraft
-import de.bikemaintainer.app.domain.VehicleField
 import de.bikemaintainer.app.domain.isSubscriptionRequired
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,12 +59,6 @@ class VehicleFormViewModel(
                 is Outcome.Failure -> _state.update { it.copy(loadError = result.error) }
             }
         }
-    }
-
-    /** Problems of the current input, shown after the first save attempt. */
-    fun invalidFields(): Set<VehicleField> {
-        val s = _state.value
-        return if (s.showErrors) s.draft?.invalidFields(today()).orEmpty() else emptySet()
     }
 
     fun edit(change: (VehicleDraft) -> VehicleDraft) = _state.update { s ->

@@ -7,6 +7,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -198,7 +199,14 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
             val viewModel: VehicleViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
-                        VehicleViewModel(route.vehicleId, deps.vehicles, deps.maintenance, deps.measurements, deps.auth)
+                        VehicleViewModel(
+                            route.vehicleId,
+                            deps.vehicles,
+                            deps.maintenance,
+                            deps.measurements,
+                            deps.auth,
+                            cancelNotification = deps.notifications::cancelVehicle,
+                        )
                     }
                 },
             )
@@ -210,7 +218,12 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                 onLogResultShown = { entry.savedStateHandle[LOG_RESULT_KEY] = null },
                 onEditVehicle = dropUnlessResumed { navController.navigate(VehicleFormRoute(route.vehicleId)) },
                 onAddTask = dropUnlessResumed { navController.navigate(TaskFormRoute(route.vehicleId)) },
-                onEditTask = { taskId -> navController.navigate(TaskFormRoute(route.vehicleId, taskId)) },
+                // Like dropUnlessResumed, with the task: a double tap must not open the form twice.
+                onEditTask = { taskId ->
+                    if (entry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                        navController.navigate(TaskFormRoute(route.vehicleId, taskId))
+                    }
+                },
                 // The list reloads when it is shown again.
                 onDeleted = back,
             )

@@ -13,6 +13,7 @@ import de.bikemaintainer.app.domain.MeasurementContext
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
+import de.bikemaintainer.app.domain.inactiveForDisplay
 import de.bikemaintainer.app.domain.isSubscriptionRequired
 import de.bikemaintainer.app.domain.parseMileage
 import de.bikemaintainer.app.ui.common.ReloadableLoader
@@ -42,11 +43,16 @@ data class VehicleUiState(
     val measurements: MeasurementContext? = null,
     /** Read-only accounts ([Access.canWrite] false) cannot enter the mileage or log maintenance. */
     val access: Access = Access.FULL,
+    /** [access] comes from the server; until then the actions that record something stay hidden. */
+    val accessKnown: Boolean = true,
     val deleting: Boolean = false,
     val deleteError: AppError? = null,
     /** The vehicle is deleted; the screen leaves once. */
     val deleted: Boolean = false,
-)
+) {
+    /** Mileage, logs and tasks can be recorded: write access is known and no delete is running. */
+    val canRecord: Boolean get() = accessKnown && access.canWrite && !deleting && !deleted
+}
 
 data class MileageDialogState(val input: String, val error: MileageError? = null, val saving: Boolean = false)
 
@@ -64,8 +70,10 @@ class VehicleViewModel(
     maintenance: MaintenanceRepository,
     private val measurementRepository: MeasurementRepository,
     private val accessSource: AccessSource = AccessSource.Unrestricted,
+    /** Removes the due notification of the deleted vehicle; it would otherwise open a vehicle that is gone. */
+    private val cancelNotification: (Long) -> Unit = {},
 ) : ViewModel() {
-    private val _state = MutableStateFlow(VehicleUiState())
+    private val _state = MutableStateFlow(VehicleUiState(accessKnown = accessSource.accessKnown))
     val state: StateFlow<VehicleUiState> = _state.asStateFlow()
 
     // A deleted vehicle is terminal: its old data must not stay on screen, also not after a silent reload.
@@ -94,13 +102,14 @@ class VehicleViewModel(
                     VehicleUiState(
                         vehicle = l.data?.first,
                         tasks = l.data?.second.orEmpty().forDisplay(),
-                        inactiveTasks = l.data?.second.orEmpty().filterNot { t -> t.active }.sortedBy { t -> t.name.lowercase() },
+                        inactiveTasks = l.data?.second.orEmpty().inactiveForDisplay(),
                         refreshing = l.refreshing,
                         error = l.error,
                         // The dialog outlives silent reloads, but not the vehicle (deleted).
                         mileageDialog = if (l.data == null) null else it.mileageDialog,
                         measurements = if (l.data == null) null else it.measurements,
                         access = it.access,
+                        accessKnown = it.accessKnown,
                         deleting = it.deleting,
                         deleteError = it.deleteError,
                         deleted = it.deleted,
@@ -109,7 +118,10 @@ class VehicleViewModel(
             }
         }
         viewModelScope.launch { accessSource.access.collect { a -> _state.update { it.copy(access = a) } } }
-        viewModelScope.launch { accessSource.refreshAccess() }
+        viewModelScope.launch {
+            accessSource.refreshAccess()
+            _state.update { it.copy(accessKnown = true) }
+        }
         loader.refresh()
     }
 
@@ -135,7 +147,7 @@ class VehicleViewModel(
     fun onResume() = loader.onResume()
 
     fun openMileageDialog() {
-        if (!_state.value.access.canWrite) return
+        if (!_state.value.canRecord) return
         val vehicle = loader.state.value.data?.first ?: return
         _state.update { it.copy(mileageDialog = MileageDialogState(vehicle.currentMileage.toString())) }
     }
@@ -184,15 +196,20 @@ class VehicleViewModel(
         _state.update { it.copy(deleting = true, deleteError = null) }
         viewModelScope.launch {
             when (val result = vehicles.deleteVehicle(vehicleId)) {
-                is Outcome.Success -> _state.update { it.copy(deleting = false, deleted = true) }
+                is Outcome.Success -> onDeleted()
                 // Already gone counts as deleted.
                 is Outcome.Failure -> if (result.error.isNotFound()) {
-                    _state.update { it.copy(deleting = false, deleted = true) }
+                    onDeleted()
                 } else {
                     _state.update { it.copy(deleting = false, deleteError = result.error) }
                 }
             }
         }
+    }
+
+    private fun onDeleted() {
+        cancelNotification(vehicleId)
+        _state.update { it.copy(deleting = false, deleted = true) }
     }
 
     private fun updateDialog(change: (MileageDialogState) -> MileageDialogState) {

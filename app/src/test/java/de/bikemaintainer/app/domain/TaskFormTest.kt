@@ -35,12 +35,11 @@ class TaskFormTest {
         assertEquals(setOf(TaskField.NAME, TaskField.DESCRIPTION), draft.invalidFields())
     }
 
-    @Test fun switchingATaskKeepsEverythingElse() {
+    @Test fun draftOfATaskShowsItsValues() {
         val task = MaintenanceTask(
             5, 7, "Ventile", false, true, TaskStatus.OK, null, null, null, null, null, null,
             description = "alle 4", intervalKm = 24000, intervalMonths = null, firstDueKm = 12000, firstDueMonths = null,
         )
-        assertEquals(TaskInput("Ventile", "alle 4", 24000, null, 12000, null, oneTime = false, active = false), task.withActive(false))
         assertEquals(TaskDraft("Ventile", "alle 4", "24000", "", "12000", "", oneTime = false, active = true), TaskDraft.of(task))
     }
 }

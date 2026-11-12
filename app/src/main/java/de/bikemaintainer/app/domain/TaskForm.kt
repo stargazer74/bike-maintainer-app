@@ -78,15 +78,3 @@ data class TaskDraft(
             text.isBlank() || (parseMileage(text)?.let { it >= min } ?: false)
     }
 }
-
-/** The input of an existing task with only [active] changed, for switching it on or off. */
-fun MaintenanceTask.withActive(active: Boolean) = TaskInput(
-    name = name,
-    description = description,
-    intervalKm = intervalKm,
-    intervalMonths = intervalMonths,
-    firstDueKm = firstDueKm,
-    firstDueMonths = firstDueMonths,
-    oneTime = oneTime,
-    active = active,
-)

@@ -37,9 +37,34 @@ class VehicleViewModelTest {
 
     private val auth = FakeAuthRepository()
 
+    private val cancelled = mutableListOf<Long>()
+
     private fun viewModel(): VehicleViewModel {
         if (vehicles.vehicleResult == null) vehicles.vehicleResult = Outcome.Success(vehicle)
-        return VehicleViewModel(7, vehicles, maintenance, measurements, auth)
+        return VehicleViewModel(7, vehicles, maintenance, measurements, auth) { cancelled += it }
+    }
+
+    @Test fun deletingRemovesTheNotificationOfTheVehicle() {
+        val vm = viewModel()
+        vm.deleteVehicle()
+        assertEquals(listOf(7L), cancelled)
+    }
+
+    @Test fun nothingCanBeRecordedWhileTheDeleteRuns() {
+        vehicles.deleteVehicleGate = CompletableDeferred()
+        val vm = viewModel()
+        assertTrue(vm.state.value.canRecord)
+        vm.deleteVehicle()
+        assertFalse(vm.state.value.canRecord)
+        vm.openMileageDialog()
+        assertNull(vm.state.value.mileageDialog)
+        vehicles.deleteVehicleGate!!.complete(Unit)
+        assertTrue(vm.state.value.deleted)
+    }
+
+    @Test fun accessIsKnownOnceTheServerWasAsked() {
+        assertFalse(VehicleUiState(accessKnown = false).canRecord)
+        assertTrue(viewModel().state.value.accessKnown)
     }
 
     @Test fun switchedOffTasksAreListedApart() {

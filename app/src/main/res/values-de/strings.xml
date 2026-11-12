@@ -335,7 +335,6 @@
     <string name="vehicle_form_error_name">Bitte einen Namen eingeben (bis 255 Zeichen).</string>
     <string name="vehicle_form_error_too_long">Höchstens 100 Zeichen.</string>
     <string name="vehicle_form_error_model_year">Bitte ein Jahr eingeben (%1$d–%2$d).</string>
-    <string name="vehicle_form_error_first_registration">Die Erstzulassung kann nicht in der Zukunft liegen.</string>
     <string name="vehicle_type_motorcycle">Motorrad</string>
     <string name="vehicle_type_car">Auto</string>
     <string name="vehicle_type_bicycle">Fahrrad</string>
@@ -363,4 +362,5 @@
     <string name="task_form_error_description">Höchstens 1000 Zeichen.</string>
     <string name="task_form_error_number">Bitte eine ganze Zahl eingeben (Intervalle mindestens 1).</string>
     <string name="task_form_error_no_interval">Bitte ein Intervall in km und/oder Monaten eingeben.</string>
+    <string name="error_task_not_found">Die Aufgabe wurde nicht gefunden.</string>
 </resources>

@@ -38,7 +38,6 @@ class VehicleFormTest {
             make = "x".repeat(101),
             model = "y".repeat(101),
             modelYear = "1899",
-            firstRegistrationDate = today.plusDays(1),
             currentMileage = "12.345",
         )
         assertEquals(VehicleField.entries.toSet(), bad.invalidFields(today))
@@ -51,6 +50,18 @@ class VehicleFormTest {
         assertEquals(setOf(VehicleField.MODEL_YEAR), valid.copy(modelYear = "").invalidFields(today))
     }
 
+    @Test fun firstRegistrationMayBeAnyDayLikeOnTheWeb() {
+        assertTrue(valid.copy(firstRegistrationDate = today.plusYears(1)).invalidFields(today).isEmpty())
+        assertTrue(valid.copy(firstRegistrationDate = LocalDate.of(1890, 1, 1)).invalidFields(today).isEmpty())
+    }
+
+    @Test fun storedModelYearOutsideTheRangeStaysValid() {
+        val vehicle = Vehicle(7, "Prototyp", VehicleType.CAR, null, null, 2030, LocalDate.of(2026, 1, 1), 0)
+        val draft = VehicleDraft.of(vehicle)
+        assertTrue(draft.invalidFields(today).isEmpty())
+        assertEquals(setOf(VehicleField.MODEL_YEAR), draft.copy(modelYear = "2031").invalidFields(today))
+    }
+
     @Test fun nameMayHave255Characters() {
         assertTrue(valid.copy(name = "n".repeat(255)).invalidFields(today).isEmpty())
         assertEquals(setOf(VehicleField.NAME), valid.copy(name = "n".repeat(256)).invalidFields(today))
@@ -59,6 +70,7 @@ class VehicleFormTest {
     @Test fun draftOfAVehicleShowsItsValues() {
         val vehicle = Vehicle(7, "Golf", VehicleType.CAR, null, "GTI", 2015, LocalDate.of(2015, 3, 1), 99000)
         val draft = VehicleDraft.of(vehicle)
+        assertEquals(2015, draft.storedModelYear)
         assertEquals("", draft.make)
         assertEquals("99000", draft.currentMileage)
         assertEquals(VehicleInput("Golf", VehicleType.CAR, null, "GTI", 2015, LocalDate.of(2015, 3, 1), 99000), draft.toInput(today))

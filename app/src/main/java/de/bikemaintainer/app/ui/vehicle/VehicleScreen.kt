@@ -206,19 +206,21 @@ fun VehicleContent(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                if (state.access.canWrite) {
-                                    OutlinedButton(onClick = actions.onOpenMileage) {
+                                // Nothing until the access is known; while a delete runs the buttons stay, disabled.
+                                if (state.accessKnown && state.access.canWrite) {
+                                    val enabled = state.canRecord
+                                    OutlinedButton(onClick = actions.onOpenMileage, enabled = enabled) {
                                         Text(stringResource(R.string.mileage_enter))
                                     }
                                     if (state.tasks.isNotEmpty()) {
-                                        Button(onClick = actions.onLogMaintenance) {
+                                        Button(onClick = actions.onLogMaintenance, enabled = enabled) {
                                             Text(stringResource(R.string.log_title))
                                         }
                                     }
-                                    OutlinedButton(onClick = actions.onAddTask) {
+                                    OutlinedButton(onClick = actions.onAddTask, enabled = enabled) {
                                         Text(stringResource(R.string.task_add))
                                     }
-                                } else {
+                                } else if (state.accessKnown) {
                                     ReadOnlyNotice(state.access)
                                 }
                             }
@@ -234,7 +236,7 @@ fun VehicleContent(
                                 )
                             }
                         }
-                        val editTask = if (state.access.canWrite) actions.onEditTask else null
+                        val editTask = if (state.canRecord) actions.onEditTask else null
                         items(state.tasks, key = { it.id }) { TaskCard(it, editTask) }
                         state.measurements?.takeIf { it.templates.isNotEmpty() }?.let { context ->
                             item(key = "measurements") { LatestMeasurementsCard(context) }
@@ -317,7 +319,7 @@ private fun VehicleManagement(state: VehicleUiState, actions: VehicleActions) {
     var confirm by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         state.deleteError?.let { ErrorText(stringResource(R.string.vehicle_delete_failed)) }
-        if (state.access.canWrite) {
+        if (state.accessKnown && state.access.canWrite) {
             OutlinedButton(onClick = actions.onEditVehicle, enabled = !state.deleting, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.vehicle_edit))
             }

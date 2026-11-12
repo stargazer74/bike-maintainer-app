@@ -32,3 +32,7 @@ fun List<MaintenanceTask>.forDisplay(): List<MaintenanceTask> =
             }
             .thenBy(String.CASE_INSENSITIVE_ORDER) { it.name },
     )
+
+/** Switched-off tasks by name; they can be edited and switched on again. */
+fun List<MaintenanceTask>.inactiveForDisplay(): List<MaintenanceTask> =
+    filterNot { it.active }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })

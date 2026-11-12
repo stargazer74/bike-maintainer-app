@@ -45,6 +45,9 @@ class ApiAuthRepository(
     private val _access = MutableStateFlow(Access.FULL)
     override val access: StateFlow<Access> = _access.asStateFlow()
 
+    @Volatile override var accessKnown = false
+        private set
+
     override suspend fun refreshAccess() {
         currentAccount()
     }
@@ -131,6 +134,7 @@ class ApiAuthRepository(
             } finally {
                 provider.reset()
                 _access.value = Access.FULL
+                accessKnown = false
             }
         }
     }
@@ -168,6 +172,7 @@ class ApiAuthRepository(
             } finally {
                 provider.reset()
                 _access.value = Access.FULL
+                accessKnown = false
             }
         }
         return Outcome.Success(Unit)
@@ -176,7 +181,10 @@ class ApiAuthRepository(
     override suspend fun currentAccount(): Outcome<Account> =
         provider.callStored { it.auth.getCurrentUser() }
             .map { Account(it.email, it.displayName, Access.of(it.accessStatus.value, it.accessUntil, it.hasSubscription)) }
-            .also { result -> if (result is Outcome.Success) _access.value = result.value.access }
+            .also { result ->
+                if (result is Outcome.Success) _access.value = result.value.access
+                accessKnown = true
+            }
 
     override suspend fun setNotificationsEnabled(enabled: Boolean) {
         try {
