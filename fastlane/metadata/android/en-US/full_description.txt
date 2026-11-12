@@ -1,0 +1,23 @@
+Bike Maintainer reminds you of due maintenance for your motorcycles and cars – by mileage or by time, whichever comes first. The app goes with the web app: you enter the mileage and the work you have done right at the vehicle.
+
+What the app does
+• All vehicles with their due status at a glance: red overdue, yellow due soon
+• Each vehicle in detail with its maintenance tasks, the latest measurements and the specified values
+• Enter the mileage in a few taps
+• Log maintenance: tick off the work done, enter date, mileage and a note, plus measurements such as valve clearance, brakes, chain or tyres
+• Photograph worksheets: your phone reads the handwritten values itself, the photo never leaves it
+• A notification as soon as maintenance is due
+• German and English, light and dark theme
+
+Online account or your own server
+The app works with a Bike Maintainer server:
+• An online account on bike-maintainer.de – you can create it right in the app.
+• Your own server, for example at home on a PC or Raspberry Pi. In household mode everyone picks their profile without a password, and you take over the server address with a QR code.
+You add vehicles and maintenance plans in the web app.
+
+Privacy
+• No ads, no tracking, no analytics
+• No Google services: the app only talks to the server you set it up with.
+• You can delete your account in the app at any time, together with all its data.
+
+Open source (MIT): https://github.com/stargazer74/bike-maintainer-app
