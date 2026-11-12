@@ -64,6 +64,43 @@ Builds without a version (`./gradlew assembleRelease`) are `0.0.0-dev` with `ver
 - Install the next version over it: it must update without losing data (`adb install -r`), and installing an older
   version must be refused (`INSTALL_FAILED_VERSION_DOWNGRADE`).
 
+## Google Play: Play App Signing (once, before the first upload)
+
+Google Play re-signs every app it delivers. So that the Play version carries the same signature as the GitHub APK,
+Play must sign with **our** key – never with a key Google generates. That choice cannot be undone later.
+
+1. Play Console → the app → *Test and release* → *App integrity* → *Play app signing* (the first release asks for it
+   as well) → change the signing key → **"Export and upload a key from Java keystore"**. Do not pick "Use a
+   Google-generated key".
+2. Download the two files offered there, `pepk.jar` and `encryption_public_key.pem`, into a fresh directory outside
+   the repo. The public key belongs to the developer account; download it again instead of reusing an old copy.
+3. Export the key, encrypted so that only Google can read it (current JDK, 17 or newer):
+
+   ```bash
+   work=/path/to/the/download/directory   # holds pepk.jar and encryption_public_key.pem
+   java -jar "$work/pepk.jar" \
+     --keystore="$BM_KEYSTORE_FILE" --alias=bike-maintainer \
+     --output="$work/bike-maintainer-signing-key.zip" \
+     --include-cert --rsa-aes-encryption \
+     --encryption-key-path="$work/encryption_public_key.pem"
+   ```
+
+   pepk asks for the keystore and the key password (both the same for our PKCS12 keystore).
+4. Upload `bike-maintainer-signing-key.zip` on the same page. Skip the optional step "upload key certificate": then
+   the release key is also the upload key, and `scripts/release.sh` already signs the AAB with it.
+5. Remove the working directory (`rm -rf "$work"`); the ZIP is of no further use.
+6. Check: *App integrity* shows the SHA-256 of the app signing key and of the upload key certificate. Both must equal
+   the fingerprint that `scripts/release.sh` prints (and the README names).
+
+**Upload key:** Google recommends a separate upload key, which Google can replace if it leaks, while the app signing
+key stays safe. We do without one for now: the release key never leaves the maintainer's machine, and since it also
+signs the GitHub APK, a leak would be fatal anyway. A separate upload key can be added later (via Play support "reset
+upload key"); `scripts/release.sh` would then sign the AAB with that second keystore.
+
+**Automatic protection:** keep it switched off (Play Console offers it when the app is created and under *App
+integrity*). It adds code to the app that checks via Google Play where the app was installed from – a call to Google
+services, and a Play build that differs from the GitHub and F-Droid ones.
+
 ## Store listing (Google Play, F-Droid)
 
 The texts of the store entry live in `fastlane/metadata/android/<locale>/` (`de-DE`, `en-US`) – the layout both
