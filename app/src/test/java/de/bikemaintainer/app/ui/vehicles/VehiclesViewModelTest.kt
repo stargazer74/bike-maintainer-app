@@ -1,17 +1,19 @@
 package de.bikemaintainer.app.ui.vehicles
 
-import de.bikemaintainer.app.data.storage.StoredSettings
+import de.bikemaintainer.app.domain.Access
+import de.bikemaintainer.app.domain.AccessStatus
+import de.bikemaintainer.app.domain.Account
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.domain.VehicleType
+import de.bikemaintainer.app.ui.FakeAuthRepository
 import de.bikemaintainer.app.ui.FakeVehicleRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -23,16 +25,15 @@ class VehiclesViewModelTest {
     @get:Rule val mainRule = MainDispatcherRule()
 
     private val repo = FakeVehicleRepository()
-    private val settings = MutableStateFlow(
-        StoredSettings(serverUrl = "https://h", mode = null, encryptedDeviceToken = null, profileId = null),
-    )
     private val summary = VehicleSummary(
         Vehicle(7, "Africa Twin", VehicleType.MOTORCYCLE, null, null, 2020, LocalDate.of(2020, 5, 1), 12345),
         TaskStatus.OVERDUE,
         2,
     )
 
-    private fun viewModel() = VehiclesViewModel(repo, settings)
+    private val auth = FakeAuthRepository()
+
+    private fun viewModel() = VehiclesViewModel(repo, auth)
 
     @Test fun loadsSummariesOnStart() {
         repo.summariesResult = Outcome.Success(listOf(summary))
@@ -155,7 +156,10 @@ class VehiclesViewModelTest {
         assertEquals(AppError.Network, vm.state.value.error)
     }
 
-    @Test fun webAppUrlComesFromSettings() {
-        assertEquals("https://h", viewModel().state.value.webAppUrl)
+    @Test fun accessComesFromTheServer() {
+        auth.currentAccountResult = Outcome.Success(Account("a@b.de", null, Access(AccessStatus.EXPIRED)))
+        val vm = viewModel()
+        assertEquals(AccessStatus.EXPIRED, vm.state.value.access.status)
+        assertEquals(1, auth.currentAccountCalls)
     }
 }

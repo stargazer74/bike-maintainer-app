@@ -42,6 +42,45 @@ class VehicleViewModelTest {
         return VehicleViewModel(7, vehicles, maintenance, measurements, auth)
     }
 
+    @Test fun switchedOffTasksAreListedApart() {
+        maintenance.tasksResult = Outcome.Success(
+            listOf(task(1, TaskStatus.OK), task(2, TaskStatus.OK, active = false).copy(name = "b"), task(3, TaskStatus.OK, active = false).copy(name = "A")),
+        )
+        val state = viewModel().state.value
+        assertEquals(listOf(1L), state.tasks.map { it.id })
+        assertEquals(listOf(3L, 2L), state.inactiveTasks.map { it.id })
+    }
+
+    @Test fun deletingTheVehicleLeaves() {
+        val vm = viewModel()
+        vm.deleteVehicle()
+        assertEquals(listOf(7L), vehicles.deleteVehicleCalls)
+        assertTrue(vm.state.value.deleted)
+    }
+
+    @Test fun deletingWorksOnAReadOnlyAccount() {
+        auth.currentAccountResult = Outcome.Success(Account("a@b.de", null, Access(AccessStatus.EXPIRED)))
+        val vm = viewModel()
+        vm.deleteVehicle()
+        assertTrue(vm.state.value.deleted)
+    }
+
+    @Test fun failedDeleteStaysWithTheError() {
+        vehicles.deleteVehicleResult = Outcome.Failure(AppError.Network)
+        val vm = viewModel()
+        vm.deleteVehicle()
+        assertFalse(vm.state.value.deleted)
+        assertEquals(AppError.Network, vm.state.value.deleteError)
+        assertEquals("Africa Twin", vm.state.value.vehicle?.name)
+    }
+
+    @Test fun vehicleThatIsAlreadyGoneCountsAsDeleted() {
+        vehicles.deleteVehicleResult = Outcome.Failure(AppError.NotFound)
+        val vm = viewModel()
+        vm.deleteVehicle()
+        assertTrue(vm.state.value.deleted)
+    }
+
     @Test fun asksTheServerForTheAccess() {
         auth.currentAccountResult = Outcome.Success(Account("a@b.de", null, Access(AccessStatus.TRIAL)))
         val vm = viewModel()

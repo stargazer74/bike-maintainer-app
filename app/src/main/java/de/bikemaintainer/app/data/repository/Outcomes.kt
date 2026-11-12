@@ -54,12 +54,16 @@ internal suspend fun <T : Any> call(block: suspend () -> Response<T>): Outcome<T
 }
 
 /** Like [call], for endpoints that answer without a body (202/204): Retrofit hands over no body for a 204. */
-internal suspend fun callNoBody(block: suspend () -> Response<Unit>): Outcome<Unit> = when (val result = call(block)) {
-    is Outcome.Failure -> {
-        val error = result.error
-        if (error is AppError.Http && error.status in HTTP_SUCCESS) Outcome.Success(Unit) else result
-    }
-    is Outcome.Success -> result
+internal suspend fun callNoBody(block: suspend () -> Response<Unit>): Outcome<Unit> = call(block).bodyless()
+
+/** Like [callStored], for endpoints that answer without a body (204). */
+internal suspend fun ApiProvider.callStoredNoBody(block: suspend (ApiProvider.Apis) -> Response<Unit>): Outcome<Unit> =
+    callStored(block).bodyless()
+
+/** A 2xx without a body is a success. */
+private fun Outcome<Unit>.bodyless(): Outcome<Unit> = when (this) {
+    is Outcome.Failure -> if (error is AppError.Http && error.status in HTTP_SUCCESS) Outcome.Success(Unit) else this
+    is Outcome.Success -> this
 }
 
 private val HTTP_SUCCESS = 200..299

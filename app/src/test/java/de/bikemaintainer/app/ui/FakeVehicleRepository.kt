@@ -5,7 +5,9 @@ import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Measurements
 import de.bikemaintainer.app.domain.Outcome
+import de.bikemaintainer.app.domain.TaskInput
 import de.bikemaintainer.app.domain.Vehicle
+import de.bikemaintainer.app.domain.VehicleInput
 import de.bikemaintainer.app.domain.VehicleSummary
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
@@ -51,6 +53,34 @@ class FakeVehicleRepository : VehicleRepository {
         updateMileageGate?.await()
         return updateMileageResult ?: error("updateMileageResult not set")
     }
+
+    var createVehicleResult: Outcome<Vehicle>? = null
+    var createVehicleGate: CompletableDeferred<Unit>? = null
+    val createVehicleCalls = mutableListOf<VehicleInput>()
+
+    var updateVehicleResult: Outcome<Vehicle>? = null
+    val updateVehicleCalls = mutableListOf<Pair<Long, VehicleInput>>()
+
+    var deleteVehicleResult: Outcome<Unit> = Outcome.Success(Unit)
+    var deleteVehicleGate: CompletableDeferred<Unit>? = null
+    val deleteVehicleCalls = mutableListOf<Long>()
+
+    override suspend fun createVehicle(input: VehicleInput): Outcome<Vehicle> {
+        createVehicleCalls += input
+        createVehicleGate?.await()
+        return createVehicleResult ?: error("createVehicleResult not set")
+    }
+
+    override suspend fun updateVehicle(id: Long, input: VehicleInput): Outcome<Vehicle> {
+        updateVehicleCalls += id to input
+        return updateVehicleResult ?: error("updateVehicleResult not set")
+    }
+
+    override suspend fun deleteVehicle(id: Long): Outcome<Unit> {
+        deleteVehicleCalls += id
+        deleteVehicleGate?.await()
+        return deleteVehicleResult
+    }
 }
 
 /** Configurable [MaintenanceRepository], same style as [FakeVehicleRepository]. */
@@ -89,5 +119,29 @@ class FakeMaintenanceRepository : MaintenanceRepository {
         logCalls += LogCall(vehicleId, performedAt, mileage, taskIds, notes, measurements)
         logGate?.await()
         return logResult
+    }
+
+    var taskResult: Outcome<MaintenanceTask>? = null
+    val taskCalls = mutableListOf<Pair<Long, Long>>()
+
+    var createTaskResult: Outcome<MaintenanceTask>? = null
+    val createTaskCalls = mutableListOf<Pair<Long, TaskInput>>()
+
+    var updateTaskResult: Outcome<MaintenanceTask>? = null
+    val updateTaskCalls = mutableListOf<Triple<Long, Long, TaskInput>>()
+
+    override suspend fun task(vehicleId: Long, taskId: Long): Outcome<MaintenanceTask> {
+        taskCalls += vehicleId to taskId
+        return taskResult ?: error("taskResult not set")
+    }
+
+    override suspend fun createTask(vehicleId: Long, input: TaskInput): Outcome<MaintenanceTask> {
+        createTaskCalls += vehicleId to input
+        return createTaskResult ?: error("createTaskResult not set")
+    }
+
+    override suspend fun updateTask(vehicleId: Long, taskId: Long, input: TaskInput): Outcome<MaintenanceTask> {
+        updateTaskCalls += Triple(vehicleId, taskId, input)
+        return updateTaskResult ?: error("updateTaskResult not set")
     }
 }
