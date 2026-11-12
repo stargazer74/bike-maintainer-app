@@ -206,8 +206,8 @@ fun VehicleContent(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                // Nothing until the access is known; while a delete runs the buttons stay, disabled.
-                                if (state.accessKnown && state.access.canWrite) {
+                                // While a delete runs the buttons stay, disabled.
+                                if (state.access.canWrite) {
                                     val enabled = state.canRecord
                                     OutlinedButton(onClick = actions.onOpenMileage, enabled = enabled) {
                                         Text(stringResource(R.string.mileage_enter))
@@ -220,7 +220,7 @@ fun VehicleContent(
                                     OutlinedButton(onClick = actions.onAddTask, enabled = enabled) {
                                         Text(stringResource(R.string.task_add))
                                     }
-                                } else if (state.accessKnown) {
+                                } else {
                                     ReadOnlyNotice(state.access)
                                 }
                             }
@@ -319,7 +319,7 @@ private fun VehicleManagement(state: VehicleUiState, actions: VehicleActions) {
     var confirm by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         state.deleteError?.let { ErrorText(stringResource(R.string.vehicle_delete_failed)) }
-        if (state.accessKnown && state.access.canWrite) {
+        if (state.access.canWrite) {
             OutlinedButton(onClick = actions.onEditVehicle, enabled = !state.deleting, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.vehicle_edit))
             }

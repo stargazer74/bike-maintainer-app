@@ -80,7 +80,7 @@ fun VehiclesContent(
     onOpenSettings: () -> Unit,
     onAddVehicle: () -> Unit = {},
 ) {
-    val showFab = state.canAdd && !state.summaries.isNullOrEmpty()
+    val showFab = state.access.canWrite && !state.summaries.isNullOrEmpty()
     Scaffold(
         floatingActionButton = {
             if (showFab) {
@@ -136,11 +136,11 @@ fun VehiclesContent(
                                 textAlign = TextAlign.Center,
                                 style = MaterialTheme.typography.bodyLarge,
                             )
-                            if (state.canAdd) {
+                            if (state.access.canWrite) {
                                 Button(onClick = onAddVehicle, modifier = Modifier.padding(top = 16.dp)) {
                                     Text(stringResource(R.string.vehicle_add_first))
                                 }
-                            } else if (state.accessKnown) {
+                            } else {
                                 ReadOnlyNotice(state.access, Modifier.padding(top = 16.dp))
                             }
                         }

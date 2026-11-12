@@ -69,8 +69,7 @@ fun FormScaffold(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                val message = if (loadError.isNotFound()) notFound else loadError.loadMessageRes()
-                ErrorText(stringResource(message), Modifier.padding(bottom = 8.dp))
+                ErrorText(stringResource(loadError.loadMessageRes(notFound)), Modifier.padding(bottom = 8.dp))
                 if (loadError.isNotFound()) {
                     TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
                 } else {

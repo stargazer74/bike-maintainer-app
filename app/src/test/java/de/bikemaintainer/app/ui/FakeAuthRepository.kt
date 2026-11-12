@@ -129,12 +129,10 @@ class FakeAuthRepository : AuthRepository {
     override suspend fun currentAccount(): Outcome<Account> {
         currentAccountCalls++
         (currentAccountResult as? Outcome.Success)?.let { access.value = it.value.access }
-        accessKnown = true
         return currentAccountResult
     }
 
     override val access = MutableStateFlow(Access.FULL)
-    override var accessKnown = false
     var subscriptionRequiredCalls = 0
 
     override suspend fun refreshAccess() {

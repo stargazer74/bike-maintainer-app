@@ -48,13 +48,12 @@ data class Access(
 
 /** The access of the signed-in account, shared by the screens; filled by `GET auth/me`. */
 interface AccessSource {
-    val access: StateFlow<Access>
-
     /**
-     * The server was asked at least once in this session (also if that failed). Until then [access] is only the
-     * default, so screens hold back actions a read-only account could not use instead of showing them for a moment.
+     * Until the server answered, this is the last known access of the session, or [Access.FULL] after a start: the
+     * actions stay usable at once (also offline and in household mode); a read-only account learns it from the first
+     * answer or from a refused save at the latest.
      */
-    val accessKnown: Boolean
+    val access: StateFlow<Access>
 
     /** Asks the server again; a failure keeps the last known access. */
     suspend fun refreshAccess()
@@ -66,8 +65,6 @@ interface AccessSource {
         /** Full access that never changes, e.g. for tests that are not about it. */
         val Unrestricted: AccessSource = object : AccessSource {
             override val access: StateFlow<Access> = MutableStateFlow(Access.FULL).asStateFlow()
-
-            override val accessKnown = true
 
             override suspend fun refreshAccess() = Unit
 

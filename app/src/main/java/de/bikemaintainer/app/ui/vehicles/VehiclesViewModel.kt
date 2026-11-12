@@ -22,26 +22,19 @@ data class VehiclesUiState(
     val error: AppError? = null,
     /** Read-only accounts cannot add vehicles. */
     val access: Access = Access.FULL,
-    /** [access] comes from the server; until then "add vehicle" stays hidden. */
-    val accessKnown: Boolean = true,
-) {
-    val canAdd: Boolean get() = accessKnown && access.canWrite
-}
+)
 
 class VehiclesViewModel(
     vehicles: VehicleRepository,
     private val accessSource: AccessSource = AccessSource.Unrestricted,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(VehiclesUiState(accessKnown = accessSource.accessKnown))
+    private val _state = MutableStateFlow(VehiclesUiState(access = accessSource.access.value))
     val state: StateFlow<VehiclesUiState> = _state.asStateFlow()
     private val loader = ReloadableLoader(viewModelScope) { vehicles.summaries() }
 
     init {
         viewModelScope.launch { accessSource.access.collect { a -> _state.update { it.copy(access = a) } } }
-        viewModelScope.launch {
-            accessSource.refreshAccess()
-            _state.update { it.copy(accessKnown = true) }
-        }
+        viewModelScope.launch { accessSource.refreshAccess() }
         viewModelScope.launch {
             loader.state.collect { l ->
                 _state.update { it.copy(summaries = l.data, refreshing = l.refreshing, error = l.error) }

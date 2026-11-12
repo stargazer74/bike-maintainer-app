@@ -43,15 +43,13 @@ data class VehicleUiState(
     val measurements: MeasurementContext? = null,
     /** Read-only accounts ([Access.canWrite] false) cannot enter the mileage or log maintenance. */
     val access: Access = Access.FULL,
-    /** [access] comes from the server; until then the actions that record something stay hidden. */
-    val accessKnown: Boolean = true,
     val deleting: Boolean = false,
     val deleteError: AppError? = null,
     /** The vehicle is deleted; the screen leaves once. */
     val deleted: Boolean = false,
 ) {
-    /** Mileage, logs and tasks can be recorded: write access is known and no delete is running. */
-    val canRecord: Boolean get() = accessKnown && access.canWrite && !deleting && !deleted
+    /** Mileage, logs and tasks can be recorded: write access and no delete running. */
+    val canRecord: Boolean get() = access.canWrite && !deleting && !deleted
 }
 
 data class MileageDialogState(val input: String, val error: MileageError? = null, val saving: Boolean = false)
@@ -73,7 +71,7 @@ class VehicleViewModel(
     /** Removes the due notification of the deleted vehicle; it would otherwise open a vehicle that is gone. */
     private val cancelNotification: (Long) -> Unit = {},
 ) : ViewModel() {
-    private val _state = MutableStateFlow(VehicleUiState(accessKnown = accessSource.accessKnown))
+    private val _state = MutableStateFlow(VehicleUiState(access = accessSource.access.value))
     val state: StateFlow<VehicleUiState> = _state.asStateFlow()
 
     // A deleted vehicle is terminal: its old data must not stay on screen, also not after a silent reload.
@@ -109,7 +107,6 @@ class VehicleViewModel(
                         mileageDialog = if (l.data == null) null else it.mileageDialog,
                         measurements = if (l.data == null) null else it.measurements,
                         access = it.access,
-                        accessKnown = it.accessKnown,
                         deleting = it.deleting,
                         deleteError = it.deleteError,
                         deleted = it.deleted,
@@ -118,10 +115,7 @@ class VehicleViewModel(
             }
         }
         viewModelScope.launch { accessSource.access.collect { a -> _state.update { it.copy(access = a) } } }
-        viewModelScope.launch {
-            accessSource.refreshAccess()
-            _state.update { it.copy(accessKnown = true) }
-        }
+        viewModelScope.launch { accessSource.refreshAccess() }
         loader.refresh()
     }
 

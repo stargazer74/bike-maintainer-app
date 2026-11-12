@@ -21,6 +21,7 @@ import de.bikemaintainer.app.domain.Profile
 import de.bikemaintainer.app.domain.ServerConfig
 import java.io.IOException
 import java.security.GeneralSecurityException
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,8 +46,8 @@ class ApiAuthRepository(
     private val _access = MutableStateFlow(Access.FULL)
     override val access: StateFlow<Access> = _access.asStateFlow()
 
-    @Volatile override var accessKnown = false
-        private set
+    /** Counts logouts: an answer of `auth/me` from before one must not bring back the access of the old account. */
+    private val session = AtomicInteger()
 
     override suspend fun refreshAccess() {
         currentAccount()
@@ -133,8 +134,8 @@ class ApiAuthRepository(
                 Outcome.Failure(AppError.Storage)
             } finally {
                 provider.reset()
+                session.incrementAndGet()
                 _access.value = Access.FULL
-                accessKnown = false
             }
         }
     }
@@ -171,20 +172,22 @@ class ApiAuthRepository(
                 // intentionally ignored: the account and its token are gone on the server anyway
             } finally {
                 provider.reset()
+                session.incrementAndGet()
                 _access.value = Access.FULL
-                accessKnown = false
             }
         }
         return Outcome.Success(Unit)
     }
 
-    override suspend fun currentAccount(): Outcome<Account> =
-        provider.callStored { it.auth.getCurrentUser() }
+    override suspend fun currentAccount(): Outcome<Account> {
+        val asked = session.get()
+        val result = provider.callStored { it.auth.getCurrentUser() }
             .map { Account(it.email, it.displayName, Access.of(it.accessStatus.value, it.accessUntil, it.hasSubscription)) }
-            .also { result ->
-                if (result is Outcome.Success) _access.value = result.value.access
-                accessKnown = true
-            }
+        if (result is Outcome.Success) {
+            _access.update { old -> if (session.get() == asked) result.value.access else old }
+        }
+        return result
+    }
 
     override suspend fun setNotificationsEnabled(enabled: Boolean) {
         try {

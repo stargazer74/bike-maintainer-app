@@ -62,9 +62,12 @@ class VehicleViewModelTest {
         assertTrue(vm.state.value.deleted)
     }
 
-    @Test fun accessIsKnownOnceTheServerWasAsked() {
-        assertFalse(VehicleUiState(accessKnown = false).canRecord)
-        assertTrue(viewModel().state.value.accessKnown)
+    @Test fun startsWithTheLastKnownAccess() {
+        auth.access.value = Access(AccessStatus.EXPIRED)
+        auth.currentAccountResult = Outcome.Failure(AppError.Network)
+        val vm = viewModel()
+        assertFalse(vm.state.value.canRecord)
+        assertEquals(AccessStatus.EXPIRED, vm.state.value.access.status)
     }
 
     @Test fun switchedOffTasksAreListedApart() {
