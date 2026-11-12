@@ -21,6 +21,9 @@ interface DueNotifications {
 
     /** Removes the notification of one vehicle (nothing due there any more). */
     fun cancelVehicle(vehicleId: Long)
+
+    /** Removes the notifications of every vehicle not in [vehicleIds], i.e. vehicles deleted meanwhile. */
+    fun cancelVehiclesExcept(vehicleIds: Set<Long>)
     fun cancelAll()
 }
 
@@ -79,6 +82,13 @@ class DueTaskNotifier(private val context: Context) : DueNotifications {
     override fun cancelRelogin() = manager.cancel(TAG_RELOGIN, 0)
 
     override fun cancelVehicle(vehicleId: Long) = manager.cancel(TAG_VEHICLE, vehicleId.toInt())
+
+    override fun cancelVehiclesExcept(vehicleIds: Set<Long>) {
+        val keep = vehicleIds.map { it.toInt() }.toSet()
+        manager.activeNotifications
+            .filter { it.tag == TAG_VEHICLE && it.id !in keep }
+            .forEach { manager.cancel(TAG_VEHICLE, it.id) }
+    }
 
     override fun cancelAll() = manager.cancelAll()
 

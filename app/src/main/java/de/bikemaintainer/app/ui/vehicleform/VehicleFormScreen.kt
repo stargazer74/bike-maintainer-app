@@ -53,7 +53,7 @@ fun VehicleFormScreen(viewModel: VehicleFormViewModel, onBack: () -> Unit, onSav
     LaunchedEffect(state.saved) { state.saved?.let(currentOnSaved) }
     VehicleFormContent(
         state = state,
-        today = viewModel.latestDate,
+        today = viewModel.today,
         onBack = onBack,
         onRetry = viewModel::retryLoad,
         onEdit = viewModel::edit,

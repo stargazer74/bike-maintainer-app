@@ -112,6 +112,17 @@ class DueTaskNotifierTest {
         assertNotNull(entry("vehicle", 4))
     }
 
+    @Test fun cancelVehiclesExceptKeepsTheGivenOnesAndTheRelogin() {
+        val notifier = DueTaskNotifier(app)
+        notifier.showDue(due)
+        notifier.showDue(due.copy(vehicleId = 4))
+        notifier.showRelogin()
+        notifier.cancelVehiclesExcept(setOf(4L))
+        assertEquals(2, posted().size)
+        assertNotNull(entry("vehicle", 4))
+        assertNotNull(entry("relogin", 0))
+    }
+
     @Test fun cancelReloginRemovesOnlyRelogin() {
         val notifier = DueTaskNotifier(app)
         notifier.showDue(due)

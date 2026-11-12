@@ -17,6 +17,8 @@ import de.bikemaintainer.app.data.storage.TokenCipher
 import java.io.IOException
 import java.security.GeneralSecurityException
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonObject
@@ -374,6 +376,50 @@ class AuthRepositoryTest {
         assertEquals(Access(AccessStatus.EXPIRED, java.time.LocalDate.of(2026, 11, 1), true), repo.access.value)
         runBlocking { repo.logout() }
         assertEquals(Access.FULL, repo.access.value)
+    }
+
+    /** An answer that arrives after the logout belongs to the old session and must not bring its access back. */
+    @Test
+    fun answerFromBeforeTheLogoutIsIgnored() {
+        val asked = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val repo = setUp { req ->
+            if (req.url.encodedPath == "/api/v1/auth/me") {
+                asked.countDown()
+                release.await(5, java.util.concurrent.TimeUnit.SECONDS)
+                json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"accessStatus":"EXPIRED",
+                    "hasSubscription":false,"emailVerified":true,"createdAt":"2026-01-01T00:00:00Z"}""")
+            } else {
+                json("{}")
+            }
+        }
+        runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
+        runBlocking {
+            val pending = async(Dispatchers.IO) { repo.refreshAccess() }
+            assertTrue(asked.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            repo.logout()
+            release.countDown()
+            pending.await()
+        }
+        assertEquals(Access.FULL, repo.access.value)
+    }
+
+    @Test
+    fun failedAnswerKeepsTheLastKnownAccess() {
+        var fail = false
+        val repo = setUp {
+            if (fail) {
+                json("{}", 500)
+            } else {
+                json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"accessStatus":"EXPIRED",
+                    "hasSubscription":false,"emailVerified":true,"createdAt":"2026-01-01T00:00:00Z"}""")
+            }
+        }
+        runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
+        runBlocking { repo.refreshAccess() }
+        fail = true
+        runBlocking { repo.refreshAccess() }
+        assertEquals(AccessStatus.EXPIRED, repo.access.value.status)
     }
 
     @Test

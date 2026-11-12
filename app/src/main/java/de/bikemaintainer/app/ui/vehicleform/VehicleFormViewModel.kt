@@ -33,15 +33,15 @@ class VehicleFormViewModel(
     private val vehicleId: Long?,
     private val vehicles: VehicleRepository,
     private val accessSource: AccessSource = AccessSource.Unrestricted,
-    private val today: () -> LocalDate = LocalDate::now,
+    private val clock: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     private val _state = MutableStateFlow(
-        VehicleFormUiState(editing = vehicleId != null, draft = if (vehicleId == null) VehicleDraft.empty(today()) else null),
+        VehicleFormUiState(editing = vehicleId != null, draft = if (vehicleId == null) VehicleDraft.empty(clock()) else null),
     )
     val state: StateFlow<VehicleFormUiState> = _state.asStateFlow()
 
-    /** The latest selectable day of first registration. */
-    val latestDate: LocalDate get() = today()
+    /** Today; the model year may be at most one year later. */
+    val today: LocalDate get() = clock()
 
     init {
         if (vehicleId != null) load(vehicleId)
@@ -68,7 +68,7 @@ class VehicleFormViewModel(
     fun save() {
         val s = _state.value
         if (s.saving || s.saved != null) return
-        val input = s.draft?.toInput(today())
+        val input = s.draft?.toInput(clock())
         if (input == null) {
             _state.update { it.copy(showErrors = true) }
             return

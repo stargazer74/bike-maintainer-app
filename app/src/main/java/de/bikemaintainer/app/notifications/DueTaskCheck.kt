@@ -54,6 +54,9 @@ class DueTaskCheck(
         update.toNotify.forEach(notifications::showDue)
         // Completed, deleted or back to OK: the old notification would only mislead.
         update.noneDue.forEach(notifications::cancelVehicle)
+        // Deleted in the web app, on another device or in this app while the check ran: its notification would open
+        // a vehicle that is gone.
+        notifications.cancelVehiclesExcept(list.map { it.id }.toSet())
         settings.setReportedDue(update.newState)
         // Everything loaded, so the session works: a pending "please sign in again" is obsolete.
         notifications.cancelRelogin()

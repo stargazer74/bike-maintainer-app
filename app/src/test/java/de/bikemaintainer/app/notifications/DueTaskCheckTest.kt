@@ -46,6 +46,13 @@ class FakeDueNotifications : DueNotifications {
         cancelledVehicles += vehicleId
     }
 
+    /** Vehicle ids passed to [cancelVehiclesExcept], one set per call. */
+    val keptVehicles = mutableListOf<Set<Long>>()
+
+    override fun cancelVehiclesExcept(vehicleIds: Set<Long>) {
+        keptVehicles += vehicleIds
+    }
+
     override fun cancelAll() {
         cancelAllCalls++
     }
@@ -143,6 +150,15 @@ class DueTaskCheckTest {
         assertEquals(listOf(2L), notifications.cancelledVehicles)
     }
 
+    /** Only the vehicles that still exist keep a notification; one deleted on the web loses it. */
+    @Test
+    fun notificationsOfDeletedVehiclesAreRemoved() = runTest {
+        val settings = store()
+        twoVehicles(Outcome.Success(emptyList()))
+        check(settings).run()
+        assertEquals(listOf(setOf(1L, 2L)), notifications.keptVehicles)
+    }
+
     @Test
     fun successfulRunCancelsReloginNotification() = runTest {
         val settings = store()
@@ -157,6 +173,7 @@ class DueTaskCheckTest {
         twoVehicles(Outcome.Failure(AppError.Network))
         check(settings).run()
         assertTrue(notifications.cancelledVehicles.isEmpty())
+        assertTrue(notifications.keptVehicles.isEmpty())
         assertEquals(0, notifications.cancelReloginCalls)
     }
 
