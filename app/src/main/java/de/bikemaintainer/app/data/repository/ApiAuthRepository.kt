@@ -1,20 +1,27 @@
 package de.bikemaintainer.app.data.repository
 
 import de.bikemaintainer.app.api.models.DeviceLoginRequest
+import de.bikemaintainer.app.api.models.EmailRequest
+import de.bikemaintainer.app.api.models.Language
+import de.bikemaintainer.app.api.models.ProfileRequest
+import de.bikemaintainer.app.api.models.RegisterRequest
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.SettingsStore
 import de.bikemaintainer.app.data.storage.StoredSettings
 import de.bikemaintainer.app.domain.Account
+import de.bikemaintainer.app.domain.AltchaSolver
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Profile
 import de.bikemaintainer.app.domain.ServerConfig
 import java.io.IOException
 import java.security.GeneralSecurityException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Login, profile selection and logout. Whatever stores credentials or starts/ends a session does so under
@@ -52,8 +59,24 @@ class ApiAuthRepository(
         }
     }
 
+    /** The honeypot field `website` is left out: the app has no bots to catch. */
+    override suspend fun register(serverUrl: String, email: String, password: String, german: Boolean): Outcome<Unit> =
+        withAltcha(serverUrl) { apis, altcha ->
+            val language = if (german) Language.DE else Language.EN
+            callNoBody { apis.auth.register(RegisterRequest(email, password, altcha, language)) }
+        }
+
+    override suspend fun resendVerification(serverUrl: String, email: String): Outcome<Unit> =
+        withAltcha(serverUrl) { apis, altcha -> callNoBody { apis.auth.resendVerificationEmail(EmailRequest(email, altcha)) } }
+
     override suspend fun profiles(serverUrl: String): Outcome<List<Profile>> =
         withApis(serverUrl) { apis -> call { apis.profiles.listProfiles() }.map { list -> list.map { it.toDomain() } } }
+
+    override suspend fun createProfile(serverUrl: String, displayName: String): Outcome<Profile> {
+        if (ApiProvider.normalizeOrNull(serverUrl) == null) return Outcome.Failure(AppError.InvalidAddress)
+        ensureCsrfCookie(serverUrl)?.let { return it }
+        return call { provider.apisFor(serverUrl).profiles.createProfile(ProfileRequest(displayName)) }.map { it.toDomain() }
+    }
 
     override suspend fun selectProfile(serverUrl: String, id: Long): Outcome<Unit> {
         val base = ApiProvider.normalizeOrNull(serverUrl) ?: return Outcome.Failure(AppError.InvalidAddress)
@@ -137,6 +160,33 @@ class ApiAuthRepository(
     private suspend fun ensureCsrfCookie(serverUrl: String): Outcome.Failure? {
         if (provider.hasCsrfCookie(serverUrl)) return null
         return call { provider.apisFor(serverUrl).config.getAppConfig() } as? Outcome.Failure
+    }
+
+    /**
+     * Fetches a fresh ALTCHA challenge, solves it off the main thread and runs [block] with the payload. A challenge the
+     * solver cannot handle counts as an unreadable response (status -1).
+     */
+    private suspend fun withAltcha(
+        serverUrl: String,
+        block: suspend (ApiProvider.Apis, String) -> Outcome<Unit>,
+    ): Outcome<Unit> {
+        if (ApiProvider.normalizeOrNull(serverUrl) == null) return Outcome.Failure(AppError.InvalidAddress)
+        ensureCsrfCookie(serverUrl)?.let { return it }
+        val apis = provider.apisFor(serverUrl)
+        val challenge = when (val result = call { apis.challenge.challenge() }) {
+            is Outcome.Failure -> return result
+            is Outcome.Success -> try {
+                result.value.use { it.string() }
+            } catch (_: IOException) {
+                return Outcome.Failure(AppError.Network)
+            }
+        }
+        val altcha = try {
+            withContext(Dispatchers.Default) { AltchaSolver.solve(challenge) }
+        } catch (_: AltchaSolver.InvalidChallengeException) {
+            return Outcome.Failure(AppError.Http(-1, null))
+        }
+        return block(apis, altcha)
     }
 
     private suspend fun <T> withApis(serverUrl: String, block: suspend (ApiProvider.Apis) -> Outcome<T>): Outcome<T> {

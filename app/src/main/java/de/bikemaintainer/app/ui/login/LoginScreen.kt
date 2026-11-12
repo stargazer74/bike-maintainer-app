@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,6 +44,7 @@ fun LoginScreen(
     serverUrl: String,
     onSignedIn: () -> Unit,
     onOtherServer: () -> Unit,
+    onCreateAccount: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
     LaunchedEffect(state.done) {
@@ -58,6 +60,7 @@ fun LoginScreen(
         onSubmit = viewModel::onSubmit,
         onForgotPassword = { openLink(WebLinks.forgotPassword(serverUrl)) },
         onOtherServer = onOtherServer,
+        onCreateAccount = onCreateAccount,
     )
 }
 
@@ -70,6 +73,7 @@ fun LoginContent(
     onSubmit: () -> Unit,
     onForgotPassword: () -> Unit,
     onOtherServer: () -> Unit,
+    onCreateAccount: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -119,6 +123,9 @@ fun LoginContent(
                 if (state.loading) LoadingIndicator(small = true, color = MaterialTheme.colorScheme.onPrimary)
                 Text(stringResource(R.string.login_submit))
             }
+        }
+        OutlinedButton(onClick = onCreateAccount, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+            Text(stringResource(R.string.login_create_account))
         }
         TextButton(onClick = onForgotPassword, modifier = Modifier.heightIn(min = 48.dp)) {
             Text(stringResource(R.string.login_forgot_password))

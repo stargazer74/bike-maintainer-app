@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 enum class SetupError { INVALID_ADDRESS, NOT_REACHABLE, NOT_BIKE_MAINTAINER, CLEARTEXT_NOT_ALLOWED }
 
 data class SetupUiState(
-    val address: String = DEFAULT_SERVER,
+    val address: String = "",
     val loading: Boolean = false,
     val error: SetupError? = null,
     val confirmCleartext: Boolean = false,
@@ -25,11 +25,14 @@ data class SetupUiState(
     val next: Any? = null,
 )
 
-const val DEFAULT_SERVER = "https://app.bike-maintainer.de"
+/** The online account: the portal's address is built in, the user never types it. */
+const val PORTAL_SERVER = "https://app.bike-maintainer.de/"
 
 private const val HTTP_SERVER_ERROR = 500
 
-/** Checks the server address; nothing is stored here, that happens at login / profile selection. */
+/**
+ * Own server: checks the typed or scanned address; nothing is stored here, that happens at login / profile selection.
+ */
 class SetupViewModel(private val auth: AuthRepository) : ViewModel() {
     private val _state = MutableStateFlow(SetupUiState())
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
@@ -53,6 +56,12 @@ class SetupViewModel(private val auth: AuthRepository) : ViewModel() {
             return
         }
         connect(url)
+    }
+
+    /** An address read from a QR code ([ServerQr]): taken over and checked right away, like a typed one. */
+    fun onScanned(address: String) {
+        _state.update { it.copy(address = address, error = null) }
+        onContinue()
     }
 
     fun onCleartextConfirmed() {

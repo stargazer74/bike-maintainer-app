@@ -135,6 +135,37 @@ class AppNavGraphTest {
         assertEquals(listOf("LoginRoute"), stack())
     }
 
+    @Test fun onlineAccountLeadsToTheLoginOfThePortal() {
+        show(SetupRoute)
+        compose.onNodeWithText("Online-Konto").performClick()
+        compose.waitForIdle()
+        assertEquals("https://app.bike-maintainer.de/", nav.currentBackStackEntry!!.toRoute<LoginRoute>().serverUrl)
+        assertEquals(listOf("SetupRoute", "LoginRoute"), stack())
+    }
+
+    @Test fun scannedAddressOfAnOwnServerIsCheckedAndUsed() {
+        auth.fetchConfigResult = Outcome.Success(de.bikemaintainer.app.domain.ServerConfig(ServerMode.HOUSEHOLD, null))
+        show(SetupRoute)
+        compose.onNodeWithText("Eigener Server").performClick()
+        compose.waitForIdle()
+        assertEquals(true, current().contains("OwnServerRoute"))
+        // What the scanner screen hands back (the camera itself is not available in tests).
+        compose.runOnIdle { nav.currentBackStackEntry!!.savedStateHandle[SERVER_QR_KEY] = "https://home.example.org/" }
+        compose.waitForIdle()
+        assertEquals(listOf("https://home.example.org/"), auth.fetchConfigUrls)
+        assertEquals("https://home.example.org/", nav.currentBackStackEntry!!.toRoute<ProfilesRoute>().serverUrl)
+    }
+
+    @Test fun createAccountAndBackToLogin() {
+        show(LoginRoute("https://h/"))
+        compose.onNodeWithText("Konto erstellen").performScrollTo().performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("LoginRoute", "RegisterRoute"), stack())
+        compose.onNodeWithText("Zur Anmeldung").performScrollTo().performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("LoginRoute"), stack())
+    }
+
     @Test fun replayedStatusDoesNotNavigate() {
         session.require(SessionStatus.LOGIN_REQUIRED)
         show(SetupRoute)

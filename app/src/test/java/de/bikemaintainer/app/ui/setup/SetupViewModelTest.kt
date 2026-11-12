@@ -22,8 +22,32 @@ class SetupViewModelTest {
     private val viewModel = SetupViewModel(auth)
 
     @Test
-    fun defaultsToTheOfficialServer() {
-        assertEquals("https://app.bike-maintainer.de", viewModel.state.value.address)
+    fun startsWithoutAddress() {
+        // The portal is the separate "online account" choice; here the user enters their own server.
+        assertEquals("", viewModel.state.value.address)
+    }
+
+    @Test
+    fun emptyAddressIsInvalid() {
+        viewModel.onContinue()
+        assertEquals(SetupError.INVALID_ADDRESS, viewModel.state.value.error)
+        assertEquals(0, auth.fetchConfigCalls)
+    }
+
+    @Test
+    fun scannedAddressIsCheckedRightAway() {
+        auth.fetchConfigResult = Outcome.Success(ServerConfig(ServerMode.HOUSEHOLD, null))
+        viewModel.onScanned("https://home.example.org/")
+        assertEquals("https://home.example.org/", viewModel.state.value.address)
+        assertEquals(listOf("https://home.example.org/"), auth.fetchConfigUrls)
+        assertEquals(ProfilesRoute("https://home.example.org/"), viewModel.state.value.next)
+    }
+
+    @Test
+    fun scannedCleartextAddressAsksFirst() {
+        viewModel.onScanned("http://192.168.178.20:8080/")
+        assertTrue(viewModel.state.value.confirmCleartext)
+        assertEquals(0, auth.fetchConfigCalls)
     }
 
     @Test
@@ -38,6 +62,7 @@ class SetupViewModelTest {
 
     @Test
     fun householdServerLeadsToProfiles() {
+        viewModel.onAddressChange("app.bike-maintainer.de")
         auth.fetchConfigResult = Outcome.Success(ServerConfig(ServerMode.HOUSEHOLD, null))
         viewModel.onContinue()
         assertEquals(ProfilesRoute("https://app.bike-maintainer.de/"), viewModel.state.value.next)
@@ -65,6 +90,7 @@ class SetupViewModelTest {
 
     @Test
     fun unreachableServerShowsError() {
+        viewModel.onAddressChange("app.bike-maintainer.de")
         auth.fetchConfigResult = Outcome.Failure(AppError.Network)
         viewModel.onContinue()
         assertEquals(SetupError.NOT_REACHABLE, viewModel.state.value.error)
@@ -74,6 +100,7 @@ class SetupViewModelTest {
 
     @Test
     fun nonBikeMaintainerShowsError() {
+        viewModel.onAddressChange("app.bike-maintainer.de")
         auth.fetchConfigResult = Outcome.Failure(AppError.Http(404, null))
         viewModel.onContinue()
         assertEquals(SetupError.NOT_BIKE_MAINTAINER, viewModel.state.value.error)
@@ -81,6 +108,7 @@ class SetupViewModelTest {
 
     @Test
     fun serverErrorMeansNotReachable() {
+        viewModel.onAddressChange("app.bike-maintainer.de")
         for (status in listOf(500, 502, 503)) {
             auth.fetchConfigResult = Outcome.Failure(AppError.Http(status, null))
             viewModel.onContinue()

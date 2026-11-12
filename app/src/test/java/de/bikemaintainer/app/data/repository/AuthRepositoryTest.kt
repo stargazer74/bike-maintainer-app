@@ -17,12 +17,15 @@ import java.security.GeneralSecurityException
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -37,7 +40,7 @@ class AuthRepositoryTest {
         env.close()
     }
 
-    private val user = """{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"emailVerified":true,
+    private val user = """{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"accessStatus":"TRIAL","hasSubscription":false,"emailVerified":true,
         "createdAt":"2026-01-01T00:00:00Z"}"""
 
     private fun setUp(
@@ -185,7 +188,7 @@ class AuthRepositoryTest {
     @Test
     fun selectProfileStoresHouseholdProfile() {
         val repo = setUp(handler = withConfig("household") { req ->
-            if (req.url.encodedPath.endsWith("/select")) json(user) else json("""[{"id":7,"displayName":"Chris"}]""")
+            if (req.url.encodedPath.endsWith("/select")) json(user) else json("""[{"id":7,"displayName":"Chris","vehicleCount":0}]""")
         })
         assertEquals(Outcome.Success(listOf(Profile(7, "Chris"))), runBlocking { repo.profiles(env.url) })
         assertEquals(Outcome.Success(Unit), runBlocking { repo.selectProfile(env.url, 7) })
@@ -335,7 +338,7 @@ class AuthRepositoryTest {
     fun currentAccountMapsEmailAndDisplayName() {
         val repo = setUp { req ->
             assertEquals("/api/v1/auth/me", req.url.encodedPath)
-            json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"emailVerified":true,
+            json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"accessStatus":"TRIAL","hasSubscription":false,"emailVerified":true,
                 "createdAt":"2026-01-01T00:00:00Z","email":"a@b.de"}""")
         }
         runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
@@ -345,7 +348,7 @@ class AuthRepositoryTest {
     @Test
     fun currentAccountMapsDisplayNameInHouseholdMode() {
         val repo = setUp {
-            json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"emailVerified":true,
+            json("""{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"accessStatus":"TRIAL","hasSubscription":false,"emailVerified":true,
                 "createdAt":"2026-01-01T00:00:00Z","displayName":"Chris"}""")
         }
         runBlocking { env.settings.setServer(env.url, ServerMode.HOUSEHOLD) }
@@ -378,5 +381,82 @@ class AuthRepositoryTest {
         val repo = setUp(wrap = ::limitedWrites)
         runBlocking { repo.setNotificationsEnabled(false) } // must not throw
         assertEquals(true, runBlocking { repo.settings.first() }.notificationsEnabled)
+    }
+
+    /** A real challenge of the backend (see AltchaSolverTest): the solver needs a few hundred attempts. */
+    private val challenge = de.bikemaintainer.app.domain.scan.testResource("altcha/challenge-2.json").readText().trim()
+
+    @Test
+    fun registerSolvesTheChallengeAndSendsThePayload() {
+        val bodies = mutableListOf<String>()
+        val repo = setUp(handler = csrfChecked { req ->
+            when (req.url.encodedPath) {
+                "/api/v1/auth/challenge" -> json(challenge)
+                "/api/v1/auth/register" -> {
+                    bodies += req.body!!.utf8()
+                    MockResponse.Builder().code(202).build()
+                }
+                else -> json("{}", 404)
+            }
+        })
+        val result = runBlocking { repo.register(env.url, "max@example.org", "geheim-1234", german = false) }
+        assertEquals(Outcome.Success(Unit), result)
+        val body = kotlinx.serialization.json.Json.parseToJsonElement(bodies.single()).jsonObject
+        assertEquals("max@example.org", body.getValue("email").jsonPrimitive.content)
+        assertEquals("en", body.getValue("language").jsonPrimitive.content)
+        val payload = String(java.util.Base64.getDecoder().decode(body.getValue("altcha").jsonPrimitive.content))
+        assertTrue(payload, payload.startsWith("""{"challenge":$challenge,"solution":{"counter":308,"""))
+        // The honeypot stays empty.
+        assertTrue(body["website"] == null || body["website"] is kotlinx.serialization.json.JsonNull)
+    }
+
+    @Test
+    fun registerReportsCaptchaAndQuotaErrors() {
+        var answer = json("""{"code":"CAPTCHA_INVALID"}""", 400)
+        val repo = setUp(handler = csrfChecked { req ->
+            if (req.url.encodedPath == "/api/v1/auth/challenge") json(challenge) else answer
+        })
+        assertEquals(
+            Outcome.Failure(AppError.Http(400, "CAPTCHA_INVALID")),
+            runBlocking { repo.register(env.url, "a@b.de", "geheim-1234", german = true) },
+        )
+        answer = json("""{"code":"MAIL_QUOTA_EXCEEDED"}""", 429)
+        assertEquals(
+            Outcome.Failure(AppError.Http(429, "MAIL_QUOTA_EXCEEDED")),
+            runBlocking { repo.register(env.url, "a@b.de", "geheim-1234", german = true) },
+        )
+    }
+
+    @Test
+    fun unusableChallengeIsReportedWithoutSending() {
+        var posts = 0
+        val repo = setUp(handler = csrfChecked { req ->
+            if (req.url.encodedPath == "/api/v1/auth/challenge") json("""{"parameters":{}}""")
+            else MockResponse.Builder().code(202).build().also { posts++ }
+        })
+        assertEquals(
+            Outcome.Failure(AppError.Http(-1, null)),
+            runBlocking { repo.register(env.url, "a@b.de", "geheim-1234", german = true) },
+        )
+        assertEquals(0, posts)
+    }
+
+    @Test
+    fun resendAnswersWithoutBody() {
+        val repo = setUp(handler = csrfChecked { req ->
+            if (req.url.encodedPath == "/api/v1/auth/challenge") json(challenge) else MockResponse.Builder().code(204).build()
+        })
+        assertEquals(Outcome.Success(Unit), runBlocking { repo.resendVerification(env.url, "a@b.de") })
+    }
+
+    @Test
+    fun createProfileReturnsTheNewProfileAndReportsATakenName() {
+        var taken = false
+        val repo = setUp(handler = csrfChecked {
+            if (taken) json("""{"code":"CONFLICT"}""", 409) else json("""{"id":7,"displayName":"Chris","vehicleCount":0}""", 201)
+        })
+        assertEquals(Outcome.Success(Profile(7, "Chris")), runBlocking { repo.createProfile(env.url, "Chris") })
+        taken = true
+        assertEquals(Outcome.Failure(AppError.Http(409, "CONFLICT")), runBlocking { repo.createProfile(env.url, "Chris") })
     }
 }
