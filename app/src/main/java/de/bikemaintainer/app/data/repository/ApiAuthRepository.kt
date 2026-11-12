@@ -1,5 +1,6 @@
 package de.bikemaintainer.app.data.repository
 
+import de.bikemaintainer.app.api.models.DeleteAccountRequest
 import de.bikemaintainer.app.api.models.DeviceLoginRequest
 import de.bikemaintainer.app.api.models.EmailRequest
 import de.bikemaintainer.app.api.models.Language
@@ -130,6 +131,29 @@ class ApiAuthRepository(
                 provider.reset()
             }
         }
+    }
+
+    /** The server also ends all sessions and device tokens of the account, so there is nothing to log out from. */
+    override suspend fun deleteAccount(password: String): Outcome<Unit> {
+        val server = try {
+            store.current().serverUrl
+        } catch (_: IOException) {
+            return Outcome.Failure(AppError.Storage)
+        } ?: return Outcome.Failure(AppError.NotConfigured)
+        if (ApiProvider.normalizeOrNull(server) == null) return Outcome.Failure(AppError.NotConfigured)
+        ensureCsrfCookie(server)?.let { return it }
+        val result = callNoBody { provider.apisFor(server).account.deleteCurrentUser(DeleteAccountRequest(password)) }
+        if (result is Outcome.Failure) return result
+        state.lock.withLock {
+            try {
+                store.clearAll()
+            } catch (_: IOException) {
+                // intentionally ignored: the account and its token are gone on the server anyway
+            } finally {
+                provider.reset()
+            }
+        }
+        return Outcome.Success(Unit)
     }
 
     override suspend fun currentAccount(): Outcome<Account> =

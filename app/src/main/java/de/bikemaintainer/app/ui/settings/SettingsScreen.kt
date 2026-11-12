@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
@@ -23,6 +24,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +56,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import de.bikemaintainer.app.R
+import de.bikemaintainer.app.domain.ServerMode
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.WebLinks
 import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
@@ -66,15 +69,19 @@ private enum class Confirm { LOGOUT, SWITCH_SERVER }
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate: (Any) -> Unit) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
     LaunchedEffect(state.next) {
         state.next?.let {
+            if (state.accountDeleted) {
+                Toast.makeText(context, R.string.settings_delete_account_done, Toast.LENGTH_LONG).show()
+            }
             viewModel.navigated()
             onNavigate(it)
         }
     }
     var confirm by rememberSaveable { mutableStateOf<Confirm?>(null) }
+    var deleteOpen by rememberSaveable { mutableStateOf(false) }
     val openLink = rememberWebLinkOpener()
-    val context = LocalContext.current
     // The permission can change in the system settings meanwhile.
     LifecycleResumeEffect(Unit) {
         viewModel.refreshPermission()
@@ -179,6 +186,15 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate:
                 enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             ) { Text(stringResource(R.string.settings_switch_server)) }
+            // Household profiles have no account; the server answers 404 there anyway.
+            if (state.mode == ServerMode.PORTAL) {
+                OutlinedButton(
+                    onClick = { deleteOpen = true },
+                    enabled = !state.busy && !state.deleting,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                ) { Text(stringResource(R.string.settings_delete_account)) }
+            }
             if (state.busy) LoadingIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
 
             state.websiteUrl?.let { site ->
@@ -188,6 +204,20 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate:
                 LinkButton(R.string.legal_website) { openLink(WebLinks.home(site, german)) }
             }
         }
+    }
+
+    if (deleteOpen) {
+        DeleteAccountDialog(
+            email = state.account?.email,
+            deleting = state.deleting,
+            error = state.deleteError,
+            onDelete = viewModel::deleteAccount,
+            onPasswordChange = viewModel::clearDeleteError,
+            onDismiss = {
+                deleteOpen = false
+                viewModel.clearDeleteError()
+            },
+        )
     }
 
     confirm?.let { which ->

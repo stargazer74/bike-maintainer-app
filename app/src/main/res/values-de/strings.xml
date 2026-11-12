@@ -70,6 +70,17 @@
     <string name="settings_logout_confirm">Möchtest du dich auf diesem Gerät abmelden?</string>
     <string name="settings_switch_server">Server wechseln</string>
     <string name="settings_switch_server_confirm">Du wirst abgemeldet und kannst eine andere Serveradresse eingeben.</string>
+    <string name="settings_delete_account">Konto löschen</string>
+    <string name="settings_delete_account_text">Dein Konto wird mit allen Fahrzeugen, Wartungsaufgaben, Einträgen im Wartungstagebuch und Kosten dauerhaft gelöscht. Das lässt sich nicht rückgängig machen. Bitte bestätige mit deinem Passwort.</string>
+    <string name="settings_delete_account_next">Weiter</string>
+    <string name="settings_delete_account_confirm_title">Wirklich löschen?</string>
+    <string name="settings_delete_account_confirm_text">Das Konto %1$s und alle seine Daten werden jetzt endgültig gelöscht.</string>
+    <string name="settings_delete_account_confirm_text_unnamed">Dein Konto und alle seine Daten werden jetzt endgültig gelöscht.</string>
+    <string name="settings_delete_account_final">Endgültig löschen</string>
+    <string name="settings_delete_account_done">Konto gelöscht</string>
+    <string name="delete_account_error_wrong_password">Das Passwort ist falsch.</string>
+    <string name="delete_account_error_last_admin">Das letzte aktive Admin-Konto kann nicht gelöscht werden. Mach zuerst ein anderes Konto zum Admin.</string>
+    <string name="delete_account_error_unknown">Das Konto konnte nicht gelöscht werden. Bitte versuche es später erneut.</string>
     <string name="settings_legal">Rechtliches</string>
     <string name="legal_imprint">Impressum</string>
     <string name="legal_privacy">Datenschutz</string>

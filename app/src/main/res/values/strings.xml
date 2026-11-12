@@ -70,6 +70,17 @@
     <string name="settings_logout_confirm">Do you want to log out on this device?</string>
     <string name="settings_switch_server">Change server</string>
     <string name="settings_switch_server_confirm">You will be logged out and can enter another server address.</string>
+    <string name="settings_delete_account">Delete account</string>
+    <string name="settings_delete_account_text">Your account will be deleted for good, together with all vehicles, maintenance tasks, maintenance log entries and costs. This cannot be undone. Please confirm with your password.</string>
+    <string name="settings_delete_account_next">Continue</string>
+    <string name="settings_delete_account_confirm_title">Really delete?</string>
+    <string name="settings_delete_account_confirm_text">The account %1$s and all its data will now be deleted for good.</string>
+    <string name="settings_delete_account_confirm_text_unnamed">Your account and all its data will now be deleted for good.</string>
+    <string name="settings_delete_account_final">Delete for good</string>
+    <string name="settings_delete_account_done">Account deleted</string>
+    <string name="delete_account_error_wrong_password">The password is wrong.</string>
+    <string name="delete_account_error_last_admin">The last active admin account cannot be deleted. Make another account an admin first.</string>
+    <string name="delete_account_error_unknown">The account could not be deleted. Please try again later.</string>
     <string name="settings_legal">Legal</string>
     <string name="legal_imprint">Legal notice</string>
     <string name="legal_privacy">Privacy</string>

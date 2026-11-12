@@ -36,6 +36,12 @@ interface AuthRepository {
 
     suspend fun switchServer(): Outcome<Unit>
 
+    /**
+     * Portal: deletes the account of the stored server for good, with all its data; [password] confirms it. Once the
+     * server has accepted it, everything stored locally is dropped as with [switchServer], even if that partly fails.
+     */
+    suspend fun deleteAccount(password: String): Outcome<Unit>
+
     /** `GET auth/me` on the stored server. */
     suspend fun currentAccount(): Outcome<Account>
 

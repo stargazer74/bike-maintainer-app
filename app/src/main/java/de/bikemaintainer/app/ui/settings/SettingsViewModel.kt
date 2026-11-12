@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.domain.Account
+import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.ServerMode
 import de.bikemaintainer.app.notifications.DueNotifications
@@ -32,7 +33,18 @@ data class SettingsUiState(
     val notificationsBlocked: Boolean = false,
     /** Route to navigate to once (after logout or switching the server). */
     val next: Any? = null,
+    /** The account deletion is in flight. */
+    val deleting: Boolean = false,
+    val deleteError: DeleteAccountError? = null,
+    /** The account has just been deleted (shown once, together with [next]). */
+    val accountDeleted: Boolean = false,
 )
+
+enum class DeleteAccountError { WRONG_PASSWORD, LAST_ADMIN, TOO_MANY_ATTEMPTS, NOT_REACHABLE, UNKNOWN }
+
+private const val HTTP_FORBIDDEN = 403
+private const val HTTP_CONFLICT = 409
+private const val HTTP_TOO_MANY_REQUESTS = 429
 
 class SettingsViewModel(
     private val auth: AuthRepository,
@@ -112,13 +124,44 @@ class SettingsViewModel(
         SetupRoute
     }
 
+    /**
+     * Portal: deletes the account for good. The password is only passed through, never kept in the state. On success
+     * reminders stop and the app returns to the start; a failure stays in [SettingsUiState.deleteError].
+     */
+    fun deleteAccount(password: String) {
+        if (_state.value.deleting || _state.value.busy) return
+        _state.update { it.copy(deleting = true, deleteError = null) }
+        viewModelScope.launch {
+            when (val result = auth.deleteAccount(password)) {
+                is Outcome.Success -> {
+                    stopReminders()
+                    _state.update { it.copy(deleting = false, accountDeleted = true, next = SetupRoute) }
+                }
+                is Outcome.Failure -> _state.update { it.copy(deleting = false, deleteError = result.error.toDeleteError()) }
+            }
+        }
+    }
+
+    fun clearDeleteError() = _state.update { it.copy(deleteError = null) }
+
+    private fun AppError.toDeleteError(): DeleteAccountError = when (this) {
+        AppError.Network, AppError.CleartextNotAllowed -> DeleteAccountError.NOT_REACHABLE
+        is AppError.Http -> when (status) {
+            HTTP_FORBIDDEN -> if (code == "WRONG_PASSWORD") DeleteAccountError.WRONG_PASSWORD else DeleteAccountError.UNKNOWN
+            HTTP_CONFLICT -> DeleteAccountError.LAST_ADMIN
+            HTTP_TOO_MANY_REQUESTS -> DeleteAccountError.TOO_MANY_ATTEMPTS
+            else -> DeleteAccountError.UNKNOWN
+        }
+        else -> DeleteAccountError.UNKNOWN
+    }
+
     /** No more reminders for the account that is gone, and no vehicle names left in the status bar. */
     private fun stopReminders() {
         reminders.cancelQuietly()
         notifications.cancelAll()
     }
 
-    fun navigated() = _state.update { it.copy(next = null) }
+    fun navigated() = _state.update { it.copy(next = null, accountDeleted = false) }
 
     private fun run(block: suspend () -> Any) {
         if (_state.value.busy) return
