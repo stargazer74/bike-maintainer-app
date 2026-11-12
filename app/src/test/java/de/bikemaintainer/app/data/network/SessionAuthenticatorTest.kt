@@ -473,7 +473,7 @@ class SessionAuthenticatorTest {
         const val PROFILES = "/api/v1/profiles"
         const val DEVICE_SESSION = "/api/v1/auth/device-session"
         const val DEVICE_LOGIN = "/api/v1/auth/device-login"
-        const val USER = """{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,
+        const val USER = """{"id":1,"role":"USER","language":"de","currency":"EUR","active":true,"accessStatus":"TRIAL","hasSubscription":false,
             "emailVerified":true,"createdAt":"2026-01-01T10:00:00Z"}"""
     }
 }
