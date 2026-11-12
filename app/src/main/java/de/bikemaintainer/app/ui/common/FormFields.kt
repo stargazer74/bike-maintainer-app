@@ -1,5 +1,6 @@
 package de.bikemaintainer.app.ui.common
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,8 @@ fun FormScaffold(
     loading: Boolean,
     loadError: AppError?,
     onRetry: () -> Unit,
+    /** Message when the thing to edit is gone (404): the vehicle or the task. */
+    @StringRes notFound: Int = R.string.error_vehicle_not_found,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Scaffold(
@@ -66,7 +69,8 @@ fun FormScaffold(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                ErrorText(stringResource(loadError.vehicleLoadMessageRes()), Modifier.padding(bottom = 8.dp))
+                val message = if (loadError.isNotFound()) notFound else loadError.loadMessageRes()
+                ErrorText(stringResource(message), Modifier.padding(bottom = 8.dp))
                 if (loadError.isNotFound()) {
                     TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
                 } else {

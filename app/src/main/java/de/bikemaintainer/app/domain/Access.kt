@@ -50,6 +50,12 @@ data class Access(
 interface AccessSource {
     val access: StateFlow<Access>
 
+    /**
+     * The server was asked at least once in this session (also if that failed). Until then [access] is only the
+     * default, so screens hold back actions a read-only account could not use instead of showing them for a moment.
+     */
+    val accessKnown: Boolean
+
     /** Asks the server again; a failure keeps the last known access. */
     suspend fun refreshAccess()
 
@@ -60,6 +66,8 @@ interface AccessSource {
         /** Full access that never changes, e.g. for tests that are not about it. */
         val Unrestricted: AccessSource = object : AccessSource {
             override val access: StateFlow<Access> = MutableStateFlow(Access.FULL).asStateFlow()
+
+            override val accessKnown = true
 
             override suspend fun refreshAccess() = Unit
 

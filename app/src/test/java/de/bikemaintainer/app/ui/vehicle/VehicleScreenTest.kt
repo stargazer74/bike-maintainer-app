@@ -1,6 +1,7 @@
 package de.bikemaintainer.app.ui.vehicle
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -90,6 +91,13 @@ class VehicleScreenTest {
         compose.onNodeWithText("Aufgabe hinzufügen").assertDoesNotExist()
         compose.onNodeWithText("Fahrzeug bearbeiten").assertDoesNotExist()
         compose.onNodeWithText("Fahrzeug löschen").performScrollTo().assertExists()
+    }
+
+    @Test fun whileDeletingTheActionsAreDisabled() {
+        show(VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK)), deleting = true))
+        compose.onNodeWithText("Kilometerstand eintragen").assertIsNotEnabled()
+        compose.onNodeWithText("Wartung erfassen").assertIsNotEnabled()
+        compose.onNodeWithText("Aufgabe hinzufügen").assertIsNotEnabled()
     }
 
     @Test fun deletingAsksFirst() {

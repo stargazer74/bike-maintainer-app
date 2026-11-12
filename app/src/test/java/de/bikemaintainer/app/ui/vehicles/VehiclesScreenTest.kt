@@ -91,6 +91,14 @@ class VehiclesScreenTest {
         assertEquals(1, added)
     }
 
+    @Test fun nothingIsOfferedBeforeTheAccessIsKnown() {
+        show(VehiclesUiState(summaries = emptyList(), accessKnown = false))
+        compose.onNodeWithText("Erstes Fahrzeug anlegen").assertDoesNotExist()
+        compose.onNodeWithText(
+            "Testphase abgelaufen – deine Daten bleiben erhalten, Erfassen ist nicht mehr möglich.",
+        ).assertDoesNotExist()
+    }
+
     @Test fun readOnlyAccountCannotAddVehicles() {
         show(VehiclesUiState(summaries = emptyList(), access = Access(AccessStatus.EXPIRED)))
         compose.onNodeWithText("Erstes Fahrzeug anlegen").assertDoesNotExist()

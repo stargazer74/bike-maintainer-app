@@ -15,7 +15,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -115,8 +114,7 @@ fun VehicleFormContent(
             enabled = enabled,
             number = true,
         )
-        RegistrationDate(draft.firstRegistrationDate, today, enabled) { d -> onEdit { it.copy(firstRegistrationDate = d) } }
-        if (VehicleField.FIRST_REGISTRATION in invalid) ErrorText(stringResource(R.string.vehicle_form_error_first_registration))
+        RegistrationDate(draft.firstRegistrationDate, enabled) { d -> onEdit { it.copy(firstRegistrationDate = d) } }
         FormTextField(
             value = draft.currentMileage,
             onValueChange = { v -> onEdit { it.copy(currentMileage = v) } },
@@ -164,7 +162,7 @@ private fun TypeChoice(selected: VehicleType, enabled: Boolean, onSelect: (Vehic
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RegistrationDate(date: LocalDate, today: LocalDate, enabled: Boolean, onDate: (LocalDate) -> Unit) {
+private fun RegistrationDate(date: LocalDate, enabled: Boolean, onDate: (LocalDate) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
     val locale = LocalConfiguration.current.locales[0]
     val label = stringResource(R.string.vehicle_form_first_registration)
@@ -172,15 +170,9 @@ private fun RegistrationDate(date: LocalDate, today: LocalDate, enabled: Boolean
         Text("$label: ${DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(date)}")
     }
     if (open) {
-        // The picker works in UTC milliseconds; no day after today.
+        // The picker works in UTC milliseconds; any day, like the web form.
         val pickerState = rememberDatePickerState(
             initialSelectedDateMillis = date.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
-            selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long) =
-                    Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate() <= today
-
-                override fun isSelectableYear(year: Int) = year in VehicleDraft.MIN_YEAR..today.year
-            },
         )
         DatePickerDialog(
             onDismissRequest = { open = false },

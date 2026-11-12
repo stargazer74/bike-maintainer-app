@@ -14,7 +14,7 @@ data class VehicleInput(
 )
 
 /** A field of the vehicle form that is not valid. */
-enum class VehicleField { NAME, MAKE, MODEL, MODEL_YEAR, FIRST_REGISTRATION, MILEAGE }
+enum class VehicleField { NAME, MAKE, MODEL, MODEL_YEAR, MILEAGE }
 
 /** The vehicle form as typed: numbers stay text until saved, so half-typed input is kept. */
 data class VehicleDraft(
@@ -25,15 +25,20 @@ data class VehicleDraft(
     val modelYear: String = "",
     val firstRegistrationDate: LocalDate,
     val currentMileage: String = "0",
+    /** Model year of the vehicle being edited; it stays valid even outside the range of new input (see below). */
+    val storedModelYear: Int? = null,
 ) {
-    /** Fields that are not valid, checked like the web app and the API (lengths, year 1900 to next year). */
+    /**
+     * Fields that are not valid, checked like the web form: lengths, model year 1900 to next year, any first
+     * registration. A model year the API accepted elsewhere (up to 2100, e.g. from an import) is kept, so the
+     * vehicle can still be saved.
+     */
     fun invalidFields(today: LocalDate): Set<VehicleField> = buildSet {
         if (name.isBlank() || name.trim().length > MAX_NAME) add(VehicleField.NAME)
         if (make.trim().length > MAX_MAKE_MODEL) add(VehicleField.MAKE)
         if (model.trim().length > MAX_MAKE_MODEL) add(VehicleField.MODEL)
         val year = modelYear.trim().toIntOrNull()
-        if (year == null || year !in MIN_YEAR..today.year + 1) add(VehicleField.MODEL_YEAR)
-        if (firstRegistrationDate.year < MIN_YEAR || firstRegistrationDate > today) add(VehicleField.FIRST_REGISTRATION)
+        if (year == null || (year !in MIN_YEAR..today.year + 1 && year != storedModelYear)) add(VehicleField.MODEL_YEAR)
         if (parseMileage(currentMileage) == null) add(VehicleField.MILEAGE)
     }
 
@@ -70,6 +75,7 @@ data class VehicleDraft(
             modelYear = vehicle.modelYear.toString(),
             firstRegistrationDate = vehicle.firstRegistrationDate,
             currentMileage = vehicle.currentMileage.toString(),
+            storedModelYear = vehicle.modelYear,
         )
     }
 }

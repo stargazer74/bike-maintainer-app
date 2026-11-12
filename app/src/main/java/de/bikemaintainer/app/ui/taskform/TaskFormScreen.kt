@@ -20,6 +20,7 @@ import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.FormScaffold
 import de.bikemaintainer.app.ui.common.FormTextField
 import de.bikemaintainer.app.ui.common.SwitchRow
+import de.bikemaintainer.app.ui.common.isNotFound
 import de.bikemaintainer.app.ui.common.saveMessageRes
 
 @Composable
@@ -44,6 +45,7 @@ fun TaskFormContent(
         loading = state.draft == null,
         loadError = state.loadError,
         onRetry = onRetry,
+        notFound = R.string.error_task_not_found,
     ) {
         val draft = state.draft ?: return@FormScaffold
         val invalid = if (state.showErrors) draft.invalidFields() else emptySet()
@@ -120,7 +122,11 @@ fun TaskFormContent(
                 onChange = { v -> onEdit { it.copy(active = v) } },
             )
         }
-        state.saveError?.let { ErrorText(stringResource(it.saveMessageRes())) }
+        state.saveError?.let { error ->
+            // Editing: a 404 means the task was deleted meanwhile (or its vehicle; the task is gone either way).
+            val message = if (state.editing && error.isNotFound()) R.string.error_task_not_found else error.saveMessageRes()
+            ErrorText(stringResource(message))
+        }
         Button(onClick = onSave, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             Text(stringResource(R.string.save))
         }

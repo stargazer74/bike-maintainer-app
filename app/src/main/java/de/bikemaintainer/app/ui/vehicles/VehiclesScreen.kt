@@ -80,10 +80,10 @@ fun VehiclesContent(
     onOpenSettings: () -> Unit,
     onAddVehicle: () -> Unit = {},
 ) {
-    val canAdd = state.access.canWrite && !state.summaries.isNullOrEmpty()
+    val showFab = state.canAdd && !state.summaries.isNullOrEmpty()
     Scaffold(
         floatingActionButton = {
-            if (canAdd) {
+            if (showFab) {
                 ExtendedFloatingActionButton(onClick = onAddVehicle) { Text(stringResource(R.string.vehicle_add)) }
             }
         },
@@ -107,7 +107,8 @@ fun VehiclesContent(
             val error = state.error
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(16.dp),
+                // Room below the last card, so the button does not cover it.
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = if (showFab) 88.dp else 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 when {
@@ -135,11 +136,11 @@ fun VehiclesContent(
                                 textAlign = TextAlign.Center,
                                 style = MaterialTheme.typography.bodyLarge,
                             )
-                            if (state.access.canWrite) {
+                            if (state.canAdd) {
                                 Button(onClick = onAddVehicle, modifier = Modifier.padding(top = 16.dp)) {
                                     Text(stringResource(R.string.vehicle_add_first))
                                 }
-                            } else {
+                            } else if (state.accessKnown) {
                                 ReadOnlyNotice(state.access, Modifier.padding(top = 16.dp))
                             }
                         }

@@ -18,7 +18,7 @@ interface MaintenanceRepository {
 
     suspend fun createTask(vehicleId: Long, input: TaskInput): Outcome<MaintenanceTask>
 
-    /** PUT replaces the whole task; switching it on or off sends all its other fields unchanged. */
+    /** PUT replaces the whole task: [input] carries every field, including whether it is active. */
     suspend fun updateTask(vehicleId: Long, taskId: Long, input: TaskInput): Outcome<MaintenanceTask>
 
     suspend fun logMaintenance(
