@@ -7,6 +7,7 @@ import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
+import de.bikemaintainer.app.domain.VehicleInput
 import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.domain.VehicleType
 import java.io.IOException
@@ -47,6 +48,48 @@ class VehicleRepositoryTest {
     private val response = """{"id":3,"name":"Tenere","type":"MOTORCYCLE","make":"Yamaha","model":"XT","modelYear":2021,
         "firstRegistrationDate":"2021-05-04","currentMileage":24000,
         "createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"""
+
+    @Test
+    fun createVehiclePostsTheFieldsAndLeavesOutBlankOptionals() {
+        val repo = setUp { json(response, 201) }
+        val input = VehicleInput("Tenere", VehicleType.MOTORCYCLE, "Yamaha", null, 2021, LocalDate.of(2021, 5, 4), 24000)
+        val result = runBlocking { repo.createVehicle(input) }
+        assertEquals(3L, (result as Outcome.Success).value.id)
+        val request = env!!.requests.single()
+        assertEquals("POST", request.method)
+        assertEquals("/api/v1/vehicles", request.url.encodedPath)
+        val body = Json.parseToJsonElement(request.body!!.utf8()).jsonObject
+        assertEquals("Tenere", body.getValue("name").jsonPrimitive.content)
+        assertEquals("MOTORCYCLE", body.getValue("type").jsonPrimitive.content)
+        assertEquals("2021-05-04", body.getValue("firstRegistrationDate").jsonPrimitive.content)
+        assertEquals("24000", body.getValue("currentMileage").jsonPrimitive.content)
+        assertEquals(null, body["model"]?.takeUnless { it is kotlinx.serialization.json.JsonNull })
+    }
+
+    @Test
+    fun updateVehiclePutsToItsAddress() {
+        val repo = setUp { json(response) }
+        val input = VehicleInput("Tenere", VehicleType.MOTORCYCLE, "Yamaha", "XT", 2021, LocalDate.of(2021, 5, 4), 24000)
+        runBlocking { repo.updateVehicle(3, input) }
+        val request = env!!.requests.single()
+        assertEquals("PUT", request.method)
+        assertEquals("/api/v1/vehicles/3", request.url.encodedPath)
+    }
+
+    @Test
+    fun deleteVehicleAcceptsTheEmptyAnswer() {
+        val repo = setUp { mockwebserver3.MockResponse.Builder().code(204).build() }
+        assertEquals(Outcome.Success(Unit), runBlocking { repo.deleteVehicle(3) })
+        val request = env!!.requests.single()
+        assertEquals("DELETE", request.method)
+        assertEquals("/api/v1/vehicles/3", request.url.encodedPath)
+    }
+
+    @Test
+    fun refusedDeleteStaysAFailure() {
+        val repo = setUp { json("""{"code":"X"}""", 500) }
+        assertEquals(Outcome.Failure(AppError.Http(500, "X")), runBlocking { repo.deleteVehicle(3) })
+    }
 
     @Test
     fun withoutStoredServerNotConfiguredIsReported() {

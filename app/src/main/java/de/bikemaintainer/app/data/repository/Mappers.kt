@@ -64,6 +64,11 @@ internal fun MaintenanceTaskResponse.toDomain() = MaintenanceTask(
     lastServiceMileage = lastServiceMileage,
     lastServiceDate = lastServiceDate,
     remainingFraction = remainingFraction,
+    description = description,
+    intervalKm = intervalKm,
+    intervalMonths = intervalMonths,
+    firstDueKm = firstDueKm,
+    firstDueMonths = firstDueMonths,
 )
 
 internal fun ProfileResponse.toDomain() = Profile(id, displayName)

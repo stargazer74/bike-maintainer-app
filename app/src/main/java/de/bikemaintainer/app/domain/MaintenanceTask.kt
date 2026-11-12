@@ -17,4 +17,9 @@ data class MaintenanceTask(
     val lastServiceMileage: Int?,
     val lastServiceDate: LocalDate?,
     val remainingFraction: Double?,
+    val description: String? = null,
+    val intervalKm: Int? = null,
+    val intervalMonths: Int? = null,
+    val firstDueKm: Int? = null,
+    val firstDueMonths: Int? = null,
 )

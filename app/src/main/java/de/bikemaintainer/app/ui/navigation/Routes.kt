@@ -31,6 +31,12 @@ const val SERVER_QR_KEY = "server_qr"
 
 @Serializable data class LogMaintenanceRoute(val vehicleId: Long)
 
+/** Create a vehicle ([vehicleId] `null`) or edit one. */
+@Serializable data class VehicleFormRoute(val vehicleId: Long? = null)
+
+/** Create a maintenance task of [vehicleId] ([taskId] `null`) or edit one. */
+@Serializable data class TaskFormRoute(val vehicleId: Long, val taskId: Long? = null)
+
 /** SavedStateHandle key under which the log screen hands its [de.bikemaintainer.app.ui.logmaintenance.LogResult] name to the detail. */
 const val LOG_RESULT_KEY = "log_result"
 

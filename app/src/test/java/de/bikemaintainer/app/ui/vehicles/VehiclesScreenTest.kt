@@ -5,6 +5,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import de.bikemaintainer.app.domain.Access
+import de.bikemaintainer.app.domain.AccessStatus
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
@@ -33,7 +35,7 @@ class VehiclesScreenTest {
         state: VehiclesUiState,
         onRetry: () -> Unit = {},
         onOpenVehicle: (Long) -> Unit = {},
-        onOpenWebApp: () -> Unit = {},
+        onAddVehicle: () -> Unit = {},
     ) {
         compose.setContent {
             VehiclesContent(
@@ -42,7 +44,7 @@ class VehiclesScreenTest {
                 onRetry = onRetry,
                 onOpenVehicle = onOpenVehicle,
                 onOpenSettings = {},
-                onOpenWebApp = onOpenWebApp,
+                onAddVehicle = onAddVehicle,
             )
         }
     }
@@ -74,12 +76,27 @@ class VehiclesScreenTest {
         compose.onNodeWithText("Keine Wartungsaufgaben").assertExists()
     }
 
-    @Test fun emptyListOffersWebApp() {
-        var opened = 0
-        show(VehiclesUiState(summaries = emptyList(), webAppUrl = "https://h"), onOpenWebApp = { opened++ })
-        compose.onNodeWithText("Noch keine Fahrzeuge erfasst. Lege sie in der Web-App an.").assertExists()
-        compose.onNodeWithText("Web-App öffnen").performClick()
-        assertEquals(1, opened)
+    @Test fun emptyListOffersTheFirstVehicle() {
+        var added = 0
+        show(VehiclesUiState(summaries = emptyList()), onAddVehicle = { added++ })
+        compose.onNodeWithText("Noch keine Fahrzeuge erfasst.").assertExists()
+        compose.onNodeWithText("Erstes Fahrzeug anlegen").performClick()
+        assertEquals(1, added)
+    }
+
+    @Test fun listOffersAnotherVehicle() {
+        var added = 0
+        show(VehiclesUiState(summaries = listOf(summary)), onAddVehicle = { added++ })
+        compose.onNodeWithText("Fahrzeug hinzufügen").performClick()
+        assertEquals(1, added)
+    }
+
+    @Test fun readOnlyAccountCannotAddVehicles() {
+        show(VehiclesUiState(summaries = emptyList(), access = Access(AccessStatus.EXPIRED)))
+        compose.onNodeWithText("Erstes Fahrzeug anlegen").assertDoesNotExist()
+        compose.onNodeWithText(
+            "Testphase abgelaufen – deine Daten bleiben erhalten, Erfassen ist nicht mehr möglich.",
+        ).assertExists()
     }
 
     @Test fun errorOffersRetry() {

@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import de.bikemaintainer.app.domain.Access
@@ -86,6 +87,47 @@ class VehicleScreenTest {
         ).assertExists()
         compose.onNodeWithText("Kilometerstand eintragen").assertDoesNotExist()
         compose.onNodeWithText("Wartung erfassen").assertDoesNotExist()
+        compose.onNodeWithText("Aufgabe hinzufügen").assertDoesNotExist()
+        compose.onNodeWithText("Fahrzeug bearbeiten").assertDoesNotExist()
+        compose.onNodeWithText("Fahrzeug löschen").performScrollTo().assertExists()
+    }
+
+    @Test fun deletingAsksFirst() {
+        var deleted = 0
+        compose.setContent {
+            VehicleContent(
+                state = VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK))),
+                onBack = {},
+                onRefresh = {},
+                onRetry = {},
+                actions = VehicleActions({}, {}, {}, {}, {}, onDeleteVehicle = { deleted++ }),
+            )
+        }
+        compose.onNodeWithText("Fahrzeug löschen").performScrollTo().performClick()
+        assertEquals(0, deleted)
+        compose.onNodeWithText("Löschen").performClick()
+        assertEquals(1, deleted)
+    }
+
+    @Test fun tapOnATaskOpensItsForm() {
+        var edited: Long? = null
+        compose.setContent {
+            VehicleContent(
+                state = VehicleUiState(
+                    vehicle = vehicle,
+                    tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK)),
+                    inactiveTasks = listOf(task(2, "Vergaser", TaskStatus.OK)),
+                ),
+                onBack = {},
+                onRefresh = {},
+                onRetry = {},
+                actions = VehicleActions({}, {}, {}, {}, {}, onEditTask = { edited = it }),
+            )
+        }
+        compose.onNodeWithText("Ölwechsel").performClick()
+        assertEquals(1L, edited)
+        compose.onNodeWithText("Vergaser").performScrollTo().performClick()
+        assertEquals(2L, edited)
     }
 
     @Test fun trialKeepsTheButtons() {

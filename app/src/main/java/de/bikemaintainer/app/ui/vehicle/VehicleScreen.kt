@@ -1,5 +1,6 @@
 package de.bikemaintainer.app.ui.vehicle
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,13 +36,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -54,12 +60,12 @@ import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.ui.common.AppCard
 import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.LoadingIndicator
+import de.bikemaintainer.app.ui.common.ReadOnlyNotice
 import de.bikemaintainer.app.ui.common.StatusDot
 import de.bikemaintainer.app.ui.common.formatNumber
 import de.bikemaintainer.app.ui.common.isNotFound
 import de.bikemaintainer.app.ui.common.mileageText
 import de.bikemaintainer.app.ui.common.saveMessageRes
-import de.bikemaintainer.app.ui.common.ReadOnlyNotice
 import de.bikemaintainer.app.ui.common.statusColor
 import de.bikemaintainer.app.ui.common.vehicleLoadMessageRes
 import de.bikemaintainer.app.ui.logmaintenance.LogResult
@@ -73,8 +79,14 @@ fun VehicleScreen(
     onLogMaintenance: () -> Unit,
     logResult: StateFlow<String?>,
     onLogResultShown: () -> Unit,
+    onEditVehicle: () -> Unit = {},
+    onAddTask: () -> Unit = {},
+    onEditTask: (Long) -> Unit = {},
+    onDeleted: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
+    val currentOnDeleted by rememberUpdatedState(onDeleted)
+    LaunchedEffect(state.deleted) { if (state.deleted) currentOnDeleted() }
     val result by logResult.collectAsState()
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -113,6 +125,10 @@ fun VehicleScreen(
             onSaveMileage = viewModel::saveMileage,
             onDismissMileage = viewModel::dismissMileageDialog,
             onLogMaintenance = onLogMaintenance,
+            onEditVehicle = onEditVehicle,
+            onDeleteVehicle = viewModel::deleteVehicle,
+            onAddTask = onAddTask,
+            onEditTask = onEditTask,
         ),
     )
 }
@@ -123,6 +139,10 @@ data class VehicleActions(
     val onSaveMileage: () -> Unit,
     val onDismissMileage: () -> Unit,
     val onLogMaintenance: () -> Unit,
+    val onEditVehicle: () -> Unit = {},
+    val onDeleteVehicle: () -> Unit = {},
+    val onAddTask: () -> Unit = {},
+    val onEditTask: (Long) -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -195,6 +215,9 @@ fun VehicleContent(
                                             Text(stringResource(R.string.log_title))
                                         }
                                     }
+                                    OutlinedButton(onClick = actions.onAddTask) {
+                                        Text(stringResource(R.string.task_add))
+                                    }
                                 } else {
                                     ReadOnlyNotice(state.access)
                                 }
@@ -211,11 +234,19 @@ fun VehicleContent(
                                 )
                             }
                         }
-                        items(state.tasks, key = { it.id }) { TaskCard(it) }
+                        val editTask = if (state.access.canWrite) actions.onEditTask else null
+                        items(state.tasks, key = { it.id }) { TaskCard(it, editTask) }
                         state.measurements?.takeIf { it.templates.isNotEmpty() }?.let { context ->
                             item(key = "measurements") { LatestMeasurementsCard(context) }
                             item(key = "specification") { SpecificationCard(context.specification) }
                         }
+                        if (state.inactiveTasks.isNotEmpty()) {
+                            item(key = "inactive") {
+                                Text(stringResource(R.string.tasks_inactive), style = MaterialTheme.typography.titleMedium)
+                            }
+                            items(state.inactiveTasks, key = { it.id }) { InactiveTaskCard(it, editTask) }
+                        }
+                        item(key = "vehicle-actions") { VehicleManagement(state, actions) }
                     }
                 }
             }
@@ -280,11 +311,65 @@ private fun VehicleHeader(vehicle: Vehicle) {
     }
 }
 
+/** Edit and delete the vehicle; deleting stays possible on a read-only account (Epic backend#136). */
 @Composable
-private fun TaskCard(task: MaintenanceTask) {
+private fun VehicleManagement(state: VehicleUiState, actions: VehicleActions) {
+    var confirm by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        state.deleteError?.let { ErrorText(stringResource(R.string.vehicle_delete_failed)) }
+        if (state.access.canWrite) {
+            OutlinedButton(onClick = actions.onEditVehicle, enabled = !state.deleting, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.vehicle_edit))
+            }
+        }
+        OutlinedButton(
+            onClick = { confirm = true },
+            enabled = !state.deleting,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(stringResource(R.string.vehicle_delete)) }
+    }
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text(stringResource(R.string.vehicle_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.vehicle_delete_confirm_text, state.vehicle?.name.orEmpty())) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirm = false
+                        actions.onDeleteVehicle()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+}
+
+/** A switched-off task: only its name; tapping it opens the form, where it can be switched on again. */
+@Composable
+private fun InactiveTaskCard(task: MaintenanceTask, onEdit: ((Long) -> Unit)?) {
+    val click = onEdit?.let { Modifier.clickable(role = Role.Button) { it(task.id) } } ?: Modifier
+    AppCard(Modifier.fillMaxWidth().then(click).semantics(mergeDescendants = true) {}) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(task.name, style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(R.string.task_inactive),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TaskCard(task: MaintenanceTask, onEdit: ((Long) -> Unit)? = null) {
     val color = task.status.statusColor()
+    val click = onEdit?.let { Modifier.clickable(role = Role.Button) { it(task.id) } } ?: Modifier
     // One TalkBack stop per task: name, status text (the dot is decoration only).
-    AppCard(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+    AppCard(Modifier.fillMaxWidth().then(click).semantics(mergeDescendants = true) {}) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(task.name, style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

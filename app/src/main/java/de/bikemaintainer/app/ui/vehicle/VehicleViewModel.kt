@@ -31,6 +31,8 @@ data class VehicleUiState(
     val vehicle: Vehicle? = null,
     /** Active tasks, most urgent first. */
     val tasks: List<MaintenanceTask> = emptyList(),
+    /** Switched-off tasks by name; they can be edited and switched on again. */
+    val inactiveTasks: List<MaintenanceTask> = emptyList(),
     /** Pull-to-refresh in flight. */
     val refreshing: Boolean = false,
     val error: AppError? = null,
@@ -40,6 +42,10 @@ data class VehicleUiState(
     val measurements: MeasurementContext? = null,
     /** Read-only accounts ([Access.canWrite] false) cannot enter the mileage or log maintenance. */
     val access: Access = Access.FULL,
+    val deleting: Boolean = false,
+    val deleteError: AppError? = null,
+    /** The vehicle is deleted; the screen leaves once. */
+    val deleted: Boolean = false,
 )
 
 data class MileageDialogState(val input: String, val error: MileageError? = null, val saving: Boolean = false)
@@ -72,9 +78,7 @@ class VehicleViewModel(
             when {
                 vehicle is Outcome.Failure -> vehicle
                 tasks is Outcome.Failure -> tasks
-                else -> Outcome.Success(
-                    (vehicle as Outcome.Success).value to (tasks as Outcome.Success).value.forDisplay(),
-                )
+                else -> Outcome.Success((vehicle as Outcome.Success).value to (tasks as Outcome.Success).value)
             }
         }
     }
@@ -89,13 +93,17 @@ class VehicleViewModel(
                 _state.update {
                     VehicleUiState(
                         vehicle = l.data?.first,
-                        tasks = l.data?.second.orEmpty(),
+                        tasks = l.data?.second.orEmpty().forDisplay(),
+                        inactiveTasks = l.data?.second.orEmpty().filterNot { t -> t.active }.sortedBy { t -> t.name.lowercase() },
                         refreshing = l.refreshing,
                         error = l.error,
                         // The dialog outlives silent reloads, but not the vehicle (deleted).
                         mileageDialog = if (l.data == null) null else it.mileageDialog,
                         measurements = if (l.data == null) null else it.measurements,
                         access = it.access,
+                        deleting = it.deleting,
+                        deleteError = it.deleteError,
+                        deleted = it.deleted,
                     )
                 }
             }
@@ -165,6 +173,23 @@ class VehicleViewModel(
                             updateDialog { it.copy(saving = false, error = MileageError.Save(result.error)) }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /** Deletes the vehicle with everything recorded for it; also possible on a read-only account. */
+    fun deleteVehicle() {
+        if (_state.value.deleting || _state.value.deleted) return
+        _state.update { it.copy(deleting = true, deleteError = null) }
+        viewModelScope.launch {
+            when (val result = vehicles.deleteVehicle(vehicleId)) {
+                is Outcome.Success -> _state.update { it.copy(deleting = false, deleted = true) }
+                // Already gone counts as deleted.
+                is Outcome.Failure -> if (result.error.isNotFound()) {
+                    _state.update { it.copy(deleting = false, deleted = true) }
+                } else {
+                    _state.update { it.copy(deleting = false, deleteError = result.error) }
                 }
             }
         }

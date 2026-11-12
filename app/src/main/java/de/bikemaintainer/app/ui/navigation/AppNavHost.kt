@@ -30,28 +30,32 @@ import de.bikemaintainer.app.ui.login.LoginViewModel
 import de.bikemaintainer.app.ui.logmaintenance.LogMaintenanceScreen
 import de.bikemaintainer.app.ui.logmaintenance.LogMaintenanceViewModel
 import de.bikemaintainer.app.ui.logmaintenance.ScanTransfer
-import de.bikemaintainer.app.ui.scan.ScanScreen
-import de.bikemaintainer.app.ui.scan.ScanViewModel
-import de.bikemaintainer.app.ui.scan.WorksheetScanner
-import de.bikemaintainer.app.domain.MeasurementTemplate
-import de.bikemaintainer.app.domain.scan.ScanOutcome
-import kotlinx.serialization.json.Json
 import de.bikemaintainer.app.ui.notifications.NotificationPermissionScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesViewModel
-import de.bikemaintainer.app.ui.settings.SettingsScreen
-import de.bikemaintainer.app.ui.settings.SettingsViewModel
 import de.bikemaintainer.app.ui.register.RegisterScreen
 import de.bikemaintainer.app.ui.register.RegisterViewModel
+import de.bikemaintainer.app.ui.scan.ScanScreen
+import de.bikemaintainer.app.ui.scan.ScanViewModel
+import de.bikemaintainer.app.ui.scan.WorksheetScanner
+import de.bikemaintainer.app.ui.settings.SettingsScreen
+import de.bikemaintainer.app.ui.settings.SettingsViewModel
 import de.bikemaintainer.app.ui.setup.PORTAL_SERVER
 import de.bikemaintainer.app.ui.setup.ServerScanScreen
 import de.bikemaintainer.app.ui.setup.SetupScreen
 import de.bikemaintainer.app.ui.setup.SetupViewModel
 import de.bikemaintainer.app.ui.setup.WelcomeScreen
+import de.bikemaintainer.app.ui.taskform.TaskFormScreen
+import de.bikemaintainer.app.ui.taskform.TaskFormViewModel
 import de.bikemaintainer.app.ui.vehicle.VehicleScreen
 import de.bikemaintainer.app.ui.vehicle.VehicleViewModel
+import de.bikemaintainer.app.ui.vehicleform.VehicleFormScreen
+import de.bikemaintainer.app.ui.vehicleform.VehicleFormViewModel
 import de.bikemaintainer.app.ui.vehicles.VehiclesScreen
 import de.bikemaintainer.app.ui.vehicles.VehiclesViewModel
+import de.bikemaintainer.app.domain.MeasurementTemplate
+import de.bikemaintainer.app.domain.scan.ScanOutcome
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -178,13 +182,14 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
         composable<VehiclesRoute> {
             val viewModel: VehiclesViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { VehiclesViewModel(deps.vehicles, deps.auth.settings) }
+                    initializer { VehiclesViewModel(deps.vehicles, deps.auth) }
                 },
             )
             VehiclesScreen(
                 viewModel = viewModel,
                 onOpenVehicle = { navController.navigate(VehicleRoute(it)) },
                 onOpenSettings = { navController.navigate(SettingsRoute) },
+                onAddVehicle = dropUnlessResumed { navController.navigate(VehicleFormRoute()) },
             )
         }
         composable<VehicleRoute> { entry ->
@@ -203,6 +208,47 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                 onLogMaintenance = dropUnlessResumed { navController.navigate(LogMaintenanceRoute(route.vehicleId)) },
                 logResult = entry.savedStateHandle.getStateFlow<String?>(LOG_RESULT_KEY, null),
                 onLogResultShown = { entry.savedStateHandle[LOG_RESULT_KEY] = null },
+                onEditVehicle = dropUnlessResumed { navController.navigate(VehicleFormRoute(route.vehicleId)) },
+                onAddTask = dropUnlessResumed { navController.navigate(TaskFormRoute(route.vehicleId)) },
+                onEditTask = { taskId -> navController.navigate(TaskFormRoute(route.vehicleId, taskId)) },
+                // The list reloads when it is shown again.
+                onDeleted = back,
+            )
+        }
+        composable<VehicleFormRoute> { entry ->
+            val route = entry.toRoute<VehicleFormRoute>()
+            val back = navController.popBackOnce()
+            val viewModel: VehicleFormViewModel = viewModel(
+                factory = viewModelFactory { initializer { VehicleFormViewModel(route.vehicleId, deps.vehicles, deps.auth) } },
+            )
+            VehicleFormScreen(
+                viewModel = viewModel,
+                onBack = back,
+                onSaved = { id ->
+                    // Only the entry still on top leaves, exactly once: an edit returns to the detail (it reloads on
+                    // resume), a new vehicle opens its detail instead of the form.
+                    if (navController.currentBackStackEntry == entry) {
+                        if (route.vehicleId == null) {
+                            navController.navigate(VehicleRoute(id)) { popUpTo<VehicleFormRoute> { inclusive = true } }
+                        } else {
+                            navController.popBackStack()
+                        }
+                    }
+                },
+            )
+        }
+        composable<TaskFormRoute> { entry ->
+            val route = entry.toRoute<TaskFormRoute>()
+            val back = navController.popBackOnce()
+            val viewModel: TaskFormViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer { TaskFormViewModel(route.vehicleId, route.taskId, deps.maintenance, deps.auth) }
+                },
+            )
+            TaskFormScreen(
+                viewModel = viewModel,
+                onBack = back,
+                onSaved = { if (navController.currentBackStackEntry == entry) navController.popBackStack() },
             )
         }
         composable<LogMaintenanceRoute> { entry ->

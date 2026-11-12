@@ -3,11 +3,11 @@ package de.bikemaintainer.app.ui.vehicles
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.VehicleRepository
-import de.bikemaintainer.app.data.storage.StoredSettings
+import de.bikemaintainer.app.domain.Access
+import de.bikemaintainer.app.domain.AccessSource
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.ui.common.ReloadableLoader
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,20 +20,21 @@ data class VehiclesUiState(
     /** Pull-to-refresh in flight. */
     val refreshing: Boolean = false,
     val error: AppError? = null,
-    /** The server address, offered as link when there are no vehicles. */
-    val webAppUrl: String? = null,
+    /** Read-only accounts cannot add vehicles. */
+    val access: Access = Access.FULL,
 )
 
 class VehiclesViewModel(
     vehicles: VehicleRepository,
-    settings: Flow<StoredSettings>,
+    private val accessSource: AccessSource = AccessSource.Unrestricted,
 ) : ViewModel() {
     private val _state = MutableStateFlow(VehiclesUiState())
     val state: StateFlow<VehiclesUiState> = _state.asStateFlow()
     private val loader = ReloadableLoader(viewModelScope) { vehicles.summaries() }
 
     init {
-        viewModelScope.launch { settings.collect { s -> _state.update { it.copy(webAppUrl = s.serverUrl) } } }
+        viewModelScope.launch { accessSource.access.collect { a -> _state.update { it.copy(access = a) } } }
+        viewModelScope.launch { accessSource.refreshAccess() }
         viewModelScope.launch {
             loader.state.collect { l ->
                 _state.update { it.copy(summaries = l.data, refreshing = l.refreshing, error = l.error) }

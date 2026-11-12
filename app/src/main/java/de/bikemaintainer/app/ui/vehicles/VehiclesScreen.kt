@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,11 +38,11 @@ import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.ui.common.AppCard
 import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.LoadingIndicator
+import de.bikemaintainer.app.ui.common.ReadOnlyNotice
 import de.bikemaintainer.app.ui.common.StatusDot
 import de.bikemaintainer.app.ui.common.loadMessageRes
 import de.bikemaintainer.app.ui.common.mileageText
 import de.bikemaintainer.app.ui.common.nameRes
-import de.bikemaintainer.app.ui.common.rememberWebLinkOpener
 import de.bikemaintainer.app.ui.common.statusColor
 
 @Composable
@@ -48,9 +50,9 @@ fun VehiclesScreen(
     viewModel: VehiclesViewModel,
     onOpenVehicle: (Long) -> Unit,
     onOpenSettings: () -> Unit,
+    onAddVehicle: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
-    val openLink = rememberWebLinkOpener()
 
     // Reload when returning to the screen or the app; the ViewModel skips the first resume (it loaded in init).
     LifecycleResumeEffect(viewModel) {
@@ -64,7 +66,7 @@ fun VehiclesScreen(
         onRetry = viewModel::refresh,
         onOpenVehicle = onOpenVehicle,
         onOpenSettings = onOpenSettings,
-        onOpenWebApp = { state.webAppUrl?.let(openLink) },
+        onAddVehicle = onAddVehicle,
     )
 }
 
@@ -76,9 +78,15 @@ fun VehiclesContent(
     onRetry: () -> Unit,
     onOpenVehicle: (Long) -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenWebApp: () -> Unit,
+    onAddVehicle: () -> Unit = {},
 ) {
+    val canAdd = state.access.canWrite && !state.summaries.isNullOrEmpty()
     Scaffold(
+        floatingActionButton = {
+            if (canAdd) {
+                ExtendedFloatingActionButton(onClick = onAddVehicle) { Text(stringResource(R.string.vehicle_add)) }
+            }
+        },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
@@ -127,10 +135,12 @@ fun VehiclesContent(
                                 textAlign = TextAlign.Center,
                                 style = MaterialTheme.typography.bodyLarge,
                             )
-                            if (state.webAppUrl != null) {
-                                TextButton(onClick = onOpenWebApp) {
-                                    Text(stringResource(R.string.open_web_app))
+                            if (state.access.canWrite) {
+                                Button(onClick = onAddVehicle, modifier = Modifier.padding(top = 16.dp)) {
+                                    Text(stringResource(R.string.vehicle_add_first))
                                 }
+                            } else {
+                                ReadOnlyNotice(state.access, Modifier.padding(top = 16.dp))
                             }
                         }
                     }
