@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,9 +34,9 @@ import androidx.compose.ui.unit.dp
 import de.bikemaintainer.app.R
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 
-/** Stateful entry point: hands the navigation target over once and then clears it. */
+/** Own server. Stateful entry point: hands the navigation target over once and then clears it. */
 @Composable
-fun SetupScreen(viewModel: SetupViewModel, onNavigate: (Any) -> Unit) {
+fun SetupScreen(viewModel: SetupViewModel, onNavigate: (Any) -> Unit, onScan: () -> Unit) {
     val state by viewModel.state.collectAsState()
     LaunchedEffect(state.next) {
         state.next?.let {
@@ -49,6 +50,7 @@ fun SetupScreen(viewModel: SetupViewModel, onNavigate: (Any) -> Unit) {
         onContinue = viewModel::onContinue,
         onCleartextConfirmed = viewModel::onCleartextConfirmed,
         onCleartextDismissed = viewModel::onCleartextDismissed,
+        onScan = onScan,
     )
 }
 
@@ -59,6 +61,7 @@ fun SetupContent(
     onContinue: () -> Unit,
     onCleartextConfirmed: () -> Unit,
     onCleartextDismissed: () -> Unit,
+    onScan: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -68,7 +71,7 @@ fun SetupContent(
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(text = stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
+        Text(text = stringResource(R.string.own_server_title), style = MaterialTheme.typography.headlineLarge)
         OutlinedTextField(
             value = state.address,
             onValueChange = onAddressChange,
@@ -97,6 +100,13 @@ fun SetupContent(
                 if (state.loading) LoadingIndicator(small = true, color = MaterialTheme.colorScheme.onPrimary)
                 Text(stringResource(R.string.setup_continue))
             }
+        }
+        OutlinedButton(
+            onClick = onScan,
+            enabled = !state.loading,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        ) {
+            Text(stringResource(R.string.own_server_scan))
         }
     }
     if (state.confirmCleartext) {

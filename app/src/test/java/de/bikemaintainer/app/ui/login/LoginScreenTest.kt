@@ -12,6 +12,7 @@ import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.ui.FakeAuthRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -30,7 +31,7 @@ class LoginScreenTest {
     private fun show() {
         val vm = LoginViewModel(auth, "https://h", "Pixel 9", false)
         compose.setContent {
-            LoginScreen(viewModel = vm, serverUrl = "https://h", onSignedIn = {}, onOtherServer = {})
+            LoginScreen(viewModel = vm, serverUrl = "https://h", onSignedIn = {}, onOtherServer = {}, onCreateAccount = {})
         }
         compose.onNodeWithText("E-Mail").performTextInput("max@example.org")
         compose.onNodeWithText("Passwort").performTextInput("secret")
@@ -52,9 +53,17 @@ class LoginScreenTest {
     }
 
     /** The app offers sign-in only; registration (and a later subscription) stays on the web. */
-    @Test fun offersNoRegistration() {
-        show()
-        compose.onNodeWithText("Passwort vergessen?").assertExists()
-        assertTrue(compose.onAllNodesWithText("Konto", substring = true).fetchSemanticsNodes().isEmpty())
+    @Test fun offersRegistrationButNothingAboutPrices() {
+        var created = 0
+        val vm = LoginViewModel(auth, "https://h", "Pixel 9", false)
+        compose.setContent {
+            LoginScreen(viewModel = vm, serverUrl = "https://h", onSignedIn = {}, onOtherServer = {}, onCreateAccount = { created++ })
+        }
+        compose.onNodeWithText("Konto erstellen").performClick()
+        assertEquals(1, created)
+        // Play payment policy: no hint at buying anything outside the app.
+        for (word in listOf("Abo", "Preis", "kaufen", "€")) {
+            assertTrue(word, compose.onAllNodesWithText(word, substring = true, ignoreCase = true).fetchSemanticsNodes().isEmpty())
+        }
     }
 }

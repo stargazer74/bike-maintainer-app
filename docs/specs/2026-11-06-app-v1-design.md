@@ -46,15 +46,30 @@ eintragen, Wartungen erfassen und an fällige Wartungen erinnert werden. Sie ver
 
 ### Einrichtung (erster Start)
 
-1. **Server-Adresse**, vorbelegt mit `https://app.bike-maintainer.de`. Die App ruft `GET /api/v1/config` auf; keine
-   Antwort oder kein Bike-Maintainer-Server → verständliche Meldung. Bei `http://` einmaliger Hinweis: „Die Verbindung
-   ist unverschlüsselt. Das ist nur im eigenen Heimnetz vertretbar.“ (Regel siehe „Netz und Sicherheit“).
+Geändert 2026-11-12 (app#42, app#45, Epic stargazer74/bike-maintainer-backend#136): neuer Einstieg mit Auswahl,
+Registrierung in der App, Verbinden per QR-Code.
+
+1. **Auswahl:** „Online-Konto“ (Portal, Adresse `https://app.bike-maintainer.de` fest eingebaut, kein Eingabefeld)
+   oder „Eigener Server“. Neutrale Texte, kein Preisvergleich (Play-Zahlungsrichtlinie).
+   **Eigener Server:** Adresse eingeben oder „QR-Code scannen“ (Kamera-Berechtigung erst dann; zxing-cpp, offline;
+   akzeptiert nur `http(s)://`-Adressen, Query/Fragment fallen weg). Beide Wege prüfen per `GET /api/v1/config`, ob es
+   ein Bike-Maintainer-Server ist und in welchem Modus; keine Antwort oder kein Bike-Maintainer-Server → verständliche
+   Meldung. Bei `http://` einmaliger Hinweis: „Die Verbindung ist unverschlüsselt. Das ist nur im eigenen Heimnetz
+   vertretbar.“ (Regel siehe „Netz und Sicherheit“). Kein automatisches Suchen im Netz.
 2. **Portal:** E-Mail, Passwort und Gerätename (vorbelegt mit dem Handymodell, änderbar) → `device-login`. Link
-   „Passwort vergessen“ öffnet die Web-App im Browser. Keine Registrierung in der App und kein Link dorthin: Die App
-   bietet nur die Anmeldung, ein späteres Abo wird ausschließlich im Web abgeschlossen. Fehler wie in der Web-App: falsche Daten,
-   E-Mail nicht bestätigt, Konto deaktiviert, zu viele Versuche.
+   „Passwort vergessen“ öffnet die Web-App im Browser. Fehler wie in der Web-App: falsche Daten, E-Mail nicht bestätigt,
+   Konto deaktiviert, zu viele Versuche.
+   **Konto erstellen:** E-Mail, Passwort (zweimal; 10–72 Zeichen, höchstens 72 Byte) → `register` mit der Sprache der
+   App. Den ALTCHA-Proof-of-Work (`GET /auth/challenge`, Protokoll v2, PBKDF2) löst die App nativ in Kotlin
+   (`AltchaSolver`, ohne WebView, ohne Drittanbieter); die Challenge geht unverändert in den Payload, weil die Signatur
+   sie abdeckt. Danach „Bitte bestätige deine E-Mail-Adresse“ mit „Erneut senden“ (`verify-email/resend`, ebenfalls
+   mit gelöster Challenge); der Link in der Mail öffnet die Web-App. Die Antwort ist für neue und bekannte Adressen
+   gleich (keine Konto-Enumeration). Link zur Datenschutzerklärung der Website, falls der Server eine nennt.
+   Ein Abo wird nur im Web abgeschlossen; die App erwähnt weder Abo noch Preise noch Kauf.
    **Haushalt:** Profilliste (`GET /profiles`), ein Tipp wählt das Profil (`POST /profiles/{id}/select`); die App
-   merkt sich das Profil.
+   merkt sich das Profil. „Neue Person“ (bzw. „Erste Person anlegen“, solange es keine gibt) legt ein Profil an
+   (`POST /profiles`, 409 → „Diesen Namen gibt es schon“) und wählt es gleich aus.
+   **Server wechseln** (Einstellungen) bzw. „Anderer Server“ führt zurück zur Auswahl.
 3. Danach einmalig die Frage nach der Erlaubnis für Benachrichtigungen (Android 13+); später in den Einstellungen
    änderbar.
 
@@ -158,7 +173,7 @@ Ein Modul, Paket `de.bikemaintainer.app`:
 | `data.storage` | `SettingsStore` (DataStore), `TokenCipher` (Interface; Keystore-AES-GCM in der App, Fake in Tests) |
 | `data.repository` | `AuthRepository`, `VehicleRepository`, `MaintenanceRepository`; bilden generierte DTOs auf App-Modelle ab; Schreiben als Absicht (`updateMileage(vehicleId, km)`, `logMaintenance(…)`) |
 | `domain` | App-Modelle (`Vehicle`, `MaintenanceTask`, `TaskStatus`, …), Logik „was ist neu zu melden“ (reine Funktion) |
-| `ui.*` | `setup`, `login`, `profiles`, `vehicles`, `vehicle`, `logmaintenance`, `settings`, `theme`; je Bildschirm Composable + ViewModel mit `StateFlow` |
+| `ui.*` | `setup`, `login`, `register`, `profiles`, `vehicles`, `vehicle`, `logmaintenance`, `settings`, `theme`; je Bildschirm Composable + ViewModel mit `StateFlow` |
 | `notifications` | `DueTasksWorker`, `DueTaskNotifier`, Kanal |
 | Wurzel | `BikeMaintainerApp` (Application), `AppContainer` (Abhängigkeiten von Hand, kein Hilt), `MainActivity` mit Navigation Compose |
 
@@ -199,8 +214,8 @@ mit Spec-Checkout).
 - **Offline:** Die Repository-Schicht und eigene App-Modelle erlauben, Room als lokalen Speicher dazwischenzuschieben
   (zuerst Ansehen mit „Stand von …“, dann Eintragen mit Warteschlange). Für Offline-Eintragen wäre ein eigener
   Endpunkt nur für den Kilometerstand sicherer als `PUT` mit dem ganzen Fahrzeug.
-- Fahrzeuge/Aufgaben verwalten, Kosten und Material, PDF-Bericht, Passwort/Konto löschen in der App (Registrierung
-  und Abo bleiben dauerhaft im Web).
+- Fahrzeuge/Aufgaben verwalten, Kosten und Material, PDF-Bericht, Passwort/Konto löschen in der App (das Abo bleibt
+  dauerhaft im Web).
 - Veröffentlichung: Release-Signatur, F-Droid (reproduzierbarer Build), Google Play (Datensicherheits-Angaben,
   Datenschutzerklärung mit App-Abschnitt).
 - ktlint.

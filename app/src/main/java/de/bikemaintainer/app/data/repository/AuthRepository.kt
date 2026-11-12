@@ -16,7 +16,19 @@ interface AuthRepository {
 
     suspend fun deviceLogin(serverUrl: String, email: String, password: String, deviceName: String): Outcome<Unit>
 
+    /**
+     * Portal: registers an account (solves the ALTCHA challenge first, which takes a few seconds). Success means
+     * "check your inbox" – the server answers the same for a new and an already registered address.
+     */
+    suspend fun register(serverUrl: String, email: String, password: String, german: Boolean): Outcome<Unit>
+
+    /** Portal: sends the verification email again (also with a solved challenge); same answer for every address. */
+    suspend fun resendVerification(serverUrl: String, email: String): Outcome<Unit>
+
     suspend fun profiles(serverUrl: String): Outcome<List<Profile>>
+
+    /** Household: creates a profile; it still has to be selected. A taken name fails with HTTP 409. */
+    suspend fun createProfile(serverUrl: String, displayName: String): Outcome<Profile>
 
     suspend fun selectProfile(serverUrl: String, id: Long): Outcome<Unit>
 

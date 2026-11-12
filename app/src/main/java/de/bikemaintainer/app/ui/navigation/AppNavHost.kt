@@ -41,8 +41,13 @@ import de.bikemaintainer.app.ui.profiles.ProfilesScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesViewModel
 import de.bikemaintainer.app.ui.settings.SettingsScreen
 import de.bikemaintainer.app.ui.settings.SettingsViewModel
+import de.bikemaintainer.app.ui.register.RegisterScreen
+import de.bikemaintainer.app.ui.register.RegisterViewModel
+import de.bikemaintainer.app.ui.setup.PORTAL_SERVER
+import de.bikemaintainer.app.ui.setup.ServerScanScreen
 import de.bikemaintainer.app.ui.setup.SetupScreen
 import de.bikemaintainer.app.ui.setup.SetupViewModel
+import de.bikemaintainer.app.ui.setup.WelcomeScreen
 import de.bikemaintainer.app.ui.vehicle.VehicleScreen
 import de.bikemaintainer.app.ui.vehicle.VehicleViewModel
 import de.bikemaintainer.app.ui.vehicles.VehiclesScreen
@@ -89,10 +94,54 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
     }
     NavHost(navController = navController, startDestination = start) {
         composable<SetupRoute> {
+            WelcomeScreen(
+                onOnlineAccount = dropUnlessResumed { navController.navigate(LoginRoute(PORTAL_SERVER)) },
+                onOwnServer = dropUnlessResumed { navController.navigate(OwnServerRoute) },
+            )
+        }
+        composable<OwnServerRoute> { entry ->
             val viewModel: SetupViewModel = viewModel(
                 factory = viewModelFactory { initializer { SetupViewModel(deps.auth) } },
             )
-            SetupScreen(viewModel = viewModel, onNavigate = { navController.navigate(it) })
+            val scanned by entry.savedStateHandle.getStateFlow<String?>(SERVER_QR_KEY, null).collectAsState()
+            LaunchedEffect(scanned) {
+                scanned?.let {
+                    entry.savedStateHandle[SERVER_QR_KEY] = null
+                    viewModel.onScanned(it)
+                }
+            }
+            SetupScreen(
+                viewModel = viewModel,
+                onNavigate = { navController.navigate(it) },
+                onScan = dropUnlessResumed { navController.navigate(ScanServerRoute) },
+            )
+        }
+        composable<ScanServerRoute> { entry ->
+            val back = navController.popBackOnce()
+            ServerScanScreen(
+                onBack = back,
+                onAddress = { address ->
+                    // Only the entry still on top hands the address over, exactly once.
+                    if (navController.currentBackStackEntry == entry) {
+                        navController.previousBackStackEntry?.savedStateHandle?.set(SERVER_QR_KEY, address)
+                        navController.popBackStack()
+                    }
+                },
+            )
+        }
+        composable<RegisterRoute> { entry ->
+            val route = entry.toRoute<RegisterRoute>()
+            val viewModel: RegisterViewModel = viewModel(
+                factory = viewModelFactory { initializer { RegisterViewModel(deps.auth, route.serverUrl) } },
+            )
+            RegisterScreen(
+                viewModel = viewModel,
+                onToLogin = {
+                    if (!navController.popBackStack(LoginRoute(route.serverUrl), inclusive = false)) {
+                        navController.navigate(LoginRoute(route.serverUrl)) { popUpTo(entry.destination.id) { inclusive = true } }
+                    }
+                },
+            )
         }
         composable<LoginRoute> { entry ->
             val route = entry.toRoute<LoginRoute>()
@@ -110,6 +159,7 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                 onOtherServer = {
                     if (!navController.popBackStack(SetupRoute, inclusive = false)) navController.navigate(SetupRoute)
                 },
+                onCreateAccount = dropUnlessResumed { navController.navigate(RegisterRoute(route.serverUrl)) },
             )
         }
         composable<ProfilesRoute> { entry ->
@@ -119,7 +169,6 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
             )
             ProfilesScreen(
                 viewModel = viewModel,
-                serverUrl = route.serverUrl,
                 onSignedIn = signedIn,
                 onOtherServer = {
                     if (!navController.popBackStack(SetupRoute, inclusive = false)) navController.navigate(SetupRoute)

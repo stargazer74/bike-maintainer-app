@@ -2,7 +2,20 @@ package de.bikemaintainer.app.ui.navigation
 
 import kotlinx.serialization.Serializable
 
+/** First start: online account or own server. */
 @Serializable object SetupRoute
+
+/** Address of an own server, typed in or scanned. */
+@Serializable object OwnServerRoute
+
+/** Camera that reads a server address from a QR code and hands it to [OwnServerRoute]. */
+@Serializable object ScanServerRoute
+
+/** SavedStateHandle key under which [ScanServerRoute] hands the scanned address to [OwnServerRoute]. */
+const val SERVER_QR_KEY = "server_qr"
+
+/** Portal: create an account on [serverUrl]. */
+@Serializable data class RegisterRoute(val serverUrl: String)
 
 @Serializable data class LoginRoute(val serverUrl: String, val relogin: Boolean = false)
 

@@ -5,8 +5,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.text.TextLayoutResult
-import de.bikemaintainer.app.ui.setup.SetupContent
-import de.bikemaintainer.app.ui.setup.SetupUiState
+import de.bikemaintainer.app.ui.setup.WelcomeScreen
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -21,8 +20,7 @@ class DarkThemeTest {
         compose.setContent {
             BikeMaintainerTheme(darkTheme = dark) {
                 AppSurface {
-                    SetupContent(SetupUiState(), onAddressChange = {}, onContinue = {}, onCleartextConfirmed = {},
-                        onCleartextDismissed = {})
+                    WelcomeScreen(onOnlineAccount = {}, onOwnServer = {})
                 }
             }
         }

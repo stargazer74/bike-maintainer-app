@@ -93,4 +93,44 @@ class ProfilesViewModelTest {
         assertEquals(ProfilesError.STORAGE, vm.state.value.error)
         assertFalse(vm.state.value.done)
     }
+
+    @Test fun createsAPersonAndSelectsItRightAway() {
+        auth.profilesResult = Outcome.Success(listOf(max))
+        auth.createProfileResult = Outcome.Success(anna)
+        val vm = ProfilesViewModel(auth, "https://h")
+        vm.openCreate()
+        vm.onNewNameChange("  Anna ")
+        vm.create()
+        assertEquals(listOf("Anna"), auth.createProfileCalls)
+        assertEquals(listOf(2L), auth.selectProfileCalls)
+        assertEquals(listOf(max, anna), vm.state.value.profiles)
+        assertTrue(vm.state.value.done)
+        assertFalse(vm.state.value.creatingOpen)
+    }
+
+    @Test fun emptyNameIsNotSent() {
+        val vm = ProfilesViewModel(auth, "https://h")
+        vm.onNewNameChange("   ")
+        vm.create()
+        assertEquals(CreateProfileError.NAME_REQUIRED, vm.state.value.createError)
+        assertTrue(auth.createProfileCalls.isEmpty())
+    }
+
+    @Test fun takenNameIsReported() {
+        auth.createProfileResult = Outcome.Failure(AppError.Http(409, "CONFLICT"))
+        val vm = ProfilesViewModel(auth, "https://h")
+        vm.onNewNameChange("Max")
+        vm.create()
+        assertEquals(CreateProfileError.NAME_TAKEN, vm.state.value.createError)
+        assertTrue(auth.selectProfileCalls.isEmpty())
+        auth.createProfileResult = Outcome.Failure(AppError.Network)
+        vm.create()
+        assertEquals(CreateProfileError.FAILED, vm.state.value.createError)
+    }
+
+    @Test fun longNamesAreCutToTheLimit() {
+        val vm = ProfilesViewModel(auth, "https://h")
+        vm.onNewNameChange("x".repeat(80))
+        assertEquals(50, vm.state.value.newName.length)
+    }
 }

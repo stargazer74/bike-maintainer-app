@@ -13,6 +13,7 @@ import de.bikemaintainer.app.domain.Profile
 import de.bikemaintainer.app.ui.login.LoginContent
 import de.bikemaintainer.app.ui.login.LoginError
 import de.bikemaintainer.app.ui.login.LoginUiState
+import de.bikemaintainer.app.ui.profiles.CreateProfileActions
 import de.bikemaintainer.app.ui.profiles.ProfilesContent
 import de.bikemaintainer.app.ui.profiles.ProfilesError
 import de.bikemaintainer.app.ui.profiles.ProfilesUiState
@@ -36,7 +37,7 @@ class AccessibilityTest {
 
     @Test fun setupButtonKeepsItsLabelWhileLoading() {
         compose.setContent {
-            SetupContent(SetupUiState(loading = true), {}, {}, {}, {})
+            SetupContent(SetupUiState(loading = true), {}, {}, {}, {}, {})
         }
         compose.onNodeWithText("Continue").assertExists()
         compose.onNodeWithContentDescription("Loading…").assertExists()
@@ -44,7 +45,7 @@ class AccessibilityTest {
 
     @Test fun setupErrorIsALiveRegion() {
         compose.setContent {
-            SetupContent(SetupUiState(error = SetupError.INVALID_ADDRESS), {}, {}, {}, {})
+            SetupContent(SetupUiState(error = SetupError.INVALID_ADDRESS), {}, {}, {}, {}, {})
         }
         compose.onNodeWithText("Please enter a valid address.").assert(politeLiveRegion)
     }
@@ -65,7 +66,7 @@ class AccessibilityTest {
         compose.setContent {
             ProfilesContent(
                 state = ProfilesUiState(profiles = listOf(Profile(1, "Max")), loading = false, error = ProfilesError.STORAGE),
-                onSelect = {}, onRetry = {}, onOpenWebApp = {}, onOtherServer = {},
+                onSelect = {}, onRetry = {}, onOtherServer = {}, create = CreateProfileActions({}, {}, {}),
             )
         }
         compose.onNodeWithText("Could not save the login on this device.").assert(politeLiveRegion)

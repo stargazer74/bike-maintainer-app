@@ -1,11 +1,7 @@
 package de.bikemaintainer.app.ui.scan
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -42,11 +38,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -56,14 +49,13 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import de.bikemaintainer.app.R
+import de.bikemaintainer.app.ui.common.WithCameraPermission
 import de.bikemaintainer.app.domain.ValveKind
 import de.bikemaintainer.app.domain.scan.GrayImage
 import de.bikemaintainer.app.domain.scan.ScanLayout
@@ -334,36 +326,10 @@ internal fun GrayImage.toImageBitmap(): ImageBitmap {
     return Bitmap.createBitmap(argb, width, height, Bitmap.Config.ARGB_8888).asImageBitmap()
 }
 
-/**
- * Asks for the camera permission only now – when the user wants to photograph a sheet for the first time – and shows
- * the preview once granted.
- */
+/** Asks for the camera permission only now – when the user wants to photograph a sheet for the first time. */
 @Composable
 private fun CameraWithPermission(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit) {
-    val context = LocalContext.current
-    var granted by remember {
-        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
-    }
-    var asked by rememberSaveable { mutableStateOf(false) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
-    LaunchedEffect(Unit) {
-        if (!granted && !asked) {
-            asked = true
-            launcher.launch(Manifest.permission.CAMERA)
-        }
-    }
-    if (granted) {
-        WorksheetCamera(onPhoto, onFailed)
-    } else {
-        Column(
-            Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(stringResource(R.string.scan_permission_needed), Modifier.padding(bottom = 16.dp))
-            Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text(stringResource(R.string.scan_permission_allow)) }
-        }
-    }
+    WithCameraPermission(stringResource(R.string.scan_permission_needed)) { WorksheetCamera(onPhoto, onFailed) }
 }
 
 /** Frame in A4 proportions with the four corner squares, as a guide where to hold the sheet. */
