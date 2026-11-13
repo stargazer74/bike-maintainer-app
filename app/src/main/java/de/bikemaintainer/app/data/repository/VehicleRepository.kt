@@ -1,7 +1,6 @@
 package de.bikemaintainer.app.data.repository
 
 import de.bikemaintainer.app.api.models.MaintenanceTaskResponse
-import de.bikemaintainer.app.api.models.MileageRequest
 import de.bikemaintainer.app.api.models.VehicleRequest
 import de.bikemaintainer.app.api.models.VehicleResponse
 import de.bikemaintainer.app.data.network.ApiProvider
@@ -76,7 +75,7 @@ class ApiVehicleRepository(
         }.map { it.toDomain() }
 
     override suspend fun raiseMileage(vehicleId: Long, mileage: Int): Outcome<Recorded> {
-        val result = provider.callStored { it.vehicles.updateMileage(vehicleId, MileageRequest(mileage)) }
+        val result = provider.raiseMileage(vehicleId, mileage)
         return when {
             result is Outcome.Success -> {
                 offline.save(OfflineKeys.vehicle(vehicleId), VehicleResponse.serializer(), result.value)
