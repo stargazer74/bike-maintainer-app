@@ -1,0 +1,5 @@
+• Ohne Verbindung nutzbar: Fahrzeuge und Aufgaben zeigen den letzten Stand („Offline – Stand vom …“)
+• Kilometerstand und Wartung lassen sich offline erfassen und werden übertragen, sobald wieder Netz da ist
+• Keine doppelten Einträge: Wiederholungen werden erkannt, bei möglichen Duplikaten fragt die App nach
+• Ein Funkloch beim Anmelden kostet nicht mehr die Anmeldung
+• Alle neuen Funktionen mit Server ab 0.20.0, Kilometerstand und Wartung auch mit älteren
