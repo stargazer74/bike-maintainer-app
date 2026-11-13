@@ -4,8 +4,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,6 +45,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -62,6 +64,7 @@ import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.ReadOnlyNotice
 import de.bikemaintainer.app.ui.common.StatusDot
+import de.bikemaintainer.app.ui.common.VehicleTypeTile
 import de.bikemaintainer.app.ui.common.formatNumber
 import de.bikemaintainer.app.ui.common.isNotFound
 import de.bikemaintainer.app.ui.common.mileageText
@@ -145,7 +148,7 @@ data class VehicleActions(
     val onEditTask: (Long) -> Unit = {},
 )
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehicleContent(
     state: VehicleUiState,
@@ -156,6 +159,7 @@ fun VehicleContent(
     snackbarHost: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     Scaffold(
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
@@ -201,30 +205,7 @@ fun VehicleContent(
                     }
                     else -> {
                         item { VehicleHeader(vehicle) }
-                        item {
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                // While a delete runs the buttons stay, disabled.
-                                if (state.access.canWrite) {
-                                    val enabled = state.canRecord
-                                    OutlinedButton(onClick = actions.onOpenMileage, enabled = enabled) {
-                                        Text(stringResource(R.string.mileage_enter))
-                                    }
-                                    if (state.tasks.isNotEmpty()) {
-                                        Button(onClick = actions.onLogMaintenance, enabled = enabled) {
-                                            Text(stringResource(R.string.log_title))
-                                        }
-                                    }
-                                    OutlinedButton(onClick = actions.onAddTask, enabled = enabled) {
-                                        Text(stringResource(R.string.task_add))
-                                    }
-                                } else {
-                                    ReadOnlyNotice(state.access)
-                                }
-                            }
-                        }
+                        item { VehicleButtons(state, actions) }
                         if (error != null) item { ErrorText(stringResource(error.vehicleLoadMessageRes())) }
                         if (state.tasks.isEmpty()) {
                             item {
@@ -298,18 +279,59 @@ private fun MileageDialog(dialog: MileageDialogState, actions: VehicleActions) {
 
 @Composable
 private fun VehicleHeader(vehicle: Vehicle) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(mileageText(vehicle.currentMileage), style = MaterialTheme.typography.headlineMedium)
-        val makeModel = listOfNotNull(vehicle.make, vehicle.model).joinToString(" ")
-        Text(
-            if (makeModel.isEmpty()) {
-                stringResource(R.string.vehicle_subtitle_year, vehicle.modelYear)
-            } else {
-                stringResource(R.string.vehicle_subtitle, makeModel, vehicle.modelYear)
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    AppCard(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            VehicleTypeTile(vehicle.type, size = 56.dp)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    mileageText(vehicle.currentMileage),
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                val makeModel = listOfNotNull(vehicle.make, vehicle.model).joinToString(" ")
+                Text(
+                    if (makeModel.isEmpty()) {
+                        stringResource(R.string.vehicle_subtitle_year, vehicle.modelYear)
+                    } else {
+                        stringResource(R.string.vehicle_subtitle, makeModel, vehicle.modelYear)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The main action (log maintenance) full width on top, the two others side by side below. While a delete runs the
+ * buttons stay, disabled.
+ */
+@Composable
+private fun VehicleButtons(state: VehicleUiState, actions: VehicleActions) {
+    if (!state.access.canWrite) {
+        ReadOnlyNotice(state.access)
+        return
+    }
+    val enabled = state.canRecord
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (state.tasks.isNotEmpty()) {
+            Button(onClick = actions.onLogMaintenance, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.log_title))
+            }
+        }
+        // Same height for both, also when one label wraps.
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = actions.onOpenMileage, enabled = enabled, modifier = Modifier.weight(1f).fillMaxHeight()) {
+                Text(stringResource(R.string.mileage_enter), maxLines = 2, textAlign = TextAlign.Center)
+            }
+            OutlinedButton(onClick = actions.onAddTask, enabled = enabled, modifier = Modifier.weight(1f).fillMaxHeight()) {
+                Text(stringResource(R.string.task_add), maxLines = 2, textAlign = TextAlign.Center)
+            }
+        }
     }
 }
 

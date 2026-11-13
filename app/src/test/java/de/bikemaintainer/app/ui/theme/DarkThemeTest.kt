@@ -25,7 +25,7 @@ class DarkThemeTest {
             }
         }
         val results = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText("Bike Maintainer").fetchSemanticsNode()
+        compose.onNodeWithText("How do you use Bike Maintainer?").fetchSemanticsNode()
             .config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
         return results.single().layoutInput.style.color
     }

@@ -12,7 +12,10 @@
     <string name="status_done">Erledigt</string>
     <string name="vehicle_all_up_to_date">Alles aktuell</string>
     <string name="vehicle_no_tasks">Keine Wartungsaufgaben</string>
-    <string name="vehicle_due_count">Fällig: %1$d</string>
+    <plurals name="vehicle_due_tasks">
+        <item quantity="one">%1$d Aufgabe fällig</item>
+        <item quantity="other">%1$d Aufgaben fällig</item>
+    </plurals>
     <string name="vehicle_mileage">%1$s km</string>
     <string name="vehicles_empty">Noch keine Fahrzeuge erfasst.</string>
     <string name="settings">Einstellungen</string>

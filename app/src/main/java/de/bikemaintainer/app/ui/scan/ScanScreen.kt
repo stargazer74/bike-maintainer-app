@@ -119,6 +119,7 @@ fun ScanContent(
     camera: @Composable () -> Unit,
 ) {
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.scan_title)) },

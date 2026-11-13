@@ -28,4 +28,6 @@ treated as one and shared under the same license.
 
 ## Other third-party material
 
-- Launcher icon: Material Symbols "two_wheeler", Google, Apache License 2.0.
+- Launcher icon and the icons in `app/src/main/res/drawable/ic_add.xml` and `ic_vehicle_*.xml`: Material Symbols
+  ("two_wheeler", "add", "directions_car", "pedal_bike", "electric_bike", "sports_motorsports", "moped"), Google,
+  Apache License 2.0.

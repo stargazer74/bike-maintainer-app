@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols Outlined "directions_car" (Apache License 2.0), see NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:tint="?attr/colorControlNormal"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M240 760V800Q240 817 228.5 828.5Q217 840 200 840H160Q143 840 131.5 828.5Q120 817 120 800V480L204 240Q210 222 225.5 211.0Q241 200 260 200H700Q719 200 734.5 211.0Q750 222 756 240L840 480V800Q840 817 828.5 828.5Q817 840 800 840H760Q743 840 731.5 828.5Q720 817 720 800V760ZM232 400H728L686 280H274ZM200 480V680ZM300 640Q325 640 342.5 622.5Q360 605 360 580Q360 555 342.5 537.5Q325 520 300 520Q275 520 257.5 537.5Q240 555 240 580Q240 605 257.5 622.5Q275 640 300 640ZM660 640Q685 640 702.5 622.5Q720 605 720 580Q720 555 702.5 537.5Q685 520 660 520Q635 520 617.5 537.5Q600 555 600 580Q600 605 617.5 622.5Q635 640 660 640ZM200 680H760V480H200Z" />
+</vector>

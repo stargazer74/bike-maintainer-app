@@ -6,6 +6,9 @@ import androidx.compose.ui.graphics.Color
 val DarkBackground = Color(0xFF0B0F19)
 val DarkSurface = Color(0xFF0F172A)
 val DarkSurfaceVariant = Color(0xFF1E293B)
+
+/** Cards only: a step lighter than the surface, so they stand out from the dark background. */
+val DarkCard = Color(0xFF151E31)
 val DarkOutline = Color(0xFF334155)
 val DarkOutlineVariant = Color(0xFF1E293B)
 val DarkText = Color(0xFFF8FAFC)

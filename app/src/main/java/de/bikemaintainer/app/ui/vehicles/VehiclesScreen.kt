@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -26,7 +28,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -40,6 +44,7 @@ import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.ReadOnlyNotice
 import de.bikemaintainer.app.ui.common.StatusDot
+import de.bikemaintainer.app.ui.common.VehicleTypeTile
 import de.bikemaintainer.app.ui.common.loadMessageRes
 import de.bikemaintainer.app.ui.common.mileageText
 import de.bikemaintainer.app.ui.common.nameRes
@@ -82,9 +87,19 @@ fun VehiclesContent(
 ) {
     val showFab = state.access.canWrite && !state.summaries.isNullOrEmpty()
     Scaffold(
+        containerColor = Color.Transparent,
         floatingActionButton = {
             if (showFab) {
-                ExtendedFloatingActionButton(onClick = onAddVehicle) { Text(stringResource(R.string.vehicle_add)) }
+                // Content overload: the icon/text overload keeps the label out of the merged semantics (TalkBack).
+                ExtendedFloatingActionButton(
+                    onClick = onAddVehicle,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
+                    Icon(painterResource(R.drawable.ic_add), contentDescription = null)
+                    Spacer(Modifier.width(12.dp))
+                    Text(stringResource(R.string.vehicle_add))
+                }
             }
         },
         topBar = {
@@ -166,14 +181,21 @@ private fun VehicleCard(summary: VehicleSummary, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(summary.vehicle.name, style = MaterialTheme.typography.titleMedium)
-            Text(
-                mileageText(summary.vehicle.currentMileage),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            StatusLine(summary)
+        Row(
+            Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            VehicleTypeTile(summary.vehicle.type)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(summary.vehicle.name, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    mileageText(summary.vehicle.currentMileage),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                StatusLine(summary)
+            }
         }
     }
 }
@@ -187,13 +209,14 @@ private fun StatusLine(summary: VehicleSummary) {
         TaskStatus.OK, TaskStatus.DONE -> stringResource(R.string.vehicle_all_up_to_date)
         else -> stringResource(status.nameRes())
     }
+    val color = status.statusColor()
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         // The visible text carries the status; the dot is decoration only.
-        StatusDot(status.statusColor())
-        Text(text, style = MaterialTheme.typography.bodyMedium)
+        StatusDot(color)
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = color)
         if (summary.dueCount > 0) {
             Text(
-                stringResource(R.string.vehicle_due_count, summary.dueCount),
+                pluralStringResource(R.plurals.vehicle_due_tasks, summary.dueCount, summary.dueCount),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

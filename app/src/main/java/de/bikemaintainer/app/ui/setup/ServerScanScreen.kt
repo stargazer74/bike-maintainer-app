@@ -77,6 +77,7 @@ fun ServerScanScreen(onBack: () -> Unit, onAddress: (String) -> Unit) {
 @Composable
 fun ServerScanContent(onBack: () -> Unit, noAddress: Boolean, failed: Boolean, camera: @Composable () -> Unit) {
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.server_scan_title)) },
