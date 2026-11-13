@@ -55,6 +55,17 @@ class ReloadableLoaderTest {
         assertEquals(LoadState(data = "b"), l.state.value)
     }
 
+    @Test fun offlineDataCarriesItsTimeUntilAFreshLoad() {
+        val asOf = java.time.Instant.parse("2026-11-13T20:40:00Z")
+        result = Outcome.Success("old", asOf)
+        val l = loader()
+        l.refresh()
+        assertEquals(LoadState(data = "old", asOf = asOf), l.state.value)
+        result = Outcome.Success("new")
+        l.reloadSilently()
+        assertEquals(LoadState(data = "new"), l.state.value)
+    }
+
     @Test fun refreshWithDataShowsRefreshingAndKeepsDataOnFailure() {
         val l = loader()
         l.refresh()

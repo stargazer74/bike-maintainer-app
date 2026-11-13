@@ -9,6 +9,7 @@ import de.bikemaintainer.app.api.models.RegisterRequest
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.storage.DeviceTokenStore
+import de.bikemaintainer.app.data.storage.OfflineStore
 import de.bikemaintainer.app.data.storage.SettingsStore
 import de.bikemaintainer.app.data.storage.StoredSettings
 import de.bikemaintainer.app.domain.Access
@@ -34,12 +35,16 @@ import kotlinx.coroutines.withContext
 /**
  * Login, profile selection and logout. Whatever stores credentials or starts/ends a session does so under
  * [SessionState.lock], the same lock the authenticator holds during a token exchange.
+ *
+ * The data stored for offline use ([offline]) belongs to one person on one server: it is cleared on every login and
+ * profile choice (someone else may sign in) and on logout, server switch and account deletion.
  */
 class ApiAuthRepository(
     private val provider: ApiProvider,
     private val store: SettingsStore,
     private val tokens: DeviceTokenStore,
     private val state: SessionState,
+    private val offline: OfflineStore = OfflineStore.None,
 ) : AuthRepository {
     override val settings: Flow<StoredSettings> = store.settings
 
@@ -68,6 +73,7 @@ class ApiAuthRepository(
         return state.lock.withLock {
             // One write: on failure nothing has changed (in particular no new token next to an old server).
             try {
+                offline.clear()
                 tokens.saveLogin(base.toString(), result.value.deviceToken)
                 state.sessionStarted()
                 Outcome.Success(Unit)
@@ -106,6 +112,7 @@ class ApiAuthRepository(
         return state.lock.withLock {
             // One write: a failure must not leave the previous person's profile id next to the new server.
             try {
+                offline.clear()
                 store.saveHouseholdProfile(base.toString(), id)
                 state.sessionStarted()
                 Outcome.Success(Unit)
@@ -133,6 +140,7 @@ class ApiAuthRepository(
             } catch (_: IOException) {
                 Outcome.Failure(AppError.Storage)
             } finally {
+                offline.clear()
                 provider.reset()
                 session.incrementAndGet()
                 _access.value = Access.FULL
@@ -171,6 +179,7 @@ class ApiAuthRepository(
             } catch (_: IOException) {
                 // intentionally ignored: the account and its token are gone on the server anyway
             } finally {
+                offline.clear()
                 provider.reset()
                 session.incrementAndGet()
                 _access.value = Access.FULL

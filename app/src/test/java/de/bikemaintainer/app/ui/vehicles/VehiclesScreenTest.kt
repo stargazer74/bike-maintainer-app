@@ -123,6 +123,22 @@ class VehiclesScreenTest {
         compose.onNodeWithText("Africa Twin").assertExists()
     }
 
+    @Test fun offlineListShowsItsTimeInsteadOfTheError() {
+        val asOf = java.time.Instant.parse("2026-11-13T20:40:00Z")
+        compose.setContent {
+            VehiclesContent(
+                state = VehiclesUiState(summaries = listOf(summary), error = AppError.Network, asOf = asOf),
+                onRefresh = {},
+                onRetry = {},
+                onOpenVehicle = {},
+                onOpenSettings = {},
+            )
+        }
+        compose.onNodeWithText("Offline – Stand vom", substring = true).assertExists()
+        compose.onNodeWithText("Keine Verbindung.").assertDoesNotExist()
+        compose.onNodeWithText("Africa Twin").assertExists()
+    }
+
     @Test fun tappingCardOpensVehicle() {
         var opened: Long? = null
         show(VehiclesUiState(summaries = listOf(summary)), onOpenVehicle = { opened = it })

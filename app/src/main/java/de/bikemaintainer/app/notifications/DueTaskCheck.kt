@@ -38,14 +38,18 @@ class DueTaskCheck(
         if (!remindersWanted(settings, notificationsAllowed)) return CheckResult.STOP
         val list = when (val result = vehicles.vehicles()) {
             is Outcome.Failure -> return onFailure(result.error)
-            is Outcome.Success -> result.value
+            // Stored offline: the statuses are as old as the data, so nothing new can be learnt – try again later.
+            is Outcome.Success -> if (result.asOf != null) return CheckResult.RETRY else result.value
         }
         val current = mutableListOf<Pair<Vehicle, List<MaintenanceTask>>>()
         for (vehicle in list) {
             when (val result = maintenance.tasks(vehicle.id)) {
                 // Deleted between the list and this call: nothing to remind about.
                 is Outcome.Failure -> if (result.error != AppError.NotFound) return onFailure(result.error)
-                is Outcome.Success -> current += vehicle to result.value
+                is Outcome.Success -> {
+                    if (result.asOf != null) return CheckResult.RETRY
+                    current += vehicle to result.value
+                }
             }
         }
         // Logged out (or switched off) while loading: report nothing for a session that is gone.

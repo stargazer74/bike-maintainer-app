@@ -15,9 +15,11 @@ import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
 import de.bikemaintainer.app.domain.inactiveForDisplay
 import de.bikemaintainer.app.domain.isSubscriptionRequired
+import de.bikemaintainer.app.domain.olderOf
 import de.bikemaintainer.app.domain.parseMileage
 import de.bikemaintainer.app.ui.common.ReloadableLoader
 import de.bikemaintainer.app.ui.common.isNotFound
+import java.time.Instant
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -37,6 +39,8 @@ data class VehicleUiState(
     /** Pull-to-refresh in flight. */
     val refreshing: Boolean = false,
     val error: AppError? = null,
+    /** Set while vehicle and tasks are the ones stored offline (no connection): when they were loaded. */
+    val asOf: Instant? = null,
     /** The "enter mileage" dialog, `null` while closed. */
     val mileageDialog: MileageDialogState? = null,
     /** Target values and last measurements; `null` until loaded. A failure only hides them, the screen works on. */
@@ -84,7 +88,10 @@ class VehicleViewModel(
             when {
                 vehicle is Outcome.Failure -> vehicle
                 tasks is Outcome.Failure -> tasks
-                else -> Outcome.Success((vehicle as Outcome.Success).value to (tasks as Outcome.Success).value)
+                else -> Outcome.Success(
+                    (vehicle as Outcome.Success).value to (tasks as Outcome.Success).value,
+                    olderOf(vehicle.asOf, tasks.asOf),
+                )
             }
         }
     }
@@ -103,6 +110,7 @@ class VehicleViewModel(
                         inactiveTasks = l.data?.second.orEmpty().inactiveForDisplay(),
                         refreshing = l.refreshing,
                         error = l.error,
+                        asOf = l.asOf,
                         // The dialog outlives silent reloads, but not the vehicle (deleted).
                         mileageDialog = if (l.data == null) null else it.mileageDialog,
                         measurements = if (l.data == null) null else it.measurements,

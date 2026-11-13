@@ -241,3 +241,115 @@ class VehicleRepositoryTest {
         assertEquals(1, env!!.requests.size)
     }
 }
+
+class VehicleRepositoryOfflineTest {
+    @get:Rule
+    val tmp = TemporaryFolder()
+    private lateinit var env: RepositoryTestEnv
+    private val fetched = java.time.Instant.parse("2026-11-13T20:40:00Z")
+
+    @After
+    fun tearDown() {
+        env.close()
+    }
+
+    private fun vehicleJson(id: Int) = """{"id":$id,"name":"V$id","type":"CAR","modelYear":2020,
+        "firstRegistrationDate":"2020-01-01","currentMileage":1000,
+        "createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"""
+
+    private fun taskJson(id: Int, vehicleId: Int, status: String) =
+        """{"id":$id,"vehicleId":$vehicleId,"name":"T$id","oneTime":false,"active":true,"status":"$status"}"""
+
+    private var vehicleIds = listOf(1, 2)
+
+    private fun setUp(): Pair<ApiVehicleRepository, de.bikemaintainer.app.data.storage.FileOfflineStore> {
+        env = RepositoryTestEnv(tmp.newFile("s.preferences_pb")) { req ->
+            val path = req.url.encodedPath
+            when {
+                path == "/api/v1/vehicles" -> json(vehicleIds.joinToString(",", "[", "]") { vehicleJson(it) })
+                path.endsWith("/maintenance-tasks") -> {
+                    val id = path.split("/")[4].toInt()
+                    json("[${taskJson(id * 10, id, "OVERDUE")}]")
+                }
+                path.matches(Regex("/api/v1/vehicles/\\d+")) -> {
+                    val id = path.substringAfterLast("/").toInt()
+                    if (id in vehicleIds) json(vehicleJson(id)) else json("{}", 404)
+                }
+                else -> json("{}", 404)
+            }
+        }
+        runBlocking { env.settings.setServer(env.url, de.bikemaintainer.app.domain.ServerMode.PORTAL) }
+        val offline = de.bikemaintainer.app.data.storage.FileOfflineStore(
+            java.io.File(tmp.root, "offline"),
+            de.bikemaintainer.app.api.infrastructure.Serializer.kotlinxSerializationJson,
+            java.time.Clock.fixed(fetched, java.time.ZoneOffset.UTC),
+        )
+        return ApiVehicleRepository(env.provider, offline) to offline
+    }
+
+    @Test
+    fun freshAnswersHaveNoOfflineTime() {
+        val (repo, _) = setUp()
+        val result = runBlocking { repo.summaries() } as Outcome.Success
+        assertEquals(null, result.asOf)
+    }
+
+    @Test
+    fun withoutConnectionTheLastListIsShownWithItsTime() {
+        val (repo, _) = setUp()
+        runBlocking { repo.summaries() }
+        env.server.close() // no connection from here on
+        val result = runBlocking { repo.summaries() } as Outcome.Success
+        assertEquals(fetched, result.asOf)
+        assertEquals(listOf(1L, 2L), result.value.map { it.vehicle.id })
+        assertEquals(listOf(TaskStatus.OVERDUE, TaskStatus.OVERDUE), result.value.map { it.status })
+    }
+
+    @Test
+    fun eachVehicleOfTheListOpensOffline() {
+        val (repo, _) = setUp()
+        runBlocking { repo.vehicles() }
+        env.server.close() // no connection from here on
+        val result = runBlocking { repo.vehicle(2) } as Outcome.Success
+        assertEquals("V2", result.value.name)
+        assertEquals(fetched, result.asOf)
+    }
+
+    @Test
+    fun withoutStoredDataItStaysANetworkError() {
+        val (repo, _) = setUp()
+        env.server.close() // no connection from here on
+        assertEquals(Outcome.Failure(AppError.Network), runBlocking { repo.summaries() })
+    }
+
+    @Test
+    fun otherErrorsDoNotFallBack() {
+        val (repo, _) = setUp()
+        runBlocking { repo.vehicle(1) }
+        vehicleIds = listOf(2)
+        assertEquals(Outcome.Failure(AppError.NotFound), runBlocking { repo.vehicle(1) })
+        env.server.close() // no connection from here on
+        // The 404 dropped what was stored for it.
+        assertEquals(Outcome.Failure(AppError.Network), runBlocking { repo.vehicle(1) })
+    }
+
+    @Test
+    fun vehiclesGoneFromTheListAreForgotten() {
+        val (repo, offline) = setUp()
+        runBlocking { repo.summaries() }
+        vehicleIds = listOf(2)
+        runBlocking { repo.summaries() }
+        val tasks = de.bikemaintainer.app.data.repository.TASKS
+        assertEquals(null, runBlocking { offline.load(OfflineKeys.tasks(1), tasks) })
+        assertEquals(null, runBlocking { offline.load(OfflineKeys.vehicle(1), de.bikemaintainer.app.api.models.VehicleResponse.serializer()) })
+        assertEquals(1, runBlocking { offline.load(OfflineKeys.tasks(2), tasks) }?.value?.size)
+    }
+
+    @Test
+    fun deletingAVehicleForgetsItsData() {
+        val (repo, offline) = setUp()
+        runBlocking { repo.summaries() }
+        runBlocking { repo.deleteVehicle(1) } // answered 404 by the test server: already gone counts too
+        assertEquals(null, runBlocking { offline.load(OfflineKeys.tasks(1), de.bikemaintainer.app.data.repository.TASKS) })
+    }
+}

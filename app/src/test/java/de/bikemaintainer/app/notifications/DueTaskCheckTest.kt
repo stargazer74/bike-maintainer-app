@@ -178,6 +178,19 @@ class DueTaskCheckTest {
     }
 
     @Test
+    fun offlineDataIsNotCheckedButRetried() = runTest {
+        val settings = store()
+        val asOf = java.time.Instant.parse("2026-11-12T08:00:00Z")
+        vehicles.vehiclesResult = Outcome.Success(listOf(vehicle(1, "A")), asOf)
+        maintenance = PerVehicleMaintenance(mapOf(1L to Outcome.Success(listOf(task(10, 1, TaskStatus.OVERDUE)))))
+        assertEquals(CheckResult.RETRY, check(settings).run())
+        twoVehicles(Outcome.Success(listOf(task(20, 2, TaskStatus.OVERDUE)), asOf))
+        assertEquals(CheckResult.RETRY, check(settings).run())
+        assertTrue(notifications.shown.isEmpty())
+        assertTrue(settings.reportedDue.first().isEmpty())
+    }
+
+    @Test
     fun failureMidwayKeepsStateAndRetries() = runTest {
         val settings = store()
         settings.setReportedDue(mapOf(99L to TaskStatus.DUE_SOON))

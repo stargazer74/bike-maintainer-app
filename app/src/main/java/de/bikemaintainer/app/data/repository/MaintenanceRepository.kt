@@ -3,6 +3,7 @@ package de.bikemaintainer.app.data.repository
 import de.bikemaintainer.app.api.models.MaintenanceLogRequest
 import de.bikemaintainer.app.api.models.MaintenanceTaskRequest
 import de.bikemaintainer.app.data.network.ApiProvider
+import de.bikemaintainer.app.data.storage.OfflineStore
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Measurements
 import de.bikemaintainer.app.domain.AppError
@@ -31,9 +32,14 @@ interface MaintenanceRepository {
     ): Outcome<Unit>
 }
 
-class ApiMaintenanceRepository(private val provider: ApiProvider) : MaintenanceRepository {
+/** Without a connection, the task lists come from [offline] (see [callCached]); single tasks are edited online only. */
+class ApiMaintenanceRepository(
+    private val provider: ApiProvider,
+    private val offline: OfflineStore = OfflineStore.None,
+) : MaintenanceRepository {
     override suspend fun tasks(vehicleId: Long): Outcome<List<MaintenanceTask>> =
-        provider.callStored { it.tasks.listMaintenanceTasks(vehicleId) }.map { list -> list.map { it.toDomain() } }
+        provider.callCached(offline, OfflineKeys.tasks(vehicleId), TASKS) { it.tasks.listMaintenanceTasks(vehicleId) }
+            .map { list -> list.map { it.toDomain() } }
 
     override suspend fun task(vehicleId: Long, taskId: Long): Outcome<MaintenanceTask> =
         provider.callStored { it.tasks.getMaintenanceTask(vehicleId, taskId) }.map { it.toDomain() }

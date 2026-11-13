@@ -2,9 +2,11 @@ package de.bikemaintainer.app.data.repository
 
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.network.CleartextNotAllowedException
+import de.bikemaintainer.app.data.storage.OfflineStore
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import java.io.IOException
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
@@ -26,6 +28,27 @@ internal suspend fun <T : Any> ApiProvider.callStored(block: suspend (ApiProvide
         return Outcome.Failure(AppError.Storage)
     } ?: return Outcome.Failure(AppError.NotConfigured)
     return call { block(apis) }
+}
+
+/**
+ * Like [callStored], with offline storage under [key]: a successful answer is stored, without a connection
+ * ([AppError.Network] only) the stored answer is returned with its fetch time as [Outcome.Success.asOf]. A 404 drops
+ * the stored answer – what is gone on the server must not live on in the app.
+ */
+internal suspend fun <T : Any> ApiProvider.callCached(
+    offline: OfflineStore,
+    key: String,
+    serializer: KSerializer<T>,
+    block: suspend (ApiProvider.Apis) -> Response<T>,
+): Outcome<T> {
+    val result = callStored(block)
+    when {
+        result is Outcome.Success -> offline.save(key, serializer, result.value)
+        result is Outcome.Failure && result.error == AppError.Network ->
+            offline.load(key, serializer)?.let { return Outcome.Success(it.value, it.fetchedAt) }
+        result is Outcome.Failure && result.error == AppError.NotFound -> offline.remove(key)
+    }
+    return result
 }
 
 /** Runs one API call and maps every outcome, including transport errors, to an [Outcome]. */
@@ -80,6 +103,6 @@ private fun errorCode(response: Response<*>): String? = try {
 }
 
 internal inline fun <T, R> Outcome<T>.map(transform: (T) -> R): Outcome<R> = when (this) {
-    is Outcome.Success -> Outcome.Success(transform(value))
+    is Outcome.Success -> Outcome.Success(transform(value), asOf)
     is Outcome.Failure -> this
 }

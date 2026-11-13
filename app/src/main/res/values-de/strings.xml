@@ -2,6 +2,8 @@
     <string name="app_name">Bike Maintainer</string>
     <string name="error_no_connection">Keine Verbindung.</string>
     <string name="error_server_not_responding">Der Server antwortet nicht.</string>
+    <!-- %1$s: date and time of the last successful load, e.g. "13.11.2026, 21:40" -->
+    <string name="offline_as_of">Offline – Stand vom %1$s</string>
     <string name="error_vehicle_not_found">Das Fahrzeug wurde nicht gefunden.</string>
     <string name="error_input_rejected">Der Server hat die Eingaben abgelehnt.</string>
     <string name="error_save_failed">Konnte nicht gespeichert werden.</string>
