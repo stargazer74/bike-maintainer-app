@@ -112,6 +112,9 @@ Google Play and F-Droid read, so there is only one copy:
 | `short_description.txt` | 80 | One line under the name |
 | `full_description.txt` | 4000 | Plain text; `•` for lists (no Markdown) |
 | `changelogs/<versionCode>.txt` | 500 | "What's new" of that release, e.g. `1001000.txt` for 1.1.0 |
+| `images/icon.png` | 512×512 | Store icon, full-bleed square (Play rounds the corners) |
+| `images/featureGraphic.png` | 1024×500 | Banner at the top of the Play entry |
+| `images/phoneScreenshots/1.png` … `6.png` | 1080×2160 | Phone screenshots, dark and light; Play accepts at most 2:1 |
 
 Rules for the texts:
 
@@ -122,3 +125,6 @@ Rules for the texts:
 - Keep the German and English versions in step.
 
 In Play Console, copy the texts into the store entry of each language (or upload them with fastlane `supply`).
+
+The images are generated, not drawn by hand: `tools/store-graphics/` (see its README) renders icon and feature graphic
+and takes the screenshots in the emulator against the dev stack. Run it again after visible changes to the app.
