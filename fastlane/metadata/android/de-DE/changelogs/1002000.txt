@@ -1,0 +1,4 @@
+• Neues Aussehen: Logo, Symbole je Fahrzeugtyp, klarere Karten und fette Überschriften
+• Fahrzeugseite: „Wartung erfassen“ als Hauptbutton, Kilometerstand groß im Kopf
+• Fahrzeugliste zeigt „2 Aufgaben fällig“ und den Status farbig
+• Aktualisierte Bibliotheken

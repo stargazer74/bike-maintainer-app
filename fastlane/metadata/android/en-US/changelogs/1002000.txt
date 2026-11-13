@@ -1,0 +1,4 @@
+• New look: logo, an icon per vehicle type, clearer cards and bold headings
+• Vehicle page: "Log maintenance" as the main button, mileage large at the top
+• Vehicle list shows "2 tasks due" and the status in colour
+• Updated libraries
