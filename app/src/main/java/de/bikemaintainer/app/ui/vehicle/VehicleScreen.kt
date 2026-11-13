@@ -61,6 +61,7 @@ import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.ui.common.AppCard
 import de.bikemaintainer.app.ui.common.ErrorText
+import de.bikemaintainer.app.ui.common.OfflineNotice
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.ReadOnlyNotice
 import de.bikemaintainer.app.ui.common.StatusDot
@@ -204,9 +205,11 @@ fun VehicleContent(
                         Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
                     }
                     else -> {
+                        val asOf = state.asOf
+                        if (asOf != null) item { OfflineNotice(asOf) }
                         item { VehicleHeader(vehicle) }
                         item { VehicleButtons(state, actions) }
-                        if (error != null) item { ErrorText(stringResource(error.vehicleLoadMessageRes())) }
+                        if (asOf == null && error != null) item { ErrorText(stringResource(error.vehicleLoadMessageRes())) }
                         if (state.tasks.isEmpty()) {
                             item {
                                 Text(

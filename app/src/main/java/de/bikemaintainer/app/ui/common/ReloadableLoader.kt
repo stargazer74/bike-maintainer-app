@@ -2,6 +2,7 @@ package de.bikemaintainer.app.ui.common
 
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
+import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +19,8 @@ data class LoadState<T>(
     /** A visible reload (pull-to-refresh) with data on screen is in flight. */
     val refreshing: Boolean = false,
     val error: AppError? = null,
+    /** Set when [data] is the stored offline state because the server could not be reached: when it was fetched. */
+    val asOf: Instant? = null,
 )
 
 /**
@@ -70,7 +73,7 @@ class ReloadableLoader<T>(
                 val result = fetchLatest()
                 _state.update { current ->
                     when (result) {
-                        is Outcome.Success -> LoadState(data = result.value)
+                        is Outcome.Success -> LoadState(data = result.value, asOf = result.asOf)
                         is Outcome.Failure -> when {
                             isTerminal(result.error) -> LoadState(error = result.error)
                             visible || current.data == null -> current.copy(refreshing = false, error = result.error)

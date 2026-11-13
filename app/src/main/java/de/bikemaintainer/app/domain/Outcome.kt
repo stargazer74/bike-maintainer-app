@@ -1,8 +1,21 @@
 package de.bikemaintainer.app.domain
 
+import java.time.Instant
+
 sealed interface Outcome<out T> {
-    data class Success<out T>(val value: T) : Outcome<T>
+    /**
+     * [asOf] is set when the server could not be reached and [value] is the answer stored offline: the time it was
+     * fetched. `null` means the value is fresh from the server.
+     */
+    data class Success<out T>(val value: T, val asOf: Instant? = null) : Outcome<T>
     data class Failure(val error: AppError) : Outcome<Nothing>
+}
+
+/** The older of two offline times: data combined from several answers is as old as its oldest part. */
+fun olderOf(a: Instant?, b: Instant?): Instant? = when {
+    a == null -> b
+    b == null -> a
+    else -> minOf(a, b)
 }
 
 sealed interface AppError {

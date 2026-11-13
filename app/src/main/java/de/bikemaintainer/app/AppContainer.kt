@@ -2,6 +2,7 @@ package de.bikemaintainer.app
 
 import android.content.Context
 import android.util.Log
+import de.bikemaintainer.app.api.infrastructure.Serializer
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.repository.ApiAuthRepository
@@ -13,6 +14,7 @@ import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.MeasurementRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.data.storage.DeviceTokenStore
+import de.bikemaintainer.app.data.storage.FileOfflineStore
 import de.bikemaintainer.app.data.storage.KeystoreTokenCipher
 import de.bikemaintainer.app.data.storage.SettingsStore
 import de.bikemaintainer.app.data.storage.settingsDataStore
@@ -44,10 +46,13 @@ class AppContainer(context: Context) {
         debugLog = if (BuildConfig.DEBUG) { message -> Log.d("BikeMaintainerHttp", message) } else null,
     )
 
-    val authRepository: AuthRepository = ApiAuthRepository(provider, settings, tokens, sessionState)
-    val vehicleRepository: VehicleRepository = ApiVehicleRepository(provider)
-    val maintenanceRepository: MaintenanceRepository = ApiMaintenanceRepository(provider)
-    val measurementRepository: MeasurementRepository = ApiMeasurementRepository(provider)
+    /** Last server answers for use without a connection (app#64); app-private, cleared with the session. */
+    private val offline = FileOfflineStore(File(context.filesDir, "offline"), Serializer.kotlinxSerializationJson)
+
+    val authRepository: AuthRepository = ApiAuthRepository(provider, settings, tokens, sessionState, offline)
+    val vehicleRepository: VehicleRepository = ApiVehicleRepository(provider, offline)
+    val maintenanceRepository: MaintenanceRepository = ApiMaintenanceRepository(provider, offline)
+    val measurementRepository: MeasurementRepository = ApiMeasurementRepository(provider, offline)
 
     private val notificationsAllowed = { notificationsAllowed(context) }
     val notifier: DueNotifications = DueTaskNotifier(context)

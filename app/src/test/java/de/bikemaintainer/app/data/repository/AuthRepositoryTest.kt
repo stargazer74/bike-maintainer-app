@@ -279,6 +279,36 @@ class AuthRepositoryTest {
         assertEquals(env.url, stored.serverUrl)
     }
 
+    /** Offline data that remembers whether it was cleared. */
+    private class RecordingOffline : de.bikemaintainer.app.data.storage.OfflineStore by
+        de.bikemaintainer.app.data.storage.OfflineStore.None {
+        var clears = 0
+
+        override suspend fun clear() {
+            clears++
+        }
+    }
+
+    @Test
+    fun logoutClearsOfflineDataEvenWhenOffline() {
+        setUp()
+        val offline = RecordingOffline()
+        val repo = ApiAuthRepository(env.provider, env.settings, env.tokens, env.state, offline)
+        runBlocking { env.settings.setServer(env.url, ServerMode.PORTAL) }
+        env.server.close()
+        runBlocking { repo.logout() }
+        assertEquals(1, offline.clears)
+    }
+
+    @Test
+    fun selectingAProfileClearsOfflineDataOfThePreviousPerson() {
+        setUp(handler = withConfig("household") { json(user) })
+        val offline = RecordingOffline()
+        val repo = ApiAuthRepository(env.provider, env.settings, env.tokens, env.state, offline)
+        assertEquals(Outcome.Success(Unit), runBlocking { repo.selectProfile(env.url, 7) })
+        assertEquals(1, offline.clears)
+    }
+
     @Test
     fun switchServerClearsEverything() {
         val repo = setUp { MockResponse.Builder().code(204).build() }

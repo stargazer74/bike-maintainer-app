@@ -8,6 +8,7 @@ import de.bikemaintainer.app.domain.AccessSource
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.ui.common.ReloadableLoader
+import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +21,8 @@ data class VehiclesUiState(
     /** Pull-to-refresh in flight. */
     val refreshing: Boolean = false,
     val error: AppError? = null,
+    /** Set while the list is the one stored offline (no connection): when it was loaded. */
+    val asOf: Instant? = null,
     /** Read-only accounts cannot add vehicles. */
     val access: Access = Access.FULL,
 )
@@ -37,7 +40,7 @@ class VehiclesViewModel(
         viewModelScope.launch { accessSource.refreshAccess() }
         viewModelScope.launch {
             loader.state.collect { l ->
-                _state.update { it.copy(summaries = l.data, refreshing = l.refreshing, error = l.error) }
+                _state.update { it.copy(summaries = l.data, refreshing = l.refreshing, error = l.error, asOf = l.asOf) }
             }
         }
         loader.refresh()

@@ -118,6 +118,7 @@ Anmeldung mit „Bitte melde dich erneut an“; gelöschtes Profil → zurück z
 | gewähltes Profil (Haushalt) | DataStore | Profile haben kein Passwort |
 | Sitzungs-Cookie, `XSRF-TOKEN` | nur Arbeitsspeicher (OkHttp-CookieJar) | nach Neustart neue Sitzung |
 | Einstellungen, zuletzt gemeldete Fälligkeiten | DataStore | |
+| letzte Server-Antworten für die Offline-Ansicht: Fahrzeuge, Aufgaben, Messkontext (app#64) | `files/offline/*.json` (`FileOfflineStore`) | gelöscht bei Anmeldung, Profilwahl, Abmelden, Serverwechsel und Kontolöschung sowie für Fahrzeuge, die es nicht mehr gibt |
 
 E-Mail und Passwort werden nie gespeichert. `android:allowBackup="false"` und Datenextraktionsregeln, die alles
 ausschließen: Token und Einstellungen gelangen in kein Cloud-Backup; ein neues Handy meldet sich neu an.
@@ -218,9 +219,12 @@ mit Spec-Checkout).
 
 ## Später
 
-- **Offline:** Die Repository-Schicht und eigene App-Modelle erlauben, Room als lokalen Speicher dazwischenzuschieben
-  (zuerst Ansehen mit „Stand von …“, dann Eintragen mit Warteschlange). Für Offline-Eintragen wäre ein eigener
-  Endpunkt nur für den Kilometerstand sicherer als `PUT` mit dem ganzen Fahrzeug.
+- **Offline** (Epic backend#159): Ansehen ist umgesetzt (app#64). Ohne Verbindung liefern die Repositories die zuletzt
+  geladenen Antworten aus `FileOfflineStore` mit ihrem Abrufzeitpunkt (`Outcome.Success.asOf`), Liste und Fahrzeug
+  zeigen „Offline – Stand vom …“ statt „Keine Verbindung.“. Statt Room genügen JSON-Dateien je Antwort: wenige,
+  kleine Daten, keine Abfragen, keine neue Abhängigkeit. Die Erinnerungsprüfung wertet gespeicherte Daten nicht aus
+  (ihre Status sind so alt wie die Daten) und versucht es später erneut. Offen: Eintragen mit Warteschlange (app#65)
+  über einen eigenen Endpunkt nur für den Kilometerstand (api#40, backend#160) statt `PUT` mit dem ganzen Fahrzeug.
 - Fahrzeuge/Aufgaben verwalten, Kosten und Material, PDF-Bericht, Passwort/Konto löschen in der App (das Abo bleibt
   dauerhaft im Web).
 - Veröffentlichung: Release-Signatur, F-Droid (reproduzierbarer Build), Google Play (Datensicherheits-Angaben,
