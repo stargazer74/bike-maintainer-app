@@ -48,6 +48,7 @@ class MainActivity : AppCompatActivity() {
                             openVehicle.asStateFlow(),
                             { openVehicle.value = null },
                             container.worksheetScanner,
+                            container.pendingRepository,
                         )
                     }
                     start?.let { AppNavHost(deps = deps, start = it) }

@@ -6,6 +6,7 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import de.bikemaintainer.app.AppContainer
+import de.bikemaintainer.app.sync.OutboxWorker
 
 /** The daily background job; all logic is in [DueTaskCheck]. */
 class DueTasksWorker(
@@ -24,16 +25,16 @@ class DueTasksWorker(
     }
 }
 
-/** Creates [DueTasksWorker] with its dependencies from the [container]; other workers are left to the default. */
+/** Creates the app's workers with their dependencies from the [container]; others are left to the default. */
 class DueTasksWorkerFactory(private val container: AppContainer) : WorkerFactory() {
     override fun createWorker(
         appContext: Context,
         workerClassName: String,
         workerParameters: WorkerParameters,
-    ): ListenableWorker? =
-        if (workerClassName == DueTasksWorker::class.java.name) {
+    ): ListenableWorker? = when (workerClassName) {
+        DueTasksWorker::class.java.name ->
             DueTasksWorker(appContext, workerParameters, container.dueTaskCheck, container.reminderScheduler)
-        } else {
-            null
-        }
+        OutboxWorker::class.java.name -> OutboxWorker(appContext, workerParameters, container.outboxSync)
+        else -> null
+    }
 }

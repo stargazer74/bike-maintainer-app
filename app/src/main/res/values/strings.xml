@@ -368,4 +368,38 @@
     <string name="task_form_error_number">Please enter a whole number (intervals at least 1).</string>
     <string name="task_form_error_no_interval">Please enter an interval in km and/or months.</string>
     <string name="error_task_not_found">The task was not found.</string>
+    <!-- Recordings made without a connection (app#65) -->
+    <string name="log_queued">Maintenance saved on this device – it will be sent as soon as there is a connection.</string>
+    <string name="mileage_queued">Mileage saved on this device – it will be sent as soon as there is a connection.</string>
+    <string name="error_mileage_below_server">The server already has a higher mileage.</string>
+    <string name="pending_title">Not sent yet</string>
+    <!-- %1$s: mileage, e.g. "12,500 km" -->
+    <string name="pending_mileage">Mileage %1$s</string>
+    <!-- %1$s: date, %2$s: mileage -->
+    <string name="pending_maintenance">Maintenance on %1$s at %2$s</string>
+    <string name="pending_waiting">Will be sent as soon as there is a connection.</string>
+    <!-- %1$s: date -->
+    <string name="pending_duplicate">The web app already has a maintenance with these tasks on %1$s. Send this one anyway?</string>
+    <string name="pending_send_anyway">Send anyway</string>
+    <string name="pending_discard">Discard</string>
+    <string name="pending_problem_vehicle_gone">The vehicle no longer exists, so this cannot be sent.</string>
+    <string name="pending_problem_rejected">The server rejected this, e.g. because a task was deleted meanwhile. Please record it again.</string>
+    <string name="pending_problem_mileage">The server already has a higher mileage.</string>
+    <string name="pending_problem_read_only">Your account is read-only, so this cannot be sent.</string>
+    <plurals name="vehicles_pending_waiting">
+        <item quantity="one">%1$d entry waits to be sent.</item>
+        <item quantity="other">%1$d entries wait to be sent.</item>
+    </plurals>
+    <plurals name="vehicles_pending_attention">
+        <item quantity="one">%1$d entry needs your decision – see the vehicle.</item>
+        <item quantity="other">%1$d entries need your decision – see the vehicles.</item>
+    </plurals>
+    <plurals name="vehicles_pending_orphans">
+        <item quantity="one">%1$d entry belongs to none of your vehicles and cannot be sent.</item>
+        <item quantity="other">%1$d entries belong to none of your vehicles and cannot be sent.</item>
+    </plurals>
+    <plurals name="settings_pending_lost">
+        <item quantity="one">%1$d entry not sent yet will be lost.</item>
+        <item quantity="other">%1$d entries not sent yet will be lost.</item>
+    </plurals>
 </resources>

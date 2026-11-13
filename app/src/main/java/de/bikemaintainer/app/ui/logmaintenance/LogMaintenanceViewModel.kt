@@ -14,6 +14,7 @@ import de.bikemaintainer.app.domain.MeasurementContext
 import de.bikemaintainer.app.domain.MeasurementTemplate
 import de.bikemaintainer.app.domain.ShimSuggestion
 import de.bikemaintainer.app.domain.Outcome
+import de.bikemaintainer.app.domain.Recorded
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
@@ -22,6 +23,7 @@ import de.bikemaintainer.app.domain.parseMileage
 import de.bikemaintainer.app.ui.common.isNotFound
 import java.text.DecimalFormatSymbols
 import java.time.LocalDate
+import java.util.UUID
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -46,7 +48,13 @@ data class ShimState(
 )
 
 /** How a logged maintenance ended; the vehicle screen shows the matching message. */
-enum class LogResult { SAVED, SAVED_MILEAGE_FAILED }
+enum class LogResult {
+    SAVED,
+    SAVED_MILEAGE_FAILED,
+
+    /** No connection: kept on the device and sent later (app#65). */
+    QUEUED,
+}
 
 sealed interface LogError {
     data object InvalidMileage : LogError
@@ -291,8 +299,7 @@ class LogMaintenanceViewModel(
 
     fun save() {
         val s = _state.value
-        val vehicle = s.vehicle ?: return
-        if (s.locked) return
+        if (s.vehicle == null || s.locked) return
         val km = parseMileage(s.mileageInput)
         when {
             km == null -> _state.update { it.copy(error = LogError.InvalidMileage) }
@@ -310,15 +317,19 @@ class LogMaintenanceViewModel(
                         s.selected,
                         s.notes.ifBlank { null },
                         s.measurements.toMeasurements().takeUnless { it.isEmpty },
+                        clientEntryId = clientEntryId(),
+                        raiseMileageTo = if (raise) km else null,
                     )
                     when (result) {
                         is Outcome.Failure -> onSaveFailed(result.error)
                         is Outcome.Success -> {
-                            // The log exists now; a failing raise must never lead to sending it again.
-                            val done = if (raise && vehicles.updateMileage(vehicle, km) is Outcome.Failure) {
-                                LogResult.SAVED_MILEAGE_FAILED
-                            } else {
-                                LogResult.SAVED
+                            // The log exists now (or waits on the device with the raise); a failing raise must never
+                            // lead to sending it again.
+                            val done = when {
+                                result.value == Recorded.QUEUED -> LogResult.QUEUED
+                                raise && vehicles.raiseMileage(vehicleId, km) is Outcome.Failure ->
+                                    LogResult.SAVED_MILEAGE_FAILED
+                                else -> LogResult.SAVED
                             }
                             savedState[KEY_RESULT] = done.name
                             shimJob?.cancel()
@@ -328,6 +339,15 @@ class LogMaintenanceViewModel(
                 }
             }
         }
+    }
+
+    /**
+     * Identifies this form's log on the server: every attempt sends the same id, so a retry after a lost answer (or
+     * the offline queue) never creates a second log. Kept across process death with the rest of the form.
+     */
+    private fun clientEntryId(): UUID {
+        val stored = savedState.get<String>(KEY_ENTRY_ID)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+        return stored ?: UUID.randomUUID().also { savedState[KEY_ENTRY_ID] = it.toString() }
     }
 
     private suspend fun onSaveFailed(error: AppError) {
@@ -410,6 +430,7 @@ class LogMaintenanceViewModel(
         const val KEY_RAISE = "log_raise"
         const val KEY_RESULT = "log_done"
         const val KEY_MEASUREMENTS = "log_measurements"
+        const val KEY_ENTRY_ID = "log_entry_id"
     }
 }
 

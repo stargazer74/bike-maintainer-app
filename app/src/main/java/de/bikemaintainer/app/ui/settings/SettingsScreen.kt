@@ -12,6 +12,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import de.bikemaintainer.app.ui.common.ErrorText
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -242,12 +244,20 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigate:
                 )
             },
             text = {
-                Text(
-                    stringResource(
-                        if (which == Confirm.LOGOUT) R.string.settings_logout_confirm
-                        else R.string.settings_switch_server_confirm,
-                    ),
-                )
+                Column {
+                    Text(
+                        stringResource(
+                            if (which == Confirm.LOGOUT) R.string.settings_logout_confirm
+                            else R.string.settings_switch_server_confirm,
+                        ),
+                    )
+                    if (state.pendingCount > 0) {
+                        ErrorText(
+                            pluralStringResource(R.plurals.settings_pending_lost, state.pendingCount, state.pendingCount),
+                            Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(

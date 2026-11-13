@@ -104,12 +104,35 @@ class LogMaintenanceViewModelTest {
         assertTrue(vehicles.updateMileageCalls.isEmpty())
     }
 
+    @Test fun withoutConnectionTheLogIsQueuedWithTheRaiseAndNotRaisedNow() {
+        maintenance.logQueued = true
+        val vm = viewModel()
+        vm.onMileageInput("24800")
+        vm.save()
+        assertEquals(LogResult.QUEUED, vm.state.value.done)
+        assertEquals(listOf<Int?>(24800), maintenance.logRaises)
+        // The queued log raises the mileage itself once it is sent.
+        assertTrue(vehicles.updateMileageCalls.isEmpty())
+    }
+
+    @Test fun everyAttemptOfTheSameFormSendsTheSameId() {
+        maintenance.logResult = Outcome.Failure(AppError.Http(503, null))
+        val saved = SavedStateHandle()
+        val vm = viewModel(saved)
+        vm.save()
+        vm.save()
+        // Also after the process was gone: the id is kept with the form.
+        viewModel(saved).save()
+        assertEquals(3, maintenance.logEntryIds.size)
+        assertEquals(1, maintenance.logEntryIds.toSet().size)
+    }
+
     @Test fun higherMileageRaisesVehicle() {
         val vm = viewModel()
         vm.onMileageInput("24800")
         assertTrue(vm.state.value.offerRaise)
         vm.save()
-        assertEquals(listOf(vehicle to 24800), vehicles.updateMileageCalls)
+        assertEquals(listOf(vehicle.id to 24800), vehicles.updateMileageCalls)
         assertEquals(LogResult.SAVED, vm.state.value.done)
     }
 

@@ -12,9 +12,12 @@ import de.bikemaintainer.app.data.repository.ApiVehicleRepository
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.MeasurementRepository
+import de.bikemaintainer.app.data.repository.OutboxSync
+import de.bikemaintainer.app.data.repository.PendingRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.FileOfflineStore
+import de.bikemaintainer.app.data.storage.FileOutbox
 import de.bikemaintainer.app.data.storage.KeystoreTokenCipher
 import de.bikemaintainer.app.data.storage.SettingsStore
 import de.bikemaintainer.app.data.storage.settingsDataStore
@@ -25,6 +28,7 @@ import de.bikemaintainer.app.notifications.ReminderScheduler
 import de.bikemaintainer.app.notifications.WorkManagerReminderScheduler
 import de.bikemaintainer.app.notifications.notificationsAllowed
 import de.bikemaintainer.app.scan.AndroidWorksheetScanner
+import de.bikemaintainer.app.sync.WorkManagerOutboxScheduler
 import de.bikemaintainer.app.ui.scan.WorksheetScanner
 import java.io.File
 
@@ -49,9 +53,15 @@ class AppContainer(context: Context) {
     /** Last server answers for use without a connection (app#64); app-private, cleared with the session. */
     private val offline = FileOfflineStore(File(context.filesDir, "offline"), Serializer.kotlinxSerializationJson)
 
-    val authRepository: AuthRepository = ApiAuthRepository(provider, settings, tokens, sessionState, offline)
-    val vehicleRepository: VehicleRepository = ApiVehicleRepository(provider, offline)
-    val maintenanceRepository: MaintenanceRepository = ApiMaintenanceRepository(provider, offline)
+    /** Recordings made without a connection (app#65); app-private, survives a new login, cleared on logout. */
+    private val outbox = FileOutbox(File(context.filesDir, "outbox/entries.json"), Serializer.kotlinxSerializationJson)
+    val pendingRepository = PendingRepository(outbox, WorkManagerOutboxScheduler(context))
+    val outboxSync = OutboxSync(provider, outbox)
+
+    val authRepository: AuthRepository =
+        ApiAuthRepository(provider, settings, tokens, sessionState, offline, pendingRepository)
+    val vehicleRepository: VehicleRepository = ApiVehicleRepository(provider, offline, pendingRepository)
+    val maintenanceRepository: MaintenanceRepository = ApiMaintenanceRepository(provider, offline, pendingRepository)
     val measurementRepository: MeasurementRepository = ApiMeasurementRepository(provider, offline)
 
     private val notificationsAllowed = { notificationsAllowed(context) }

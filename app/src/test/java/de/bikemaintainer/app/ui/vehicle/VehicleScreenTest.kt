@@ -17,6 +17,7 @@ import de.bikemaintainer.app.domain.Access
 import de.bikemaintainer.app.domain.AccessStatus
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
+import androidx.compose.ui.test.onAllNodesWithText
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
@@ -255,5 +256,46 @@ class VehicleScreenTest {
     @Test fun mileageFailedSnackbarStaysLonger() {
         showLogResult(LogResult.SAVED_MILEAGE_FAILED)
         compose.onNodeWithText("Wartung gespeichert, aber der Kilometerstand konnte nicht angehoben werden.").assertExists()
+    }
+
+    @Test @Config(qualifiers = "de-h1600dp") fun pendingEntriesSayWhatHappensAndOfferTheChoices() {
+        val sent = mutableListOf<String>()
+        val discarded = mutableListOf<String>()
+        val state = VehicleUiState(
+            vehicle = vehicle,
+            tasks = listOf(
+                de.bikemaintainer.app.domain.MaintenanceTask(1, 7, "Ölwechsel", false, true, TaskStatus.OK, null, null, null, null, null, null),
+            ),
+            pending = listOf(
+                de.bikemaintainer.app.domain.PendingItem("m", 7, de.bikemaintainer.app.domain.PendingItem.Kind.MILEAGE, 12600),
+                de.bikemaintainer.app.domain.PendingItem(
+                    "d", 7, de.bikemaintainer.app.domain.PendingItem.Kind.MAINTENANCE, 12500, LocalDate.of(2026, 11, 9), setOf(1L),
+                    de.bikemaintainer.app.domain.PendingState.PossibleDuplicate(LocalDate.of(2026, 11, 9)),
+                ),
+                de.bikemaintainer.app.domain.PendingItem(
+                    "f", 7, de.bikemaintainer.app.domain.PendingItem.Kind.MILEAGE, 1,
+                    state = de.bikemaintainer.app.domain.PendingState.Failed(de.bikemaintainer.app.domain.PendingProblem.MILEAGE_BELOW_CURRENT),
+                ),
+            ),
+        )
+        compose.setContent {
+            VehicleContent(
+                state = state, onBack = {}, onRefresh = {}, onRetry = {},
+                actions = noActions.copy(onSendPendingAnyway = { sent += it }, onDiscardPending = { discarded += it }),
+            )
+        }
+        compose.onNodeWithText("Noch nicht übertragen").assertExists()
+        compose.onNodeWithText("Kilometerstand 12.600 km").assertExists()
+        compose.onNodeWithText("Wird übertragen, sobald eine Verbindung besteht.").assertExists()
+        // Once in the pending card, once as the task card below.
+        compose.onAllNodesWithText("Ölwechsel", substring = true).assertCountEquals(2)
+        compose.onNodeWithText("Trotzdem übertragen?", substring = true).assertExists()
+        compose.onNodeWithText("Der Server hat bereits einen höheren Kilometerstand.").assertExists()
+        compose.onNodeWithText("Trotzdem übertragen").performClick()
+        compose.onAllNodesWithText("Verwerfen")[1].performClick()
+        assertEquals(listOf("d"), sent)
+        assertEquals(listOf("f"), discarded)
+        // A waiting entry offers no buttons: two entries need a decision, so there are two discard buttons.
+        compose.onAllNodesWithText("Verwerfen").assertCountEquals(2)
     }
 }

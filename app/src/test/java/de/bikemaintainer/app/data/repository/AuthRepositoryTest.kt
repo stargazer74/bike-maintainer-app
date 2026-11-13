@@ -12,6 +12,7 @@ import de.bikemaintainer.app.domain.ServerMode
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import de.bikemaintainer.app.data.storage.FakeTokenCipher
+import de.bikemaintainer.app.data.storage.OfflineStore
 import de.bikemaintainer.app.data.storage.StoredSettings
 import de.bikemaintainer.app.data.storage.TokenCipher
 import java.io.IOException
@@ -298,6 +299,23 @@ class AuthRepositoryTest {
         env.server.close()
         runBlocking { repo.logout() }
         assertEquals(1, offline.clears)
+    }
+
+    @Test
+    fun logoutDropsWhatWasNotSentButANewLoginKeepsItAndSendsIt() {
+        setUp(handler = withConfig("household") { json(user) })
+        val outbox = de.bikemaintainer.app.data.storage.InMemoryOutbox()
+        var scheduled = 0
+        val pending = PendingRepository(outbox) { scheduled++ }
+        val repo = ApiAuthRepository(env.provider, env.settings, env.tokens, env.state, OfflineStore.None, pending)
+        runBlocking { outbox.add(de.bikemaintainer.app.data.storage.OutboxEntry("a", 3, 0, mileage = 1)) }
+
+        assertEquals(Outcome.Success(Unit), runBlocking { repo.selectProfile(env.url, 7) })
+        assertEquals(1, runBlocking { pending.count() })
+        assertEquals(1, scheduled)
+
+        runBlocking { repo.logout() }
+        assertEquals(0, runBlocking { pending.count() })
     }
 
     @Test

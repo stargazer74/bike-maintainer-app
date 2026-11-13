@@ -45,6 +45,12 @@ class ApiAuthRepository(
     private val tokens: DeviceTokenStore,
     private val state: SessionState,
     private val offline: OfflineStore = OfflineStore.None,
+    /**
+     * Recordings not sent yet. They survive a new login (mostly the same person whose session ran out; entries for
+     * vehicles of another account are refused by the server and marked) and are cleared on logout, server switch
+     * and account deletion – the screens warn before.
+     */
+    private val pending: PendingRepository = PendingRepository(),
 ) : AuthRepository {
     override val settings: Flow<StoredSettings> = store.settings
 
@@ -76,6 +82,7 @@ class ApiAuthRepository(
                 offline.clear()
                 tokens.saveLogin(base.toString(), result.value.deviceToken)
                 state.sessionStarted()
+                pending.scheduleIfPending()
                 Outcome.Success(Unit)
             } catch (_: GeneralSecurityException) {
                 Outcome.Failure(AppError.Storage)
@@ -115,6 +122,7 @@ class ApiAuthRepository(
                 offline.clear()
                 store.saveHouseholdProfile(base.toString(), id)
                 state.sessionStarted()
+                pending.scheduleIfPending()
                 Outcome.Success(Unit)
             } catch (_: IOException) {
                 Outcome.Failure(AppError.Storage)
@@ -141,6 +149,7 @@ class ApiAuthRepository(
                 Outcome.Failure(AppError.Storage)
             } finally {
                 offline.clear()
+                pending.clear()
                 provider.reset()
                 session.incrementAndGet()
                 _access.value = Access.FULL
@@ -180,6 +189,7 @@ class ApiAuthRepository(
                 // intentionally ignored: the account and its token are gone on the server anyway
             } finally {
                 offline.clear()
+                pending.clear()
                 provider.reset()
                 session.incrementAndGet()
                 _access.value = Access.FULL

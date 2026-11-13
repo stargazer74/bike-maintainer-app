@@ -118,6 +118,7 @@ Anmeldung mit „Bitte melde dich erneut an“; gelöschtes Profil → zurück z
 | gewähltes Profil (Haushalt) | DataStore | Profile haben kein Passwort |
 | Sitzungs-Cookie, `XSRF-TOKEN` | nur Arbeitsspeicher (OkHttp-CookieJar) | nach Neustart neue Sitzung |
 | Einstellungen, zuletzt gemeldete Fälligkeiten | DataStore | |
+| noch nicht übertragene Einträge (app#65) | `files/outbox/entries.json` (`FileOutbox`) | geleert bei Abmelden, Serverwechsel und Kontolöschung (mit Warnung); übersteht eine neue Anmeldung |
 | letzte Server-Antworten für die Offline-Ansicht: Fahrzeuge, Aufgaben, Messkontext (app#64) | `files/offline/*.json` (`FileOfflineStore`) | gelöscht bei Anmeldung, Profilwahl, Abmelden, Serverwechsel und Kontolöschung sowie für Fahrzeuge, die es nicht mehr gibt |
 
 E-Mail und Passwort werden nie gespeichert. `android:allowBackup="false"` und Datenextraktionsregeln, die alles
@@ -223,8 +224,17 @@ mit Spec-Checkout).
   geladenen Antworten aus `FileOfflineStore` mit ihrem Abrufzeitpunkt (`Outcome.Success.asOf`), Liste und Fahrzeug
   zeigen „Offline – Stand vom …“ statt „Keine Verbindung.“. Statt Room genügen JSON-Dateien je Antwort: wenige,
   kleine Daten, keine Abfragen, keine neue Abhängigkeit. Die Erinnerungsprüfung wertet gespeicherte Daten nicht aus
-  (ihre Status sind so alt wie die Daten) und versucht es später erneut. Offen: Eintragen mit Warteschlange (app#65)
-  über einen eigenen Endpunkt nur für den Kilometerstand (api#40, backend#160) statt `PUT` mit dem ganzen Fahrzeug.
+  (ihre Status sind so alt wie die Daten) und versucht es später erneut.
+
+  **Eintragen ohne Verbindung (app#65):** Gespeichert wird weiter zuerst direkt. Scheitert das an der Verbindung, kommt
+  der Eintrag in die Warteschlange (`FileOutbox`, `files/outbox/entries.json`) und `OutboxWorker` (WorkManager, nur
+  mit Netz, Backoff ab 30 s) überträgt sie der Reihe nach (`OutboxSync`). Kilometerstand über `PUT …/mileage`
+  (api#40: nur anheben, gleicher Wert unschädlich); Wartung mit `clientEntryId` (api#42), die das Formular einmal
+  erzeugt und bei jedem Versuch mitschickt – ein Wiederholungsversuch legt nichts doppelt an. Vor dem ersten Senden
+  prüft die App die Einträge des Fahrzeugs: gleicher Tag, gleiche Aufgaben → „Trotzdem übertragen?“ statt senden.
+  Was nicht übertragbar ist (Fahrzeug/Aufgabe gelöscht, höherer Stand auf dem Server, schreibgeschützt), bleibt mit
+  Grund stehen, bis es verworfen wird. Die Warteschlange übersteht eine neue Anmeldung (Sitzung abgelaufen) und wird
+  beim Abmelden und Serverwechsel – nach Warnung – geleert.
 - Fahrzeuge/Aufgaben verwalten, Kosten und Material, PDF-Bericht, Passwort/Konto löschen in der App (das Abo bleibt
   dauerhaft im Web).
 - Veröffentlichung: Release-Signatur, F-Droid (reproduzierbarer Build), Google Play (Datensicherheits-Angaben,

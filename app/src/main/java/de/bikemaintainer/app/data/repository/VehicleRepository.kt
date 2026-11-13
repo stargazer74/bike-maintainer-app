@@ -1,18 +1,22 @@
 package de.bikemaintainer.app.data.repository
 
 import de.bikemaintainer.app.api.models.MaintenanceTaskResponse
+import de.bikemaintainer.app.api.models.MileageRequest
 import de.bikemaintainer.app.api.models.VehicleRequest
 import de.bikemaintainer.app.api.models.VehicleResponse
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.storage.OfflineStore
+import de.bikemaintainer.app.data.storage.OutboxEntry
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
+import de.bikemaintainer.app.domain.Recorded
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleInput
 import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.domain.dueCount
 import de.bikemaintainer.app.domain.olderOf
 import de.bikemaintainer.app.domain.overallStatus
+import java.util.UUID
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.builtins.ListSerializer
@@ -29,7 +33,11 @@ interface VehicleRepository {
     /** All vehicles with their overall task status; the first failing task list fails the whole call. */
     suspend fun summaries(): Outcome<List<VehicleSummary>>
 
-    suspend fun updateMileage(vehicle: Vehicle, newMileage: Int): Outcome<Vehicle>
+    /**
+     * Raises only the mileage (`PUT …/mileage`). Without a connection it is kept on the device and sent later
+     * ([Recorded.QUEUED]); a value below the server's is `Http(409, "MILEAGE_BELOW_CURRENT")`.
+     */
+    suspend fun raiseMileage(vehicleId: Long, mileage: Int): Outcome<Recorded>
 
     suspend fun createVehicle(input: VehicleInput): Outcome<Vehicle>
 
@@ -46,6 +54,9 @@ interface VehicleRepository {
 class ApiVehicleRepository(
     private val provider: ApiProvider,
     private val offline: OfflineStore = OfflineStore.None,
+    /** Where recordings go without a connection; null: they fail with [AppError.Network] (tests). */
+    private val pending: PendingRepository? = null,
+    private val clock: java.time.Clock = java.time.Clock.systemUTC(),
 ) : VehicleRepository {
     override suspend fun vehicles(): Outcome<List<Vehicle>> {
         val result = provider.callCached(offline, OfflineKeys.VEHICLES, ListSerializer(VehicleResponse.serializer())) {
@@ -64,19 +75,27 @@ class ApiVehicleRepository(
             it.vehicles.getVehicle(id)
         }.map { it.toDomain() }
 
-    /** PUT replaces the whole vehicle, so all other fields are taken from [vehicle] (the last loaded state). */
-    override suspend fun updateMileage(vehicle: Vehicle, newMileage: Int): Outcome<Vehicle> = updateVehicle(
-        vehicle.id,
-        VehicleInput(
-            name = vehicle.name,
-            type = vehicle.type,
-            make = vehicle.make,
-            model = vehicle.model,
-            modelYear = vehicle.modelYear,
-            firstRegistrationDate = vehicle.firstRegistrationDate,
-            currentMileage = newMileage,
-        ),
-    )
+    override suspend fun raiseMileage(vehicleId: Long, mileage: Int): Outcome<Recorded> {
+        val result = provider.callStored { it.vehicles.updateMileage(vehicleId, MileageRequest(mileage)) }
+        return when {
+            result is Outcome.Success -> {
+                offline.save(OfflineKeys.vehicle(vehicleId), VehicleResponse.serializer(), result.value)
+                Outcome.Success(Recorded.SAVED)
+            }
+            // A 2xx whose body cannot be read: the value is set.
+            result is Outcome.Failure && result.error == AppError.Http(-1, null) -> Outcome.Success(Recorded.SAVED)
+            result is Outcome.Failure && result.error == AppError.Network && pending != null -> {
+                val entry = OutboxEntry(
+                    id = UUID.randomUUID().toString(),
+                    vehicleId = vehicleId,
+                    createdAt = clock.millis(),
+                    mileage = mileage,
+                )
+                if (pending.enqueue(entry)) Outcome.Success(Recorded.QUEUED) else Outcome.Failure(AppError.Storage)
+            }
+            else -> result as Outcome.Failure
+        }
+    }
 
     override suspend fun createVehicle(input: VehicleInput): Outcome<Vehicle> =
         provider.callStored { it.vehicles.createVehicle(input.toRequest()) }.map { it.toDomain() }

@@ -25,6 +25,9 @@ fun AppError.vehicleLoadMessageRes(): Int = loadMessageRes(notFound = R.string.e
 
 fun AppError.isNotFound(): Boolean = this == AppError.NotFound
 
+/** `PUT …/mileage` with a value below the server's (409). */
+fun AppError.isMileageBelowCurrent(): Boolean = this is AppError.Http && status == 409 && code == "MILEAGE_BELOW_CURRENT"
+
 /**
  * User-facing message for a failed save (POST/PUT); Unauthorized is handled by the session redirect. [notFound] is
  * the message for a 404 (the vehicle, or the task that was edited, is gone).
@@ -37,6 +40,7 @@ fun AppError.saveMessageRes(@StringRes notFound: Int = R.string.error_vehicle_no
         this == AppError.CleartextNotAllowed -> R.string.error_cleartext_not_allowed
         this == AppError.NotFound -> notFound
         isSubscriptionRequired() -> R.string.error_read_only
+        isMileageBelowCurrent() -> R.string.error_mileage_below_server
         this is AppError.Http && status == 400 -> R.string.error_input_rejected
         else -> R.string.error_save_failed
     }

@@ -24,6 +24,7 @@ import de.bikemaintainer.app.ui.MainDispatcherRule
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import androidx.compose.ui.test.onAllNodesWithText
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,6 +62,17 @@ class SettingsScreenTest {
         compose.onNode(isSwitch).assertIsOff()
         assertFalse(auth.settings.value.notificationsEnabled)
         assertEquals(1, reminders.syncCalls)
+    }
+
+    @Test fun logoutWarnsAboutEntriesNotSentYet() {
+        val outbox = de.bikemaintainer.app.data.storage.InMemoryOutbox(
+            listOf(de.bikemaintainer.app.data.storage.OutboxEntry("a", 3, 0, mileage = 1)),
+        )
+        val pending = de.bikemaintainer.app.data.repository.PendingRepository(outbox)
+        val vm = SettingsViewModel(auth, reminders, FakeDueNotifications(), pending) { allowed }
+        compose.setContent { SettingsScreen(viewModel = vm, onBack = {}, onNavigate = {}) }
+        compose.onAllNodesWithText("Abmelden")[0].performScrollTo().performClick()
+        compose.onNodeWithText("1 noch nicht übertragener Eintrag geht dabei verloren.").assertExists()
     }
 
     @Test fun blockedShowsTextAndButton() {
