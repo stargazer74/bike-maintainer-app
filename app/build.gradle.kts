@@ -15,8 +15,9 @@ val generatedApiDir = layout.buildDirectory.dir("generated/openapi")
 openApiGenerate {
     generatorName = "kotlin"
     library.set("jvm-retrofit2")
-    inputSpec = apiSpec
-    outputDir = generatedApiDir.map { it.asFile.path }
+    // Since generator 7.27 both are file properties, not strings.
+    inputSpec = layout.file(apiSpec.map { File(it) })
+    outputDir = generatedApiDir
     packageName = "de.bikemaintainer.app.api"
     apiPackage = "de.bikemaintainer.app.api.apis"
     modelPackage = "de.bikemaintainer.app.api.models"
