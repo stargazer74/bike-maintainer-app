@@ -98,11 +98,19 @@ fun VehicleScreen(
     // The messages are resolved up front: stringResource is not available inside the effect.
     val saved = stringResource(R.string.log_saved)
     val savedMileageFailed = stringResource(R.string.log_saved_mileage_failed)
+    val queued = stringResource(R.string.log_queued)
+    val mileageQueued = stringResource(R.string.mileage_queued)
+    LaunchedEffect(state.mileageQueued) {
+        if (!state.mileageQueued) return@LaunchedEffect
+        viewModel.consumeMileageQueued()
+        scope.launch { snackbarHost.showSnackbar(mileageQueued, duration = SnackbarDuration.Long) }
+    }
     LaunchedEffect(result) {
         // The partial failure asks the user to act (enter the mileage again), so it stays longer.
         val (message, duration) = when (result) {
             LogResult.SAVED.name -> saved to SnackbarDuration.Short
             LogResult.SAVED_MILEAGE_FAILED.name -> savedMileageFailed to SnackbarDuration.Long
+            LogResult.QUEUED.name -> queued to SnackbarDuration.Long
             else -> return@LaunchedEffect
         }
         // Consume first (the effect restarts when the value changes, so the snackbar runs in its own scope):
@@ -133,6 +141,8 @@ fun VehicleScreen(
             onDeleteVehicle = viewModel::deleteVehicle,
             onAddTask = onAddTask,
             onEditTask = onEditTask,
+            onSendPendingAnyway = viewModel::sendPendingAnyway,
+            onDiscardPending = viewModel::discardPending,
         ),
     )
 }
@@ -147,6 +157,8 @@ data class VehicleActions(
     val onDeleteVehicle: () -> Unit = {},
     val onAddTask: () -> Unit = {},
     val onEditTask: (Long) -> Unit = {},
+    val onSendPendingAnyway: (String) -> Unit = {},
+    val onDiscardPending: (String) -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -209,6 +221,16 @@ fun VehicleContent(
                         if (asOf != null) item { OfflineNotice(asOf) }
                         item { VehicleHeader(vehicle) }
                         item { VehicleButtons(state, actions) }
+                        if (state.pending.isNotEmpty()) {
+                            item {
+                                PendingSection(
+                                    state.pending,
+                                    state.tasks + state.inactiveTasks,
+                                    actions.onSendPendingAnyway,
+                                    actions.onDiscardPending,
+                                )
+                            }
+                        }
                         if (asOf == null && error != null) item { ErrorText(stringResource(error.vehicleLoadMessageRes())) }
                         if (state.tasks.isEmpty()) {
                             item {

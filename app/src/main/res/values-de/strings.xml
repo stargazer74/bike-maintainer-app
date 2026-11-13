@@ -368,4 +368,38 @@
     <string name="task_form_error_number">Bitte eine ganze Zahl eingeben (Intervalle mindestens 1).</string>
     <string name="task_form_error_no_interval">Bitte ein Intervall in km und/oder Monaten eingeben.</string>
     <string name="error_task_not_found">Die Aufgabe wurde nicht gefunden.</string>
+    <!-- Recordings made without a connection (app#65) -->
+    <string name="log_queued">Wartung auf dem Gerät gespeichert – sie wird übertragen, sobald eine Verbindung besteht.</string>
+    <string name="mileage_queued">Kilometerstand auf dem Gerät gespeichert – er wird übertragen, sobald eine Verbindung besteht.</string>
+    <string name="error_mileage_below_server">Der Server hat bereits einen höheren Kilometerstand.</string>
+    <string name="pending_title">Noch nicht übertragen</string>
+    <!-- %1$s: mileage, e.g. "12.500 km" -->
+    <string name="pending_mileage">Kilometerstand %1$s</string>
+    <!-- %1$s: date, %2$s: mileage -->
+    <string name="pending_maintenance">Wartung vom %1$s bei %2$s</string>
+    <string name="pending_waiting">Wird übertragen, sobald eine Verbindung besteht.</string>
+    <!-- %1$s: date -->
+    <string name="pending_duplicate">Im Portal gibt es am %1$s schon eine Wartung mit diesen Aufgaben. Trotzdem übertragen?</string>
+    <string name="pending_send_anyway">Trotzdem übertragen</string>
+    <string name="pending_discard">Verwerfen</string>
+    <string name="pending_problem_vehicle_gone">Das Fahrzeug gibt es nicht mehr, deshalb kann das nicht übertragen werden.</string>
+    <string name="pending_problem_rejected">Der Server hat das abgelehnt, z. B. weil eine Aufgabe inzwischen gelöscht wurde. Bitte neu erfassen.</string>
+    <string name="pending_problem_mileage">Der Server hat bereits einen höheren Kilometerstand.</string>
+    <string name="pending_problem_read_only">Dein Konto ist schreibgeschützt, deshalb kann das nicht übertragen werden.</string>
+    <plurals name="vehicles_pending_waiting">
+        <item quantity="one">%1$d Eintrag wartet auf die Übertragung.</item>
+        <item quantity="other">%1$d Einträge warten auf die Übertragung.</item>
+    </plurals>
+    <plurals name="vehicles_pending_attention">
+        <item quantity="one">%1$d Eintrag braucht deine Entscheidung – siehe Fahrzeug.</item>
+        <item quantity="other">%1$d Einträge brauchen deine Entscheidung – siehe Fahrzeuge.</item>
+    </plurals>
+    <plurals name="vehicles_pending_orphans">
+        <item quantity="one">%1$d Eintrag gehört zu keinem deiner Fahrzeuge und kann nicht übertragen werden.</item>
+        <item quantity="other">%1$d Einträge gehören zu keinem deiner Fahrzeuge und können nicht übertragen werden.</item>
+    </plurals>
+    <plurals name="settings_pending_lost">
+        <item quantity="one">%1$d noch nicht übertragener Eintrag geht dabei verloren.</item>
+        <item quantity="other">%1$d noch nicht übertragene Einträge gehen dabei verloren.</item>
+    </plurals>
 </resources>

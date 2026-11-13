@@ -326,10 +326,39 @@ class VehicleViewModelTest {
         vm.onMileageInput(" 12600 ")
         vehicles.vehicleResult = Outcome.Success(vehicle.copy(currentMileage = 12600))
         vm.saveMileage()
-        assertEquals(listOf(vehicle to 12600), vehicles.updateMileageCalls)
+        assertEquals(listOf(vehicle.id to 12600), vehicles.updateMileageCalls)
         assertNull(vm.state.value.mileageDialog)
         assertEquals(2, vehicles.vehicleCalls.size)
         assertEquals(12600, vm.state.value.vehicle!!.currentMileage)
+    }
+
+    @Test fun mileageWithoutConnectionIsKeptOnTheDeviceAndShownAsPending() = kotlinx.coroutines.runBlocking {
+        val outbox = de.bikemaintainer.app.data.storage.InMemoryOutbox()
+        val pending = de.bikemaintainer.app.data.repository.PendingRepository(outbox)
+        vehicles.vehicleResult = Outcome.Success(vehicle)
+        vehicles.raiseQueued = true
+        val vm = VehicleViewModel(7, vehicles, maintenance, measurements, auth, pending)
+        vm.openMileageDialog()
+        vm.onMileageInput("12600")
+        vm.saveMileage()
+        assertNull(vm.state.value.mileageDialog)
+        assertTrue(vm.state.value.mileageQueued)
+        vm.consumeMileageQueued()
+        assertFalse(vm.state.value.mileageQueued)
+
+        // What waits for this vehicle is listed; entries of other vehicles are not.
+        outbox.add(de.bikemaintainer.app.data.storage.OutboxEntry("a", 7, 0, mileage = 12600))
+        outbox.add(de.bikemaintainer.app.data.storage.OutboxEntry("b", 8, 0, mileage = 99))
+        assertEquals(listOf("a"), vm.state.value.pending.map { it.id })
+        // A waiting higher mileage counts as the current one.
+        vm.openMileageDialog()
+        assertEquals("12600", vm.state.value.mileageDialog!!.input)
+        vm.onMileageInput("12500")
+        vm.saveMileage()
+        assertEquals(MileageError.TooLow(12600), vm.state.value.mileageDialog!!.error)
+
+        vm.discardPending("a")
+        assertTrue(vm.state.value.pending.isEmpty())
     }
 
     @Test fun saveFailureKeepsDialogWithError() {

@@ -98,7 +98,7 @@ class MaintenanceRepositoryTest {
 
     @Test
     fun logMaintenanceSendsPerformedTaskIds() {
-        assertEquals(Outcome.Success(Unit), send("Oil changed"))
+        assertEquals(Outcome.Success(de.bikemaintainer.app.domain.Recorded.SAVED), send("Oil changed"))
         val request = env.requests.single()
         assertEquals("/api/v1/vehicles/3/maintenance-logs", request.url.encodedPath)
         val body = body()
@@ -118,7 +118,7 @@ class MaintenanceRepositoryTest {
     fun unreadableCreatedResponseCountsAsSaved() {
         val repo = setUp(response = { json("{", 201) })
         val result = runBlocking { repo.logMaintenance(3, LocalDate.of(2026, 11, 9), 24100, setOf(1L), null) }
-        assertEquals(Outcome.Success(Unit), result)
+        assertEquals(Outcome.Success(de.bikemaintainer.app.domain.Recorded.SAVED), result)
         assertEquals(1, env.requests.size)
     }
 

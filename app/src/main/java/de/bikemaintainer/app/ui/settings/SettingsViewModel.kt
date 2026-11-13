@@ -3,6 +3,7 @@ package de.bikemaintainer.app.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.AuthRepository
+import de.bikemaintainer.app.data.repository.PendingRepository
 import de.bikemaintainer.app.domain.Account
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
@@ -38,6 +39,8 @@ data class SettingsUiState(
     val deleteError: DeleteAccountError? = null,
     /** The account has just been deleted (shown once, together with [next]). */
     val accountDeleted: Boolean = false,
+    /** Recordings not sent yet; logout and server switch drop them, the dialog says so. */
+    val pendingCount: Int = 0,
 )
 
 enum class DeleteAccountError { WRONG_PASSWORD, LAST_ADMIN, TOO_MANY_ATTEMPTS, NOT_REACHABLE, UNKNOWN }
@@ -50,6 +53,7 @@ class SettingsViewModel(
     private val auth: AuthRepository,
     private val reminders: ReminderScheduler,
     private val notifications: DueNotifications,
+    pending: PendingRepository = PendingRepository(),
     private val notificationsAllowed: () -> Boolean,
 ) : ViewModel() {
     private var lastAllowed = notificationsAllowed()
@@ -57,6 +61,7 @@ class SettingsViewModel(
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
 
     init {
+        viewModelScope.launch { pending.items.collect { list -> _state.update { it.copy(pendingCount = list.size) } } }
         viewModelScope.launch {
             auth.settings.collect { stored ->
                 _state.update {

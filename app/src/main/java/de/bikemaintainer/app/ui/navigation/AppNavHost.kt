@@ -57,6 +57,7 @@ import de.bikemaintainer.app.ui.vehicles.VehiclesViewModel
 import de.bikemaintainer.app.domain.MeasurementTemplate
 import de.bikemaintainer.app.domain.scan.ScanOutcome
 import kotlinx.serialization.json.Json
+import de.bikemaintainer.app.data.repository.PendingRepository
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -77,6 +78,8 @@ class AppDependencies(
     val onVehicleOpened: () -> Unit,
     /** Reads photographed worksheets; tests without a camera keep the default. */
     val worksheetScanner: WorksheetScanner = WorksheetScanner { ScanOutcome.NoSheet },
+    /** Recordings not sent yet (app#65). */
+    val pending: PendingRepository = PendingRepository(),
 )
 
 @Composable
@@ -183,7 +186,7 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
         composable<VehiclesRoute> {
             val viewModel: VehiclesViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { VehiclesViewModel(deps.vehicles, deps.auth) }
+                    initializer { VehiclesViewModel(deps.vehicles, deps.auth, deps.pending) }
                 },
             )
             VehiclesScreen(
@@ -206,6 +209,7 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                             deps.measurements,
                             deps.auth,
                             cancelNotification = deps.notifications::cancelVehicle,
+                            pending = deps.pending,
                         )
                     }
                 },
@@ -345,7 +349,9 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
         composable<SettingsRoute> {
             val back = navController.popBackOnce()
             val viewModel: SettingsViewModel = viewModel(
-                factory = viewModelFactory { initializer { SettingsViewModel(deps.auth, deps.reminders, deps.notifications, deps.notificationsAllowed) } },
+                factory = viewModelFactory { initializer {
+                    SettingsViewModel(deps.auth, deps.reminders, deps.notifications, deps.pending, deps.notificationsAllowed)
+                } },
             )
             SettingsScreen(
                 viewModel = viewModel,

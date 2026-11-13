@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.MeasurementRepository
+import de.bikemaintainer.app.data.repository.PendingRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.domain.Access
 import de.bikemaintainer.app.domain.AccessSource
@@ -11,6 +12,9 @@ import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.MeasurementContext
 import de.bikemaintainer.app.domain.Outcome
+import de.bikemaintainer.app.domain.PendingItem
+import de.bikemaintainer.app.domain.PendingState
+import de.bikemaintainer.app.domain.Recorded
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
 import de.bikemaintainer.app.domain.inactiveForDisplay
@@ -18,6 +22,7 @@ import de.bikemaintainer.app.domain.isSubscriptionRequired
 import de.bikemaintainer.app.domain.olderOf
 import de.bikemaintainer.app.domain.parseMileage
 import de.bikemaintainer.app.ui.common.ReloadableLoader
+import de.bikemaintainer.app.ui.common.isMileageBelowCurrent
 import de.bikemaintainer.app.ui.common.isNotFound
 import java.time.Instant
 import kotlinx.coroutines.Job
@@ -26,6 +31,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -51,6 +57,10 @@ data class VehicleUiState(
     val deleteError: AppError? = null,
     /** The vehicle is deleted; the screen leaves once. */
     val deleted: Boolean = false,
+    /** Recordings of this vehicle not sent yet, oldest first (app#65). */
+    val pending: List<PendingItem> = emptyList(),
+    /** One-time message: the mileage was kept on the device (no connection). */
+    val mileageQueued: Boolean = false,
 ) {
     /** Mileage, logs and tasks can be recorded: write access and no delete running. */
     val canRecord: Boolean get() = access.canWrite && !deleting && !deleted
@@ -72,6 +82,7 @@ class VehicleViewModel(
     maintenance: MaintenanceRepository,
     private val measurementRepository: MeasurementRepository,
     private val accessSource: AccessSource = AccessSource.Unrestricted,
+    private val pending: PendingRepository = PendingRepository(),
     /** Removes the due notification of the deleted vehicle; it would otherwise open a vehicle that is gone. */
     private val cancelNotification: (Long) -> Unit = {},
 ) : ViewModel() {
@@ -118,13 +129,42 @@ class VehicleViewModel(
                         deleting = it.deleting,
                         deleteError = it.deleteError,
                         deleted = it.deleted,
+                        pending = it.pending,
+                        mileageQueued = it.mileageQueued,
                     )
                 }
             }
         }
         viewModelScope.launch { accessSource.access.collect { a -> _state.update { it.copy(access = a) } } }
         viewModelScope.launch { accessSource.refreshAccess() }
+        viewModelScope.launch {
+            var before = emptyList<PendingItem>()
+            pending.items.map { list -> list.filter { it.vehicleId == vehicleId } }.collect { list ->
+                _state.update { it.copy(pending = list) }
+                // Something was sent meanwhile: show the server's state.
+                if (list.size < before.size) loader.reloadSilently()
+                before = list
+            }
+        }
         loader.refresh()
+    }
+
+    private fun currentMileage(vehicle: Vehicle): Int = maxOf(
+        vehicle.currentMileage,
+        _state.value.pending
+            .filter { it.kind == PendingItem.Kind.MILEAGE && it.state == PendingState.Waiting }
+            .maxOfOrNull { it.mileage } ?: 0,
+    )
+
+    fun consumeMileageQueued() = _state.update { it.copy(mileageQueued = false) }
+
+    /** Sends a possible duplicate anyway. */
+    fun sendPendingAnyway(id: String) {
+        viewModelScope.launch { pending.confirm(id) }
+    }
+
+    fun discardPending(id: String) {
+        viewModelScope.launch { pending.discard(id) }
     }
 
     private var measurementJob: Job? = null
@@ -151,7 +191,7 @@ class VehicleViewModel(
     fun openMileageDialog() {
         if (!_state.value.canRecord) return
         val vehicle = loader.state.value.data?.first ?: return
-        _state.update { it.copy(mileageDialog = MileageDialogState(vehicle.currentMileage.toString())) }
+        _state.update { it.copy(mileageDialog = MileageDialogState(currentMileage(vehicle).toString())) }
     }
 
     fun onMileageInput(text: String) = updateDialog { it.copy(input = text, error = null) }
@@ -165,15 +205,19 @@ class VehicleViewModel(
         if (dialog.saving) return
         val vehicle = loader.state.value.data?.first ?: return
         val km = parseMileage(dialog.input)
+        // A higher mileage waiting to be sent counts as the current one: a lower value would be refused later.
+        val current = currentMileage(vehicle)
         when {
             km == null -> updateDialog { it.copy(error = MileageError.Invalid) }
-            km < vehicle.currentMileage -> updateDialog { it.copy(error = MileageError.TooLow(vehicle.currentMileage)) }
-            km == vehicle.currentMileage -> _state.update { it.copy(mileageDialog = null) }
+            km < current -> updateDialog { it.copy(error = MileageError.TooLow(current)) }
+            km == current -> _state.update { it.copy(mileageDialog = null) }
             else -> {
                 updateDialog { it.copy(saving = true, error = null) }
                 viewModelScope.launch {
-                    when (val result = vehicles.updateMileage(vehicle, km)) {
-                        is Outcome.Success -> {
+                    when (val result = vehicles.raiseMileage(vehicleId, km)) {
+                        is Outcome.Success -> if (result.value == Recorded.QUEUED) {
+                            _state.update { it.copy(mileageDialog = null, mileageQueued = true) }
+                        } else {
                             _state.update { it.copy(mileageDialog = null) }
                             loader.refresh()
                         }
@@ -184,6 +228,8 @@ class VehicleViewModel(
                             loader.refresh()
                         } else {
                             if (result.error.isSubscriptionRequired()) accessSource.subscriptionRequired()
+                            // Raised elsewhere meanwhile: the reload shows the server's value.
+                            if (result.error.isMileageBelowCurrent()) loader.refresh()
                             updateDialog { it.copy(saving = false, error = MileageError.Save(result.error)) }
                         }
                     }

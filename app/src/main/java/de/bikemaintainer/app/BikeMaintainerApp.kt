@@ -26,5 +26,7 @@ class BikeMaintainerApp : Application(), Configuration.Provider {
         container = AppContainer(this)
         // Brings the schedule in line with switch, permission and login, e.g. after the permission was revoked.
         appScope.launch { container.reminderScheduler.syncQuietly() }
+        // Sends what was recorded without a connection in an earlier run, once there is one.
+        appScope.launch { container.pendingRepository.scheduleIfPending() }
     }
 }

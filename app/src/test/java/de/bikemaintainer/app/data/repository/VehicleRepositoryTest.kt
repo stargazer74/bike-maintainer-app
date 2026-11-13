@@ -94,11 +94,10 @@ class VehicleRepositoryTest {
     @Test
     fun withoutStoredServerNotConfiguredIsReported() {
         val repo = setUp(configured = false) { json("[]") }
-        val vehicle = Vehicle(3, "Tenere", VehicleType.MOTORCYCLE, "Yamaha", "XT", 2021, LocalDate.of(2021, 5, 4), 23000)
         val notConfigured = Outcome.Failure(AppError.NotConfigured)
         assertEquals(notConfigured, runBlocking { repo.vehicles() })
         assertEquals(notConfigured, runBlocking { repo.vehicle(3) })
-        assertEquals(notConfigured, runBlocking { repo.updateMileage(vehicle, 24000) })
+        assertEquals(notConfigured, runBlocking { repo.raiseMileage(3, 24000) })
         assertEquals(0, env!!.requests.size)
     }
 
@@ -123,22 +122,22 @@ class VehicleRepositoryTest {
     }
 
     @Test
-    fun updateMileageKeepsOtherFields() {
+    fun raiseMileageSendsOnlyTheMileage() {
         val repo = setUp { json(response) }
-        val vehicle = Vehicle(3, "Tenere", VehicleType.MOTORCYCLE, "Yamaha", "XT", 2021, LocalDate.of(2021, 5, 4), 23000)
-        val result = runBlocking { repo.updateMileage(vehicle, 24000) }
-        assertEquals(24000, (result as Outcome.Success).value.currentMileage)
+        val result = runBlocking { repo.raiseMileage(3, 24000) }
+        assertEquals(Outcome.Success(de.bikemaintainer.app.domain.Recorded.SAVED), result)
         val request = env!!.requests.single()
         assertEquals("PUT", request.method)
-        assertEquals("/api/v1/vehicles/3", request.url.encodedPath)
+        assertEquals("/api/v1/vehicles/3/mileage", request.url.encodedPath)
         val body = Json.parseToJsonElement(request.body!!.utf8()).jsonObject
-        assertEquals("Tenere", body["name"]!!.jsonPrimitive.content)
-        assertEquals("MOTORCYCLE", body["type"]!!.jsonPrimitive.content)
-        assertEquals("Yamaha", body["make"]!!.jsonPrimitive.content)
-        assertEquals("XT", body["model"]!!.jsonPrimitive.content)
-        assertEquals("2021", body["modelYear"]!!.jsonPrimitive.content)
-        assertEquals("2021-05-04", body["firstRegistrationDate"]!!.jsonPrimitive.content)
-        assertEquals("24000", body["currentMileage"]!!.jsonPrimitive.content)
+        assertEquals(setOf("mileage"), body.keys)
+        assertEquals("24000", body["mileage"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun mileageBelowTheServersIsReported() {
+        val repo = setUp { json("""{"status":409,"code":"MILEAGE_BELOW_CURRENT"}""", 409) }
+        assertEquals(Outcome.Failure(AppError.Http(409, "MILEAGE_BELOW_CURRENT")), runBlocking { repo.raiseMileage(3, 1) })
     }
 
     @Test

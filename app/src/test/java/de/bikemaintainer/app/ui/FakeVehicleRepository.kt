@@ -5,11 +5,13 @@ import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Measurements
 import de.bikemaintainer.app.domain.Outcome
+import de.bikemaintainer.app.domain.Recorded
 import de.bikemaintainer.app.domain.TaskInput
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleInput
 import de.bikemaintainer.app.domain.VehicleSummary
 import java.time.LocalDate
+import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
 
 /** Configurable [VehicleRepository] for ViewModel tests: set a `...Result`, read the `...Calls`, hold with a `...Gate`. */
@@ -28,7 +30,7 @@ class FakeVehicleRepository : VehicleRepository {
 
     var updateMileageResult: Outcome<Vehicle>? = null
     var updateMileageGate: CompletableDeferred<Unit>? = null
-    val updateMileageCalls = mutableListOf<Pair<Vehicle, Int>>()
+    val updateMileageCalls = mutableListOf<Pair<Long, Int>>()
 
     override suspend fun vehicles(): Outcome<List<Vehicle>> {
         vehiclesCalls++
@@ -48,10 +50,17 @@ class FakeVehicleRepository : VehicleRepository {
         return summariesResult
     }
 
-    override suspend fun updateMileage(vehicle: Vehicle, newMileage: Int): Outcome<Vehicle> {
-        updateMileageCalls += vehicle to newMileage
+    /** [raiseMileage] answers [Recorded.QUEUED] instead of saving (no connection). */
+    var raiseQueued = false
+
+    override suspend fun raiseMileage(vehicleId: Long, mileage: Int): Outcome<Recorded> {
+        updateMileageCalls += vehicleId to mileage
         updateMileageGate?.await()
-        return updateMileageResult ?: error("updateMileageResult not set")
+        if (raiseQueued) return Outcome.Success(Recorded.QUEUED)
+        return when (val result = updateMileageResult ?: error("updateMileageResult not set")) {
+            is Outcome.Success -> Outcome.Success(Recorded.SAVED)
+            is Outcome.Failure -> result
+        }
     }
 
     var createVehicleResult: Outcome<Vehicle>? = null
@@ -99,6 +108,11 @@ class FakeMaintenanceRepository : MaintenanceRepository {
     val tasksCalls = mutableListOf<Long>()
 
     var logResult: Outcome<Unit> = Outcome.Success(Unit)
+
+    /** [logMaintenance] answers [Recorded.QUEUED] instead of saving (no connection). */
+    var logQueued = false
+    val logEntryIds = mutableListOf<UUID>()
+    val logRaises = mutableListOf<Int?>()
     var logGate: CompletableDeferred<Unit>? = null
     val logCalls = mutableListOf<LogCall>()
 
@@ -115,10 +129,18 @@ class FakeMaintenanceRepository : MaintenanceRepository {
         taskIds: Set<Long>,
         notes: String?,
         measurements: Measurements?,
-    ): Outcome<Unit> {
+        clientEntryId: UUID,
+        raiseMileageTo: Int?,
+    ): Outcome<Recorded> {
         logCalls += LogCall(vehicleId, performedAt, mileage, taskIds, notes, measurements)
+        logEntryIds += clientEntryId
+        logRaises += raiseMileageTo
         logGate?.await()
-        return logResult
+        if (logQueued) return Outcome.Success(Recorded.QUEUED)
+        return when (val result = logResult) {
+            is Outcome.Success -> Outcome.Success(Recorded.SAVED)
+            is Outcome.Failure -> result
+        }
     }
 
     var taskResult: Outcome<MaintenanceTask>? = null

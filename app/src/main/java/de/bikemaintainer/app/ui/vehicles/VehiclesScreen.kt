@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -73,6 +74,7 @@ fun VehiclesScreen(
         onOpenVehicle = onOpenVehicle,
         onOpenSettings = onOpenSettings,
         onAddVehicle = onAddVehicle,
+        onDiscardOrphans = viewModel::discardOrphans,
     )
 }
 
@@ -85,6 +87,7 @@ fun VehiclesContent(
     onOpenVehicle: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     onAddVehicle: () -> Unit = {},
+    onDiscardOrphans: () -> Unit = {},
 ) {
     val showFab = state.access.canWrite && !state.summaries.isNullOrEmpty()
     Scaffold(
@@ -168,11 +171,38 @@ fun VehiclesContent(
                         } else if (error != null) {
                             item { ErrorText(stringResource(error.loadMessageRes())) }
                         }
+                        if (state.pendingWaiting > 0 || state.pendingAttention > 0 || state.pendingOrphans.isNotEmpty()) {
+                            item { PendingNotice(state, onDiscardOrphans) }
+                        }
                         items(summaries, key = { it.vehicle.id }) { summary ->
                             VehicleCard(summary, onClick = { onOpenVehicle(summary.vehicle.id) })
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** How many recordings are not on the server yet, and those that need the user (app#65). */
+@Composable
+private fun PendingNotice(state: VehiclesUiState, onDiscardOrphans: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (state.pendingWaiting > 0) {
+            Text(
+                pluralStringResource(R.plurals.vehicles_pending_waiting, state.pendingWaiting, state.pendingWaiting),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (state.pendingAttention > 0) {
+            ErrorText(pluralStringResource(R.plurals.vehicles_pending_attention, state.pendingAttention, state.pendingAttention))
+        }
+        val orphans = state.pendingOrphans.size
+        if (orphans > 0) {
+            ErrorText(pluralStringResource(R.plurals.vehicles_pending_orphans, orphans, orphans))
+            TextButton(onClick = onDiscardOrphans, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.pending_discard))
             }
         }
     }
