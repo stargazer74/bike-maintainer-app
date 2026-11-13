@@ -50,7 +50,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -164,7 +163,7 @@ fun VehicleContent(
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                title = { Text(state.vehicle?.name.orEmpty(), fontWeight = FontWeight.Bold) },
+                title = { Text(state.vehicle?.name.orEmpty()) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
@@ -291,7 +290,6 @@ private fun VehicleHeader(vehicle: Vehicle) {
                 Text(
                     mileageText(vehicle.currentMileage),
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
                 )
                 val makeModel = listOfNotNull(vehicle.make, vehicle.model).joinToString(" ")
                 Text(
