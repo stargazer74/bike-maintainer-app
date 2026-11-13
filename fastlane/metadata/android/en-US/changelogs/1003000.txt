@@ -1,0 +1,5 @@
+• Works without a connection: vehicles and tasks show the last loaded state ("Offline – data as of …")
+• Mileage and maintenance can be recorded offline and are sent as soon as there is a connection again
+• No duplicate entries: retries are recognised, possible duplicates are confirmed first
+• A dropped connection while renewing the session no longer logs you out
+• Needs server version 0.20.0 or newer
