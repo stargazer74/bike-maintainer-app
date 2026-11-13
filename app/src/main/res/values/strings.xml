@@ -12,7 +12,10 @@
     <string name="status_done">Done</string>
     <string name="vehicle_all_up_to_date">All up to date</string>
     <string name="vehicle_no_tasks">No maintenance tasks</string>
-    <string name="vehicle_due_count">Due: %1$d</string>
+    <plurals name="vehicle_due_tasks">
+        <item quantity="one">%1$d task due</item>
+        <item quantity="other">%1$d tasks due</item>
+    </plurals>
     <string name="vehicle_mileage">%1$s km</string>
     <string name="vehicles_empty">No vehicles yet.</string>
     <string name="settings">Settings</string>

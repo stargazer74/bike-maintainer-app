@@ -1,6 +1,9 @@
 package de.bikemaintainer.app.ui.theme
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -8,7 +11,11 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.res.painterResource
+import de.bikemaintainer.app.R
 
 // Every role set explicitly: Material's defaults (purple, tinted greys) would show up in cards, dialogs and menus.
 internal val DarkColorScheme = darkColorScheme(
@@ -108,5 +115,17 @@ fun BikeMaintainerTheme(
  */
 @Composable
 fun AppSurface(content: @Composable () -> Unit) {
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(Modifier.fillMaxSize()) {
+            // The logo, large and very faint, behind every screen (the Scaffolds are transparent for it).
+            val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+            Image(
+                painter = painterResource(if (dark) R.drawable.welcome_logo_dark else R.drawable.welcome_logo_light),
+                contentDescription = null,
+                alpha = if (dark) 0.05f else 0.06f,
+                modifier = Modifier.fillMaxWidth(0.85f).align(Alignment.Center),
+            )
+            content()
+        }
+    }
 }

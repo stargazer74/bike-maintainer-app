@@ -54,7 +54,17 @@ class VehiclesScreenTest {
         compose.onNodeWithText("Africa Twin").assertExists()
         compose.onNodeWithText("12.345 km").assertExists()
         compose.onNodeWithText("Überfällig").assertExists()
-        compose.onNodeWithText("Fällig: 2").assertExists()
+        compose.onNodeWithText("2 Aufgaben fällig").assertExists()
+    }
+
+    @Test fun singleDueTaskUsesTheSingular() {
+        show(VehiclesUiState(summaries = listOf(summary.copy(status = TaskStatus.DUE_SOON, dueCount = 1))))
+        compose.onNodeWithText("1 Aufgabe fällig").assertExists()
+    }
+
+    @Test fun cardNamesTheVehicleTypeForScreenReaders() {
+        show(VehiclesUiState(summaries = listOf(summary)))
+        compose.onAllNodesWithContentDescription("Motorrad").assertCountEquals(1)
     }
 
     @Test fun statusIsCarriedByTheTextNotTheDot() {

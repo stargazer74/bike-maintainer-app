@@ -8,7 +8,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import de.bikemaintainer.app.domain.Access
@@ -134,7 +136,9 @@ class VehicleScreenTest {
         }
         compose.onNodeWithText("Ölwechsel").performClick()
         assertEquals(1L, edited)
-        compose.onNodeWithText("Vergaser").performScrollTo().performClick()
+        // The inactive task sits below the fold of the lazy list: scroll the list to it first.
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Vergaser"))
+        compose.onNodeWithText("Vergaser").performClick()
         assertEquals(2L, edited)
     }
 
