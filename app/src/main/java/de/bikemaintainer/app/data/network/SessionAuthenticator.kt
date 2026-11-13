@@ -8,6 +8,8 @@ import de.bikemaintainer.app.data.storage.SettingsStore
 import de.bikemaintainer.app.domain.ServerMode
 import java.io.IOException
 import java.security.GeneralSecurityException
+import java.security.SecureRandom
+import java.util.Base64
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerializationException
@@ -27,10 +29,10 @@ import okhttp3.Route
  * exchange is serialised, happens at most once per session generation, and the new token is stored before anything
  * else may use the new session.
  *
- * Accepted trade-off: if the exchange reaches the server but its response is lost (connection drops, timeout), the
- * IOException leaves the stored token untouched although the server may already have rotated it. The next exchange
- * then presents a used-up token and the server removes the device; the user has to log in again. Discarding the token
- * on every IOException instead would force a new login on each network hiccup.
+ * Lost answers (backend#164): the app chooses the next token itself (`nextDeviceToken`) and stores it as pending
+ * before sending. If the exchange reaches the server but its answer is lost, the next renewal presents the pending
+ * token first – the server's current one – and only after a 401 the stored token. A dropped connection therefore no
+ * longer costs the login.
  *
  * Renewal only happens for requests to [baseUrl] when it is the stored server address (normalised as in
  * [ApiProvider.normalize]); token and profile are never sent anywhere else.
@@ -98,29 +100,74 @@ class SessionAuthenticator(
             if (settings.current().encryptedDeviceToken == null) state.require(SessionStatus.LOGIN_REQUIRED)
             return null
         }
+        // Tokens proposed in an exchange whose answer was lost come first, newest first: one of them may be the
+        // server's current token. One the server does not know (the request never arrived) is dropped.
+        for (candidate in tokens.pending()) {
+            when (val outcome = exchange(candidate)) {
+                Exchange.Rejected -> tokens.dropPending(candidate)
+                else -> return finish(outcome, request)
+            }
+        }
+        return finish(exchange(token), request)
+    }
+
+    private sealed interface Exchange {
+        /** A new session runs; [token] is the new device token. */
+        data class Exchanged(val token: String) : Exchange
+
+        /** 401: the presented token is unknown, used up or the account cannot log in. */
+        data object Rejected : Exchange
+
+        /** Any other answer: no renewal this time, nothing changes. */
+        data object Failed : Exchange
+    }
+
+    /**
+     * Presents [presented] together with a new token the app chose (`nextDeviceToken`, backend#164). The new token is
+     * stored as pending **before** the request is sent: if the answer is lost, the app still knows the token the server
+     * now has. An IOException leaves everything as it is.
+     */
+    private suspend fun exchange(presented: String): Exchange {
+        val next = newDeviceToken()
+        tokens.addPending(next)
         val result = try {
-            sessionApis().first.createDeviceSession(DeviceSessionRequest(token))
+            sessionApis().first.createDeviceSession(DeviceSessionRequest(deviceToken = presented, nextDeviceToken = next))
         } catch (_: SerializationException) {
-            // A 200 whose body cannot be read: the server has already rotated the token, but we never got the new one.
-            return rejectExchange()
+            // A 200 whose body cannot be read: the server has taken the token we chose.
+            return Exchange.Exchanged(next)
         }
-        if (result.code() == HTTP_UNAUTHORIZED) return rejectExchange()
-        if (result.code() != HTTP_OK) return null
-        // Same as above: the old token is used up; presenting it again would look like a copied token.
-        val newToken = result.body()?.deviceToken ?: return rejectExchange()
-        // Store the new token before the new session can be used. If that fails in any way (Keystore, full disk), the
-        // old one is used up all the same.
-        try {
-            tokens.set(newToken)
-        } catch (_: IOException) {
-            return rejectExchange()
-        } catch (_: GeneralSecurityException) {
-            return rejectExchange()
-        } catch (_: RuntimeException) {
-            return rejectExchange()
+        if (result.code() == HTTP_UNAUTHORIZED) {
+            tokens.dropPending(next)
+            return Exchange.Rejected
         }
-        state.sessionStarted()
-        return retry(request)
+        if (result.code() != HTTP_OK) return Exchange.Failed
+        // A server that predates nextDeviceToken generates its own token; a current one returns ours.
+        return Exchange.Exchanged(result.body()?.deviceToken ?: next)
+    }
+
+    private suspend fun finish(outcome: Exchange, request: Request): Request? = when (outcome) {
+        Exchange.Rejected -> rejectExchange()
+        Exchange.Failed -> null
+        is Exchange.Exchanged -> {
+            // Store the new token before the new session can be used. If that fails, the token is still among the
+            // pending ones when the app chose it, and the next renewal finds it; one the server generated is lost.
+            val stored = try {
+                tokens.set(outcome.token)
+                true
+            } catch (_: IOException) {
+                false
+            } catch (_: GeneralSecurityException) {
+                false
+            } catch (_: RuntimeException) {
+                false
+            }
+            if (!stored && outcome.token !in tokens.pending()) {
+                rejectExchange()
+            } else {
+                state.sessionStarted()
+                retry(request)
+            }
+        }
     }
 
     /** The device token is invalid or used up: forget it, the user has to log in again. */
@@ -156,8 +203,18 @@ class SessionAuthenticator(
     private fun retry(request: Request): Request =
         request.newBuilder().tag(SessionGeneration::class, SessionGeneration(state.generation)).build()
 
+    /** 256 random bits as Base64url without padding (43 characters), like the server's tokens. */
+    private fun newDeviceToken(): String {
+        val bytes = ByteArray(TOKEN_BYTES)
+        random.nextBytes(bytes)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+    }
+
+    private val random = SecureRandom()
+
     companion object {
         private const val HTTP_OK = 200
+        private const val TOKEN_BYTES = 32
         private const val HTTP_UNAUTHORIZED = 401
         private const val HTTP_NOT_FOUND = 404
 

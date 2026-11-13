@@ -30,6 +30,11 @@ import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
+import org.junit.Assert.assertTrue
+import mockwebserver3.SocketEffect
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.Json
 import okhttp3.Cookie
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -152,7 +157,10 @@ class SessionAuthenticatorTest {
         }
         get(VEHICLES).use { assertEquals(200, it.code) }
         assertEquals(listOf("GET $VEHICLES", "POST $DEVICE_SESSION", "GET $VEHICLES"), seen.toList())
-        assertEquals(listOf("""{"deviceToken":"alt"}"""), exchangeBodies)
+        val body = Json.parseToJsonElement(exchangeBodies.single()).jsonObject
+        assertEquals("alt", body["deviceToken"]!!.jsonPrimitive.content)
+        // The app chose the next token itself (backend#164); a server that ignores it sends its own ("neu").
+        assertTrue(body["nextDeviceToken"]!!.jsonPrimitive.content.matches(Regex("^[A-Za-z0-9_-]{43}$")))
         assertEquals("neu", runBlocking { tokens.get() })
         assertEquals(SessionStatus.ACTIVE, state.status.value)
         assertEquals(1L, state.generation)
@@ -263,26 +271,86 @@ class SessionAuthenticatorTest {
     }
 
     @Test
-    fun unreadableExchangeBodyRequiresLogin() {
+    fun answerWithoutTokenMeansTheServerTookTheChosenOne() {
+        var chosen: String? = null
         setUp { req ->
             when (req.url.encodedPath) {
-                VEHICLES -> status(401)
-                // 200, but without the new device token.
-                DEVICE_SESSION -> json("""{"user":$USER}""")
+                VEHICLES -> if (req.hasNewSession()) json("[]") else status(401)
+                // 200 without a device token in the body: the exchange happened with the token the app chose.
+                DEVICE_SESSION -> {
+                    chosen = Json.parseToJsonElement(req.body!!.utf8()).jsonObject["nextDeviceToken"]!!.jsonPrimitive.content
+                    MockResponse.Builder().addHeader("Set-Cookie", "SESSION=s2; Path=/")
+                        .addHeader("Content-Type", "application/json").body("""{"user":$USER}""").build()
+                }
+                else -> status(500)
+            }
+        }
+        get(VEHICLES).use { assertEquals(200, it.code) }
+        assertEquals(SessionStatus.ACTIVE, state.status.value)
+        assertEquals(chosen, runBlocking { tokens.get() })
+        assertTrue(runBlocking { tokens.pending() }.isEmpty())
+    }
+
+    @Test
+    fun lostAnswerDoesNotCostTheLogin() {
+        val presented = mutableListOf<String>()
+        var lose = true
+        setUp { req ->
+            when (req.url.encodedPath) {
+                VEHICLES -> if (req.hasNewSession()) json("[]") else status(401)
+                DEVICE_SESSION -> {
+                    val body = Json.parseToJsonElement(req.body!!.utf8()).jsonObject
+                    presented += body["deviceToken"]!!.jsonPrimitive.content
+                    val next = body["nextDeviceToken"]!!.jsonPrimitive.content
+                    if (lose) {
+                        // The server exchanged the token (now: next), but the answer never reaches the app.
+                        lose = false
+                        MockResponse.Builder().onResponseStart(SocketEffect.ShutdownConnection).build()
+                    } else {
+                        exchanged(next)
+                    }
+                }
                 else -> status(500)
             }
         }
         get(VEHICLES).use { assertEquals(401, it.code) }
-        assertEquals(SessionStatus.LOGIN_REQUIRED, state.status.value)
-        assertNull(runBlocking { tokens.get() })
-        assertEquals(1, count(DEVICE_SESSION))
-        assertEquals(1, count(VEHICLES))
-        assertEquals(0L, state.generation)
+        assertEquals(SessionStatus.ACTIVE, state.status.value) // no login required
+        val chosenFirst = runBlocking { tokens.pending() }.single()
+
+        get(VEHICLES).use { assertEquals(200, it.code) }
+        // The second renewal presented the token chosen in the lost exchange, not the used-up "alt".
+        assertEquals(listOf("alt", chosenFirst), presented.distinct())
+        assertEquals(chosenFirst, presented.last())
+        assertTrue(runBlocking { tokens.pending() }.isEmpty())
     }
 
     @Test
-    fun tokenStoreFailureAfterExchangeRequiresLogin() {
-        // Reads the stored token, but cannot store a new one (e.g. Keystore failure).
+    fun aChosenTokenTheServerNeverSawIsDroppedAndTheStoredOneUsed() {
+        val presented = mutableListOf<String>()
+        setUp { req ->
+            when (req.url.encodedPath) {
+                VEHICLES -> if (req.hasNewSession()) json("[]") else status(401)
+                DEVICE_SESSION -> {
+                    val body = Json.parseToJsonElement(req.body!!.utf8()).jsonObject
+                    val token = body["deviceToken"]!!.jsonPrimitive.content
+                    presented += token
+                    if (token == "alt") exchanged(body["nextDeviceToken"]!!.jsonPrimitive.content) else status(401)
+                }
+                else -> status(500)
+            }
+        }
+        // A pending token from an exchange that never reached the server.
+        runBlocking { tokens.addPending("P".repeat(43)) }
+        get(VEHICLES).use { assertEquals(200, it.code) }
+        assertEquals(listOf("P".repeat(43), "alt"), presented)
+        assertEquals(SessionStatus.ACTIVE, state.status.value)
+        assertTrue(runBlocking { tokens.pending() }.isEmpty())
+    }
+
+    @Test
+    fun tokenThatCannotBeStoredIsNeverSent() {
+        // Reads the stored token, but cannot store a new one (e.g. Keystore failure): the next token cannot be kept
+        // before sending, so nothing is sent and the stored token stays valid.
         val cipher = object : TokenCipher {
             private val readable = FakeTokenCipher()
             override fun encrypt(plain: String): String = throw GeneralSecurityException("keystore unavailable")
@@ -298,19 +366,18 @@ class SessionAuthenticatorTest {
         // Retrofit suspend call (async in OkHttp): an exception escaping the authenticator would surface here.
         val vehicles = retrofit(client).create(VehiclesApi::class.java)
         assertEquals(401, runBlocking { vehicles.listVehicles() }.code())
-        assertEquals(SessionStatus.LOGIN_REQUIRED, state.status.value)
-        assertNull(runBlocking { settings.current() }.encryptedDeviceToken)
-        assertEquals(1, count(DEVICE_SESSION))
+        assertEquals(SessionStatus.ACTIVE, state.status.value)
+        assertEquals("alt", runBlocking { tokens.get() })
+        assertEquals(0, count(DEVICE_SESSION))
         assertEquals(1, count(VEHICLES))
         assertEquals(0L, state.generation)
     }
 
     @Test
-    fun storageWriteFailureAfterExchangeRequiresLoginAndNeverReusesToken() {
-        val sessionExpired = AtomicBoolean(false)
+    fun storageWriteFailureBeforeTheExchangeSendsNothing() {
         setUp { req ->
             when (req.url.encodedPath) {
-                VEHICLES -> if (req.hasNewSession() && !sessionExpired.get()) json("[]") else status(401)
+                VEHICLES -> if (req.hasNewSession()) json("[]") else status(401)
                 DEVICE_SESSION -> exchanged()
                 else -> status(500)
             }
@@ -318,13 +385,30 @@ class SessionAuthenticatorTest {
         failWrites.set(true)
         val vehicles = retrofit(client).create(VehiclesApi::class.java)
         assertEquals(401, runBlocking { vehicles.listVehicles() }.code())
-        assertEquals(SessionStatus.LOGIN_REQUIRED, state.status.value)
-        assertEquals(0L, state.generation)
-        // The used-up token could not be removed (writes fail); it must still never be presented again, not even when
-        // the new session has expired as well.
-        sessionExpired.set(true)
-        get(VEHICLES).use { assertEquals(401, it.code) }
-        assertEquals(1, count(DEVICE_SESSION))
+        assertEquals(0, count(DEVICE_SESSION))
+        assertEquals(SessionStatus.ACTIVE, state.status.value)
+        // Once storage works again, the unused token still renews the session.
+        failWrites.set(false)
+        get(VEHICLES).use { assertEquals(200, it.code) }
+    }
+
+    @Test
+    fun storageFailureAfterTheExchangeKeepsTheSessionWithTheChosenToken() {
+        setUp { req ->
+            when (req.url.encodedPath) {
+                VEHICLES -> if (req.hasNewSession()) json("[]") else status(401)
+                DEVICE_SESSION -> {
+                    // The pending token is stored by now; storing it as the device token fails.
+                    failWrites.set(true)
+                    exchanged(Json.parseToJsonElement(req.body!!.utf8()).jsonObject["nextDeviceToken"]!!.jsonPrimitive.content)
+                }
+                else -> status(500)
+            }
+        }
+        get(VEHICLES).use { assertEquals(200, it.code) }
+        assertEquals(SessionStatus.ACTIVE, state.status.value)
+        // Still pending, so the next renewal presents it first.
+        assertEquals(1, runBlocking { tokens.pending() }.size)
     }
 
     @Test

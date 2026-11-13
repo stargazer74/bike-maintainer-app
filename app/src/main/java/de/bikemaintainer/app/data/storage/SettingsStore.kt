@@ -20,6 +20,8 @@ data class StoredSettings(
     val notificationsAsked: Boolean = false,
     val notificationsEnabled: Boolean = true,
     val reloginNotified: Boolean = false,
+    /** Encrypted device tokens the app proposed in an exchange whose answer it never got (newest first), see app#164. */
+    val encryptedPendingDeviceTokens: String? = null,
 )
 
 class SettingsStore(private val dataStore: DataStore<Preferences>) {
@@ -32,6 +34,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             notificationsAsked = prefs[NOTIFICATIONS_ASKED] ?: false,
             notificationsEnabled = prefs[NOTIFICATIONS_ENABLED] ?: true,
             reloginNotified = prefs[RELOGIN_NOTIFIED] ?: false,
+            encryptedPendingDeviceTokens = prefs[PENDING_DEVICE_TOKENS_ENC],
         )
     }
 
@@ -77,6 +80,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             it[SERVER_URL] = url
             it[SERVER_MODE] = ServerMode.PORTAL.name
             it[DEVICE_TOKEN_ENC] = encryptedDeviceToken
+            it.remove(PENDING_DEVICE_TOKENS_ENC)
             it.remove(PROFILE_ID)
             it.remove(RELOGIN_NOTIFIED)
             it.remove(REPORTED_DUE) // state of a previous (expired) session must not suppress or leak
@@ -90,13 +94,24 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             it[SERVER_MODE] = ServerMode.HOUSEHOLD.name
             it[PROFILE_ID] = profileId
             it.remove(DEVICE_TOKEN_ENC)
+            it.remove(PENDING_DEVICE_TOKENS_ENC)
             it.remove(RELOGIN_NOTIFIED)
             it.remove(REPORTED_DUE)
         }
     }
 
+    /** Sets the device token; the pending ones are dropped with it (they belong to the token they would replace). */
     suspend fun setEncryptedDeviceToken(value: String?) {
-        dataStore.edit { if (value == null) it.remove(DEVICE_TOKEN_ENC) else it[DEVICE_TOKEN_ENC] = value }
+        dataStore.edit {
+            if (value == null) it.remove(DEVICE_TOKEN_ENC) else it[DEVICE_TOKEN_ENC] = value
+            it.remove(PENDING_DEVICE_TOKENS_ENC)
+        }
+    }
+
+    suspend fun setEncryptedPendingDeviceTokens(value: String?) {
+        dataStore.edit {
+            if (value == null) it.remove(PENDING_DEVICE_TOKENS_ENC) else it[PENDING_DEVICE_TOKENS_ENC] = value
+        }
     }
 
     suspend fun setProfileId(id: Long?) {
@@ -107,6 +122,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     suspend fun clearSession() {
         dataStore.edit {
             it.remove(DEVICE_TOKEN_ENC)
+            it.remove(PENDING_DEVICE_TOKENS_ENC)
             it.remove(PROFILE_ID)
             it.remove(REPORTED_DUE)
             it.remove(RELOGIN_NOTIFIED)
@@ -124,6 +140,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
 
     private companion object {
         val REPORTED_DUE = stringPreferencesKey("reported_due")
+        val PENDING_DEVICE_TOKENS_ENC = stringPreferencesKey("pending_device_tokens_enc")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val RELOGIN_NOTIFIED = booleanPreferencesKey("relogin_notified")
 
