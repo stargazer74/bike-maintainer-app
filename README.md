@@ -35,6 +35,11 @@ Downloads from GitHub are visible to GitHub. The app itself only talks to the se
 Photographing a filled-in worksheet (Epic backend#120) runs entirely on the phone – see `docs/digit-model.md` for
 the pipeline, the digit model and how to retrain it (`tools/digit-model/`).
 
+## Odometer photo (in progress)
+
+Reading the odometer from a photo (Epic backend#129) is trained on synthetic photos from `tools/odometer-model/` –
+see `docs/odometer-model.md` for the generator and the label format.
+
 Third-party data: the digit model is trained on MNIST (Y. LeCun, C. Cortes, C. J. C. Burges, CC BY-SA 3.0).
 
 ## License
