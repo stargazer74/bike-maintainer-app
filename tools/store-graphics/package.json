@@ -1,0 +1,9 @@
+{
+  "name": "bike-maintainer-store-graphics",
+  "private": true,
+  "description": "Store graphics of the app for Google Play and F-Droid (see README.md).",
+  "type": "module",
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

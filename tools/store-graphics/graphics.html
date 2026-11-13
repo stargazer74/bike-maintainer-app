@@ -1,0 +1,55 @@
+<!doctype html>
+<!--
+  Store graphics of Google Play (and F-Droid): app icon 512×512 and feature graphic 1024×500, rendered by render.mjs.
+  ?kind=icon | ?kind=feature&lang=de|en. Font: Inter from the portal theme (loaded by render.mjs, never from the web).
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: Inter; src: url("inter.woff2") format("woff2"); font-weight: 100 900; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: Inter, sans-serif; -webkit-font-smoothing: antialiased; }
+
+  /* Play masks the icon itself (rounded corners): full-bleed square, no own corners or shadow. */
+  .icon { width: 512px; height: 512px; background: #F96302; display: grid; place-items: center; }
+  .icon svg { width: 300px; height: 300px; }
+
+  /* Important content stays inside the centre; Play may crop the edges or lay a play button over it. */
+  .feature {
+    width: 1024px; height: 500px; box-sizing: border-box; padding: 0 96px;
+    display: flex; align-items: center; gap: 56px; color: #F3F4F6;
+    background:
+      radial-gradient(ellipse 620px 420px at 88% 110%, rgba(249, 99, 2, 0.28), transparent 70%),
+      radial-gradient(ellipse 520px 360px at 0% 0%, rgba(249, 99, 2, 0.10), transparent 70%),
+      #0B0F19;
+  }
+  .tile { flex: none; width: 200px; height: 200px; border-radius: 48px; background: #F96302; display: grid;
+          place-items: center; box-shadow: 0 24px 60px rgba(249, 99, 2, 0.25); }
+  .tile svg { width: 140px; height: 140px; }
+  h1 { margin: 0; font-size: 76px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.02; }
+  p { margin: 22px 0 0; font-size: 31px; font-weight: 500; line-height: 1.3; color: #C7CBD3; max-width: 560px; }
+  p strong { color: #F96302; font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+<template id="glyph">
+  <!-- Material Symbols "two_wheeler" (Apache License 2.0, Google), as in the app icon, web app and portal. -->
+  <svg viewBox="0 -960 960 960" aria-hidden="true"><path fill="#FFFFFF" d="M160-200q-66 0-113-47T0-360q0-57 36.5-101t93.5-55l-28-24H0v-60h180l100 60 160-60h126l-62-80H400v-80h142l84 108 134-68v120h-92l70 92q15-6 30.5-9t31.5-3q66 0 113 47t47 113q0 66-47 113t-113 47q-66 0-113-47t-47-113q0-27 9.5-52.5T676-460l-20-24-136 204H400l-80-70q-5 63-51 106.5T160-200Zm0-80q33 0 56.5-23.5T240-360q0-33-23.5-56.5T160-440q-33 0-56.5 23.5T80-360q0 33 23.5 56.5T160-280Zm294-240-144 54 144-54h130-130Zm346 240q33 0 56.5-23.5T880-360q0-33-23.5-56.5T800-440q-33 0-56.5 23.5T720-360q0 33 23.5 56.5T800-280Zm-322-80 106-160H454l-144 54 120 106h48Z"/></svg>
+</template>
+<script>
+  const params = new URLSearchParams(location.search);
+  const glyph = document.getElementById('glyph').innerHTML;
+  const texts = {
+    de: 'Wartung für Motorrad und Auto – nach Kilometern oder Zeit, <strong>was zuerst kommt</strong>.',
+    en: 'Maintenance for motorcycles and cars – by mileage or time, <strong>whichever comes first</strong>.',
+  };
+  if (params.get('kind') === 'icon') {
+    document.body.innerHTML = `<div class="icon">${glyph}</div>`;
+  } else {
+    document.body.innerHTML = `<div class="feature"><div class="tile">${glyph}</div>
+      <div><h1>Bike Maintainer</h1><p>${texts[params.get('lang') ?? 'de']}</p></div></div>`;
+  }
+</script>
+</body>
+</html>
