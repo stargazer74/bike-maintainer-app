@@ -199,7 +199,12 @@ object MarkerFinder {
         var sign = 0
         for (i in 0 until 4) {
             val a = ring[i]; val b = ring[(i + 1) % 4]
-            val cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+            // Cross product of the edge a→b and a→p; its sign says on which side of the edge p lies.
+            val edgeX = b.x - a.x
+            val edgeY = b.y - a.y
+            val toPointX = p.x - a.x
+            val toPointY = p.y - a.y
+            val cross = edgeX * toPointY - edgeY * toPointX
             val s = if (cross > 0) 1 else -1
             if (sign == 0) sign = s else if (s != sign) return false
         }
