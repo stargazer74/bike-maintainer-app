@@ -1,6 +1,5 @@
 package de.bikemaintainer.app.data.repository
 
-import de.bikemaintainer.app.api.models.MileageRequest
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.storage.Outbox
 import de.bikemaintainer.app.data.storage.OutboxEntry
@@ -66,7 +65,7 @@ class OutboxSync(private val provider: ApiProvider, private val outbox: Outbox) 
     }
 
     private suspend fun sendMileage(vehicleId: Long, mileage: Int): Step =
-        when (val result = provider.callStored { it.vehicles.updateMileage(vehicleId, MileageRequest(mileage)) }) {
+        when (val result = provider.raiseMileage(vehicleId, mileage)) {
             is Outcome.Success -> Step.Sent
             // A 2xx whose body cannot be read: the value is set.
             is Outcome.Failure -> if (result.error == AppError.Http(-1, null)) Step.Sent else step(result.error)
