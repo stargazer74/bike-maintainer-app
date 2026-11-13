@@ -74,4 +74,22 @@ class DeviceTokenStoreTest {
         store.clear()
         assertNull(store.get())
     }
+
+    @Test
+    fun pendingTokensAreKeptEncryptedNewestFirstAndGoWithTheToken() = runTest {
+        val settings = settings()
+        val store = DeviceTokenStore(settings, FakeTokenCipher())
+        store.set("current")
+        (1..5).forEach { store.addPending("p$it") }
+        // At most four, the oldest go.
+        assertEquals(listOf("p5", "p4", "p3", "p2"), store.pending())
+        store.dropPending("p4")
+        assertEquals(listOf("p5", "p3", "p2"), store.pending())
+        // A new device token replaces them: they belonged to the token it replaces.
+        store.set("p3")
+        assertEquals(emptyList<String>(), store.pending())
+        store.addPending("q")
+        settings.clearSession()
+        assertEquals(emptyList<String>(), store.pending())
+    }
 }
