@@ -1,0 +1,4 @@
+# Generated images, not in the repository (python generate.py ...), see docs/odometer-model.md.
+out/
+testset/
+__pycache__/
