@@ -28,6 +28,8 @@ class ApiProvider(
     private val tokens: DeviceTokenStore,
     private val state: SessionState,
     private val debugLog: ((String) -> Unit)?,
+    /** Receives the error ID of every server error, see [ErrorIdInterceptor]. */
+    private val errorIds: ErrorIdState = ErrorIdState(),
 ) {
     data class Apis(
         val auth: AuthApi,
@@ -81,7 +83,7 @@ class ApiProvider(
         val authenticator = SessionAuthenticator(base, settings, tokens, state) {
             sessionRetrofit.create(AuthApi::class.java) to sessionRetrofit.create(ProfilesApi::class.java)
         }
-        client = HttpClientFactory.create(cookieJar, authenticator, listOf(GenerationTagInterceptor(state)), debugLog)
+        client = HttpClientFactory.create(cookieJar, authenticator, listOf(GenerationTagInterceptor(state), ErrorIdInterceptor(errorIds)), debugLog)
         val retrofit = retrofit(client, base)
         val apis = Apis(
             auth = retrofit.create(AuthApi::class.java),

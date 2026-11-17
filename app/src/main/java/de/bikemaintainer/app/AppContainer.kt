@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import de.bikemaintainer.app.api.infrastructure.Serializer
 import de.bikemaintainer.app.data.network.ApiProvider
+import de.bikemaintainer.app.data.network.ErrorIdState
 import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.repository.ApiAuthRepository
 import de.bikemaintainer.app.data.repository.ApiMaintenanceRepository
@@ -41,6 +42,8 @@ class AppContainer(context: Context) {
 
     val settings = SettingsStore(dataStore)
     val sessionState = SessionState()
+    /** Error ID of the last server error, shown above all screens. */
+    val errorIds = ErrorIdState()
 
     private val tokens = DeviceTokenStore(settings, KeystoreTokenCipher())
     private val provider = ApiProvider(
@@ -48,6 +51,7 @@ class AppContainer(context: Context) {
         tokens = tokens,
         state = sessionState,
         debugLog = if (BuildConfig.DEBUG) { message -> Log.d("BikeMaintainerHttp", message) } else null,
+        errorIds = errorIds,
     )
 
     /** Last server answers for use without a connection (app#64); app-private, cleared with the session. */

@@ -5,12 +5,18 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import de.bikemaintainer.app.notifications.notificationsAllowed
+import de.bikemaintainer.app.ui.common.ErrorIdNotice
 import de.bikemaintainer.app.ui.navigation.AppDependencies
 import de.bikemaintainer.app.ui.navigation.AppNavHost
 import de.bikemaintainer.app.ui.navigation.readStartDestination
@@ -51,7 +57,15 @@ class MainActivity : AppCompatActivity() {
                             container.pendingRepository,
                         )
                     }
-                    start?.let { AppNavHost(deps = deps, start = it) }
+                    val errorId by container.errorIds.errorId.collectAsState()
+                    Box(Modifier.fillMaxSize()) {
+                        start?.let { AppNavHost(deps = deps, start = it) }
+                        ErrorIdNotice(
+                            errorId = errorId,
+                            onDismiss = container.errorIds::dismiss,
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                        )
+                    }
                 }
             }
         }
