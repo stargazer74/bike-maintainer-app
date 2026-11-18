@@ -3,6 +3,26 @@
 Stand: 2026-11-06 · Epic stargazer74/bike-maintainer-backend#104, Teilprojekt B (Teilprojekt A: Geräte-Anmeldung,
 Spec im Backend `docs/specs/2026-11-06-device-login-design.md`, umgesetzt mit API-Spec 2.10.0) · Tickets: #8–#12
 
+> [!NOTE]
+> **Historischer Entwurf.** Dieses Dokument beschreibt die Planung von Version 1 und wird nicht mehr nachgeführt.
+> Was die App heute tut, steht im Code, im README, in `docs/` und in den Issues. Abgleich vom 2026-11-18 – die
+> wichtigsten späteren Änderungen:
+>
+> - **Umfang:** Entgegen „Nicht in Version 1“ gibt es inzwischen Fahrzeuge und Aufgaben anlegen und bearbeiten
+>   (#44, Aufgaben werden deaktiviert statt gelöscht), Konto löschen (#48), Offline lesen und erfassen mit
+>   Warteschlange (#64, #65), Messwerte und Sollwerte (#24), Arbeitsblatt fotografieren (#28, Epic
+>   stargazer74/bike-maintainer-backend#120), Kontostatus Testphase/nur lesbar (#43), Designauswahl
+>   System/Hell/Dunkel und die Fehler-ID bei Serverfehlern (#74).
+> - **Verteilung:** signierte Releases auf GitHub mit Updates per Obtainium (#21, `docs/release.md`) statt nur
+>   Debug-APK; Store-Texte liegen unter `fastlane/`, die Veröffentlichung im Play Store ist noch offen (#22).
+> - **API:** deutlich mehr Endpunkte als unter „Schnittstelle“ aufgeführt; Kilometerstand über
+>   `PUT /vehicles/{id}/mileage` mit Rückfall für ältere Server (#72, #73).
+> - **Sitzung:** Die App wählt das nächste Geräte-Token selbst und speichert es vorher („pending“), damit eine
+>   verlorene Antwort nicht abmeldet (stargazer74/bike-maintainer-backend#164); erneuert wird über eine
+>   Sitzungs-Generation je Anfrage statt über einen Token-Vergleich.
+> - **Aufbau und Tests:** mehr Pakete als unter „Aufbau“ (u. a. `sync`, `scan`, `ui.common`); Kover ≥ 90 % für
+>   `data` und `domain`; CI zusätzlich mit Release-Build, Prüfung der Dependency-Locks und Trivy.
+
 ## Ziel
 
 Eine native Android-App für Bike Maintainer für unterwegs und die Werkstatt: Fälligkeiten sehen, Kilometerstand
