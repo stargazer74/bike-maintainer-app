@@ -1,0 +1,2 @@
+• Fehler-ID bei Serverfehlern: Die App zeigt sie an, damit du sie bei einer Fehlermeldung angeben kannst
+• Die Fehler-ID erscheint mit Server ab 0.21.0, alles andere läuft auch mit älteren
