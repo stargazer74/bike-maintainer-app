@@ -1,0 +1,2 @@
+• Error ID on server errors: the app shows it so you can quote it when reporting a problem
+• The error ID appears with server 0.21.0 or newer; everything else also works with older ones
