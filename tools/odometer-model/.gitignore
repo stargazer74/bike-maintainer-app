@@ -2,3 +2,6 @@
 out/
 testset/
 __pycache__/
+cache/
+odo-detector.bin
+odo-reference.txt
