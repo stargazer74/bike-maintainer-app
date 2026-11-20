@@ -28,6 +28,10 @@ treated as one and shared under the same license.
 
 ## Other third-party material
 
+- Fonts in `tools/odometer-model/fonts/` (only used by the odometer photo generator, not in the APK): Noto Sans
+  Mono, © Google, and Quicksand, © The Quicksand Project Authors, both SIL Open Font License 1.1, as subsets; see
+  `tools/odometer-model/fonts/README.md` and `OFL.txt` there.
+
 - Launcher icon and the icons in `app/src/main/res/drawable/ic_add.xml` and `ic_vehicle_*.xml`: Material Symbols
   ("two_wheeler", "add", "directions_car", "pedal_bike", "electric_bike", "sports_motorsports", "moped"), Google,
   Apache License 2.0.

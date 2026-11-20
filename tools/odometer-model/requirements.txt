@@ -1,0 +1,3 @@
+# Versions the gallery and the test set were made with; other versions give slightly different pixels.
+numpy==1.26.4
+Pillow==12.0.0
