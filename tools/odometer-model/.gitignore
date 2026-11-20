@@ -5,3 +5,5 @@ __pycache__/
 cache/
 odo-detector.bin
 odo-reference.txt
+odo-reader.bin
+odo-reader-reference.txt
