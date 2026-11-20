@@ -26,6 +26,8 @@ data class VehiclesUiState(
     val error: AppError? = null,
     /** Set while the list is the one stored offline (no connection): when it was loaded. */
     val asOf: Instant? = null,
+    /** The stored list is shown while the server is asked (app#69). */
+    val updating: Boolean = false,
     /** Read-only accounts cannot add vehicles. */
     val access: Access = Access.FULL,
     /** Recordings not sent yet (app#65). */
@@ -42,7 +44,7 @@ data class VehiclesUiState(
      * sent and are only reachable here. Unknown while the list is the stored offline one.
      */
     val pendingOrphans: List<String>
-        get() = if (summaries == null || asOf != null) emptyList() else pending.filter { it.vehicleId !in vehicleIds }.map { it.id }
+        get() = if (summaries == null || asOf != null || updating) emptyList() else pending.filter { it.vehicleId !in vehicleIds }.map { it.id }
 
     private val vehicleIds: Set<Long> get() = summaries.orEmpty().map { it.vehicle.id }.toSet()
 }
@@ -54,7 +56,7 @@ class VehiclesViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow(VehiclesUiState(access = accessSource.access.value))
     val state: StateFlow<VehiclesUiState> = _state.asStateFlow()
-    private val loader = ReloadableLoader(viewModelScope) { vehicles.summaries() }
+    private val loader = ReloadableLoader(viewModelScope, stored = vehicles::storedSummaries) { vehicles.summaries() }
 
     init {
         viewModelScope.launch { accessSource.access.collect { a -> _state.update { it.copy(access = a) } } }
@@ -70,7 +72,13 @@ class VehiclesViewModel(
         }
         viewModelScope.launch {
             loader.state.collect { l ->
-                _state.update { it.copy(summaries = l.data, refreshing = l.refreshing, error = l.error, asOf = l.asOf) }
+                _state.update { it.copy(
+                        summaries = l.data,
+                        refreshing = l.refreshing,
+                        error = l.error,
+                        asOf = l.asOf,
+                        updating = l.updating,
+                    ) }
             }
         }
         loader.refresh()

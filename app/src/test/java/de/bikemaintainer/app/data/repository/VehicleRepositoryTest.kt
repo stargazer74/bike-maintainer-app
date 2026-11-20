@@ -351,4 +351,79 @@ class VehicleRepositoryOfflineTest {
         runBlocking { repo.deleteVehicle(1) } // answered 404 by the test server: already gone counts too
         assertEquals(null, runBlocking { offline.load(OfflineKeys.tasks(1), de.bikemaintainer.app.data.repository.TASKS) })
     }
+
+    // app#69
+
+    @Test
+    fun storedSummariesAreReadWithoutAskingTheServer() {
+        val (repo, _) = setUp()
+        runBlocking { repo.summaries() }
+        val before = env.requests.size
+        val stored = runBlocking { repo.storedSummaries() }!!
+        assertEquals(before, env.requests.size)
+        assertEquals(fetched, stored.asOf)
+        assertEquals(listOf(1L, 2L), stored.value.map { it.vehicle.id })
+        assertEquals(listOf(TaskStatus.OVERDUE, TaskStatus.OVERDUE), stored.value.map { it.status })
+        assertEquals("V2", runBlocking { repo.storedVehicle(2) }!!.value.name)
+    }
+
+    @Test
+    fun aServerThatDoesNotAnswerShowsTheStoredStateAtOnceAndItsTimeAfterTheFailure() {
+        val (repo, _) = setUp()
+        runBlocking { repo.summaries() }
+        val release = CountDownLatch(1)
+        env.server.dispatcher = object : mockwebserver3.Dispatcher() {
+            override fun dispatch(request: mockwebserver3.RecordedRequest): mockwebserver3.MockResponse {
+                // No answer until released; then the connection breaks off, as at the time limit.
+                release.await(30, TimeUnit.SECONDS)
+                return mockwebserver3.MockResponse.Builder()
+                    .onResponseStart(mockwebserver3.SocketEffect.ShutdownConnection)
+                    .build()
+            }
+        }
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+        try {
+            val loader = de.bikemaintainer.app.ui.common.ReloadableLoader(scope, stored = repo::storedSummaries) {
+                repo.summaries()
+            }
+            loader.refresh()
+            val shown = waitFor(2_000) { loader.state.value.takeIf { it.data != null } }
+            assertEquals(true, shown.updating)
+            assertEquals(null, shown.asOf)
+            assertEquals(2, shown.data!!.size)
+            // The connection breaks off: the stored state stays, now with its time.
+            release.countDown()
+            val failed = waitFor(10_000) { loader.state.value.takeIf { it.asOf != null } }
+            assertEquals(false, failed.updating)
+            assertEquals(fetched, failed.asOf)
+            assertEquals(2, failed.data!!.size)
+        } finally {
+            release.countDown()
+            scope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
+        }
+    }
+
+    private fun <T : Any> waitFor(millis: Long, value: () -> T?): T {
+        val end = System.currentTimeMillis() + millis
+        while (System.currentTimeMillis() < end) {
+            value()?.let { return it }
+            Thread.sleep(10)
+        }
+        throw AssertionError("not reached within $millis ms")
+    }
+
+    @Test
+    fun withoutStoredTasksThereIsNoStoredList() {
+        val (repo, _) = setUp()
+        runBlocking { repo.vehicles() } // the list only, no task lists
+        assertEquals(null, runBlocking { repo.storedSummaries() })
+    }
+
+    @Test
+    fun nothingStoredBeforeTheFirstAnswer() {
+        val (repo, _) = setUp()
+        assertEquals(null, runBlocking { repo.storedSummaries() })
+        assertEquals(null, runBlocking { repo.storedVehicle(1) })
+        assertEquals(0, env.requests.size)
+    }
 }
