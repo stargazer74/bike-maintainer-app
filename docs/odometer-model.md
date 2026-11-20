@@ -135,10 +135,81 @@ every 997th logit), plus the geometry, the scaling and that broken files are rej
 **Weights format `BMO1`:** magic, tensor count, then per tensor rank, dimensions and little-endian float32 – conv
 weight and bias per layer in the order e1, e2, e3 (×2), e4 (×2), bottleneck (×2), d4, d3, d2, then the 1×1 head.
 
+## ODO line reader (app#39)
+
+Reads the digits of the ODO line: `domain/odometer/OdoReader` (plain Kotlin, shares the layers in `Nn.kt` with the
+detector), weights in `app/src/main/assets/odo-reader.bin` (750 KB). The value goes through `OdoPlausibility`
+against the last known mileage.
+
+**Crop:** the four corners with a margin (25 % of the line height above and below, 30 % left and right) are mapped
+onto a 32 px high strip of at most 160 px (perspective, bilinear, supersampled where the line is larger), rounded to
+whole grey values, normalised per strip. `OdoReader.crop` and `crop` in `train_reader.py` do the same steps; the test
+photos in `app/src/test/resources/odometer/` check that both give the same strip.
+
+**Model:** five 3×3 convolutions (32, 48, 64, 64, 96 channels, pooled down to 4 × 40), max over the height, two
+convolutions along the line (96), then per column of 40: blank, digits 0–9, **tenths digits 0–9** (the 100 m roll or
+the digit after a decimal point: read and dropped), and a flag whether a roll is **turning** there. Trained with CTC
+(no split into single digits needed, which helps with half-turned rolls) plus the turning flag (weighted 5×, as it is
+rare), on 60,000 crops of 30,000 synthetic photos, two per photo with corners moved like a detector would (σ 7 % of
+the line height, ±12 % longer or shorter).
+
+**Reading** (`candidates`, same in Python and Kotlin): greedy CTC with both roles of a digit merged. Whether the last
+digit is the tenths one is often not visible – a 100 m roll in the same colour as the others, no decimal point; a
+person cannot tell either – so up to two readings come out: all digits, and the last one dropped as tenths. A reading
+is **unsure** if
+
+- a digit's probability is below 0.98,
+- a roll is turning under one of its digits (flag above 0.3) – a half-turned roll counts as its lower digit, like
+  reading a meter,
+- a blank column shows a digit that none of its neighbours reads (a digit may be missing), or
+- the dropped tenths digit is 9 or 0: the next roll is turning along with it (carry).
+
+**Plausibility** (`OdoPlausibility`): a value below the last mileage or more than 20,000 above it does not fit. If
+exactly one reading fits, it is taken (unsure only if its digits are); if both fit (small mileages, below about
+2,500), none fits, or there is no last mileage, the value is marked for checking. The app always has the vehicle's
+mileage, so the second case is the normal one.
+
+**Results** on the fixed test set (400 photos, not trained on), with a last mileage 0–3,000 km below the true value:
+
+| | right | right and sure | sure and wrong |
+|---|---|---|---|
+| straightened from the labelled corners | **393 / 400 = 98.2 %** | 313 | **0** |
+| the whole way: corners from the detector | 374 / 400 = 93.5 % | 297 | 3 (wrong area found) |
+
+- By kind, right and sure: tft 90, lcd7 84, dotmatrix 83, drum 56 of 100. Mechanical counters are flagged most:
+  turning rolls and tenths rolls in the same colour.
+- 20 % of the right values are flagged, mostly because both readings fit: the generator draws many small mileages.
+  For mileages from 5,000 km on, 7.8 % of the right values are flagged.
+- The 3 sure-and-wrong values of the whole way come from the 3.5 % of photos where the detector frames something
+  else (app#38); the user sees the frame on the photo (app#40).
+- Known limit: a units roll turned 90 % or more on a counter without tenths roll may be read as the next digit
+  (1 km too much) without a flag. Checked on the 2,000 held-out training crops: 2 of 2,000.
+
+Real photos (app#41) are not collected yet; their results will be added here.
+
+**Training** (`tools/odometer-model/train_reader.py`, uses CUDA if available, 40 epochs about 10 minutes on an
+RTX 5070 Ti):
+
+```bash
+cd tools/odometer-model
+python train_reader.py prepare out/train cache/reader-train.npz 2   # 2 crops per photo with moved corners
+python train_reader.py prepare testset cache/reader-test.npz 0      # exact crops from the labels
+python train_reader.py train 40     # → odo-reader.bin, odo-reader-reference.txt (and cache/reader.pt)
+python train_reader.py eval         # the table above (also needs cache/detector.pt)
+cp odo-reader.bin ../../app/src/main/assets/ && cp odo-reader-reference.txt ../../app/src/test/resources/odometer/
+```
+
+The thresholds (0.98, 0.3, 0.35, the carry rule) were chosen on the held-out training crops, not on the test set.
+`OdoReaderTest` checks the Kotlin forward pass against `odo-reader-reference.txt`, the crop and the value of three
+test photos against the Python code, and the plausibility and roll rules on made-up model outputs.
+
+**Weights format `BMR1`:** like `BMO1` – conv weight and bias of the five 2-D and two 1-D layers, then class head
+and turning head.
+
 ## Licences
 
-Code, generated photos and the detector weights trained on them (`odo-detector.bin`): MIT like the rest of the
-app – no third-party images go in. Fonts (only in the
+Code, generated photos and the weights trained on them (`odo-detector.bin`, `odo-reader.bin`) and the test photos
+in `app/src/test/resources/odometer/`: MIT like the rest of the app – no third-party images go in. Fonts (only in the
 generator, `tools/odometer-model/fonts/`): Noto Sans Mono (© Google) and Quicksand (© The Quicksand Project
 Authors), both SIL Open Font License 1.1 without Reserved Font Name, as subsets; sources and the subset command in
 `fonts/README.md`. Seven-segment and dot-matrix digits are drawn by the code. Known limits: no real cockpit

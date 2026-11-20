@@ -1,11 +1,8 @@
 package de.bikemaintainer.app.domain.odometer
 
 import de.bikemaintainer.app.domain.scan.GrayImage
-import java.io.DataInputStream
 import java.io.IOException
 import java.io.InputStream
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.exp
@@ -67,17 +64,17 @@ class OdoDetector(private val t: List<FloatArray>) {
         var k = 0
         fun layer(x: FloatArray, inC: Int, w: Int, h: Int): FloatArray {
             val (_, outC) = shapes[k]
-            val out = conv3(x, inC, w, h, t[2 * k], t[2 * k + 1], outC)
+            val out = Nn.conv3(x, inC, w, h, t[2 * k], t[2 * k + 1], outC)
             k++
             return out
         }
         val e1 = layer(input, 1, IN_W, IN_H)
-        val e2 = layer(pool(e1, E1, IN_W, IN_H), E1, IN_W / 2, IN_H / 2)
-        var e3 = layer(pool(e2, E2, IN_W / 2, IN_H / 2), E2, IN_W / 4, IN_H / 4)
+        val e2 = layer(Nn.pool(e1, E1, IN_W, IN_H), E1, IN_W / 2, IN_H / 2)
+        var e3 = layer(Nn.pool(e2, E2, IN_W / 2, IN_H / 2), E2, IN_W / 4, IN_H / 4)
         e3 = layer(e3, E3, IN_W / 4, IN_H / 4)
-        var e4 = layer(pool(e3, E3, IN_W / 4, IN_H / 4), E3, IN_W / 8, IN_H / 8)
+        var e4 = layer(Nn.pool(e3, E3, IN_W / 4, IN_H / 4), E3, IN_W / 8, IN_H / 8)
         e4 = layer(e4, E4, IN_W / 8, IN_H / 8)
-        var b = layer(pool(e4, E4, IN_W / 8, IN_H / 8), E4, IN_W / 16, IN_H / 16)
+        var b = layer(Nn.pool(e4, E4, IN_W / 8, IN_H / 8), E4, IN_W / 16, IN_H / 16)
         b = layer(b, B, IN_W / 16, IN_H / 16)
         val d4 = layer(concat(up(b, B, IN_W / 16, IN_H / 16), e4), B + E4, IN_W / 8, IN_H / 8)
         val d3 = layer(concat(up(d4, D4, IN_W / 8, IN_H / 8), e3), D4 + E3, IN_W / 4, IN_H / 4)
@@ -90,54 +87,6 @@ class OdoDetector(private val t: List<FloatArray>) {
             for (c in 0 until D2) s += d2[c * n + p] * hw[c]
             s
         }
-    }
-
-    /** 3×3 convolution, padding 1, then ReLU. Loops ordered so the innermost one runs along a row. */
-    private fun conv3(x: FloatArray, inC: Int, w: Int, h: Int, weights: FloatArray, bias: FloatArray, outC: Int): FloatArray {
-        val n = w * h
-        val out = FloatArray(outC * n)
-        for (o in 0 until outC) {
-            val ob = o * n
-            java.util.Arrays.fill(out, ob, ob + n, bias[o])
-            for (i in 0 until inC) {
-                val ib = i * n
-                val wb = (o * inC + i) * 9
-                for (ky in 0 until 3) {
-                    val dy = ky - 1
-                    val y0 = max(0, -dy)
-                    val y1 = min(h, h - dy)
-                    for (kx in 0 until 3) {
-                        val wv = weights[wb + ky * 3 + kx]
-                        if (wv == 0f) continue
-                        val dx = kx - 1
-                        val x0 = max(0, -dx)
-                        val x1 = min(w, w - dx)
-                        for (y in y0 until y1) {
-                            val orow = ob + y * w
-                            val irow = ib + (y + dy) * w + dx
-                            for (xx in x0 until x1) out[orow + xx] += x[irow + xx] * wv
-                        }
-                    }
-                }
-            }
-            for (p in ob until ob + n) if (out[p] < 0f) out[p] = 0f
-        }
-        return out
-    }
-
-    private fun pool(x: FloatArray, c: Int, w: Int, h: Int): FloatArray {
-        val hw = w / 2
-        val hh = h / 2
-        val out = FloatArray(c * hw * hh)
-        for (ch in 0 until c) {
-            val b = ch * w * h
-            val ob = ch * hw * hh
-            for (y in 0 until hh) for (xx in 0 until hw) {
-                val p = b + 2 * y * w + 2 * xx
-                out[ob + y * hw + xx] = maxOf(maxOf(x[p], x[p + 1]), maxOf(x[p + w], x[p + w + 1]))
-            }
-        }
-        return out
     }
 
     private fun up(x: FloatArray, c: Int, w: Int, h: Int): FloatArray {
@@ -321,41 +270,11 @@ class OdoDetector(private val t: List<FloatArray>) {
             return OdoLine(corners, sw / count)
         }
 
-        /** Reads the weights: magic `BMO1`, tensor count, then per tensor rank, dimensions and little-endian float32. */
-        fun load(input: InputStream): OdoDetector {
-            val data = DataInputStream(input.buffered())
-            val magic = ByteArray(4)
-            data.readFully(magic)
-            if (String(magic, Charsets.US_ASCII) != "BMO1") throw IOException("Not an odometer model")
-            val count = readInt(data)
-            if (count !in 1..64) throw IOException("Invalid tensor count")
-            val tensors = List(count) {
-                val rank = readInt(data)
-                if (rank !in 1..4) throw IOException("Invalid tensor rank")
-                var size = 1L
-                repeat(rank) {
-                    val d = readInt(data)
-                    if (d <= 0) throw IOException("Invalid tensor dimension")
-                    size *= d
-                    if (size > MAX_TENSOR_SIZE) throw IOException("Invalid tensor size")
-                }
-                val bytes = ByteArray(size.toInt() * 4)
-                data.readFully(bytes)
-                FloatArray(size.toInt()).also { ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(it) }
-            }
-            return try {
-                OdoDetector(tensors)
-            } catch (e: IllegalArgumentException) {
-                throw IOException(e.message, e)
-            }
-        }
-
-        private const val MAX_TENSOR_SIZE = 1_000_000L
-
-        private fun readInt(data: DataInputStream): Int {
-            val bytes = ByteArray(4)
-            data.readFully(bytes)
-            return ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).int
+        /** Reads the weights (`assets/odo-detector.bin`, magic `BMO1`, see [Nn.readTensors]). */
+        fun load(input: InputStream): OdoDetector = try {
+            OdoDetector(Nn.readTensors(input, "BMO1"))
+        } catch (e: IllegalArgumentException) {
+            throw IOException(e.message, e)
         }
     }
 }

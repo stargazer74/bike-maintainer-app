@@ -38,7 +38,7 @@ the pipeline, the digit model and how to retrain it (`tools/digit-model/`).
 ## Odometer photo (in progress)
 
 Reading the odometer from a photo (Epic backend#129) is trained on synthetic photos from `tools/odometer-model/` –
-see `docs/odometer-model.md` for the generator and the label format.
+see `docs/odometer-model.md` for the generator, the label format, the line detector and the digit reader.
 
 Third-party data: the digit model is trained on MNIST (Y. LeCun, C. Cortes, C. J. C. Burges, CC BY-SA 3.0).
 
