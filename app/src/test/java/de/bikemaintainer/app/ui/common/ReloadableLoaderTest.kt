@@ -2,6 +2,7 @@ package de.bikemaintainer.app.ui.common
 
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
+import de.bikemaintainer.app.domain.Snapshot
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -209,5 +210,70 @@ class ReloadableLoaderTest {
         assertEquals(2, calls)
         assertEquals(LoadState(data = "a"), l.state.value)
         crashing.cancel()
+    }
+
+    // app#69: the stored state at once, then the answer.
+    private val storedAt = java.time.Instant.parse("2026-11-19T07:00:00Z")
+    private var stored: Snapshot<String>? = Snapshot("stored", storedAt)
+    private var storedCalls = 0
+
+    private fun storedLoader(isTerminal: (AppError) -> Boolean = { false }) =
+        ReloadableLoader(scope, isTerminal, stored = { storedCalls++; stored }) {
+            calls++
+            gate?.await()
+            result
+        }
+
+    @Test fun storedStateIsShownAtOnceWhileTheServerIsAsked() {
+        gate = CompletableDeferred()
+        val l = storedLoader()
+        l.refresh()
+        // No spinner, no "as of" yet: only the quiet hint.
+        assertEquals(LoadState(data = "stored", updating = true), l.state.value)
+        gate!!.complete(Unit)
+        assertEquals(LoadState(data = "a"), l.state.value)
+    }
+
+    @Test fun withoutConnectionTheStoredAnswerFollowsWithItsTime() {
+        // The repositories answer a network failure with the stored data and its time.
+        result = Outcome.Success("stored", storedAt)
+        val l = storedLoader()
+        l.refresh()
+        assertEquals(LoadState(data = "stored", asOf = storedAt), l.state.value)
+    }
+
+    @Test fun anotherFailureKeepsTheStoredStateWithItsTime() {
+        result = Outcome.Failure(AppError.Http(500, null))
+        val l = storedLoader()
+        l.refresh()
+        assertEquals(LoadState(data = "stored", asOf = storedAt, error = AppError.Http(500, null)), l.state.value)
+    }
+
+    @Test fun aTerminalFailureDropsTheStoredState() {
+        result = Outcome.Failure(AppError.NotFound)
+        val l = storedLoader(isTerminal = { it == AppError.NotFound })
+        l.refresh()
+        assertEquals(LoadState<String>(error = AppError.NotFound), l.state.value)
+    }
+
+    @Test fun nothingStoredMeansTheSpinnerAsBefore() {
+        stored = null
+        gate = CompletableDeferred()
+        val l = storedLoader()
+        l.refresh()
+        assertEquals(LoadState<String>(), l.state.value)
+        gate!!.complete(Unit)
+        assertEquals(LoadState(data = "a"), l.state.value)
+    }
+
+    @Test fun storedStateIsOnlyReadWhileNothingIsOnScreen() {
+        val l = storedLoader()
+        l.refresh()
+        assertEquals(1, storedCalls)
+        gate = CompletableDeferred()
+        l.refresh()
+        assertEquals(LoadState(data = "a", refreshing = true), l.state.value)
+        gate!!.complete(Unit)
+        assertEquals(1, storedCalls)
     }
 }

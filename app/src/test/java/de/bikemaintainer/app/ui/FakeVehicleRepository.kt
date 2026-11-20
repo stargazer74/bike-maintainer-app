@@ -6,6 +6,7 @@ import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Measurements
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Recorded
+import de.bikemaintainer.app.domain.Snapshot
 import de.bikemaintainer.app.domain.TaskInput
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleInput
@@ -27,6 +28,13 @@ class FakeVehicleRepository : VehicleRepository {
     var summariesResult: Outcome<List<VehicleSummary>> = Outcome.Success(emptyList())
     var summariesGate: CompletableDeferred<Unit>? = null
     var summariesCalls = 0
+
+    var storedSummaries: Snapshot<List<VehicleSummary>>? = null
+    var storedVehicle: Snapshot<Vehicle>? = null
+
+    override suspend fun storedSummaries() = storedSummaries
+
+    override suspend fun storedVehicle(id: Long) = storedVehicle
 
     var updateMileageResult: Outcome<Vehicle>? = null
     var updateMileageGate: CompletableDeferred<Unit>? = null
@@ -106,6 +114,10 @@ class FakeMaintenanceRepository : MaintenanceRepository {
     var tasksResult: Outcome<List<MaintenanceTask>> = Outcome.Success(emptyList())
     var tasksGate: CompletableDeferred<Unit>? = null
     val tasksCalls = mutableListOf<Long>()
+
+    var storedTasks: Snapshot<List<MaintenanceTask>>? = null
+
+    override suspend fun storedTasks(vehicleId: Long) = storedTasks
 
     var logResult: Outcome<Unit> = Outcome.Success(Unit)
 

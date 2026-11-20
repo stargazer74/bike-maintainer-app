@@ -98,6 +98,13 @@ class VehicleScreenTest {
         compose.onNodeWithText("Fahrzeug löschen").assertDoesNotExist()
     }
 
+    @Test fun storedVehicleIsShownWithAQuietHintWhileUpdating() {
+        show(VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK)), updating = true))
+        compose.onNodeWithText("12.345 km").assertExists()
+        compose.onNodeWithText("Wird aktualisiert …").assertExists()
+        compose.onNodeWithText("Offline – Stand vom", substring = true).assertDoesNotExist()
+    }
+
     @Test fun whileDeletingTheActionsAreDisabled() {
         show(VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK)), deleting = true))
         compose.onNodeWithText("Kilometerstand eintragen").assertIsNotEnabled()

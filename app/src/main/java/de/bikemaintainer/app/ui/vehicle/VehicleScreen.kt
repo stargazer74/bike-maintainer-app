@@ -62,6 +62,7 @@ import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.ui.common.AppCard
 import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.OfflineNotice
+import de.bikemaintainer.app.ui.common.UpdatingNotice
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.ReadOnlyNotice
 import de.bikemaintainer.app.ui.common.StatusDot
@@ -228,7 +229,11 @@ fun VehicleContent(
                     }
                     else -> {
                         val asOf = state.asOf
-                        if (asOf != null) item { OfflineNotice(asOf) }
+                        if (state.updating) {
+                            item { UpdatingNotice() }
+                        } else if (asOf != null) {
+                            item { OfflineNotice(asOf) }
+                        }
                         item { VehicleHeader(vehicle) }
                         item { VehicleButtons(state, actions) }
                         if (state.pending.isNotEmpty()) {
