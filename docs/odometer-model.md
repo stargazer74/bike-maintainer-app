@@ -77,9 +77,68 @@ Green: ODO line, yellow: its digits, cyan: tenths, red: distractors; top left th
 
 **`tft`** ![TFT](odometer-model/tft.jpg)
 
+## ODO line detector (app#38)
+
+Finds the total-distance line in a photo, entirely on the phone: `domain/odometer/OdoDetector` (plain Kotlin like
+`DigitClassifier`, no library, no network), weights in `app/src/main/assets/odo-detector.bin` (765 KB).
+
+**Why plain Kotlin and not LiteRT/TFLite:** no dependency and no native code in the APK, the same pattern as the
+digit model, and the network is small enough that a hand-written forward pass stays short (about 360 lines incl.
+loading). If it turns out too slow on phones, LiteRT is the fallback.
+
+**Model:** a small U-Net. Input: the photo in grey, area-averaged to 192×144 and normalised per photo (mean 0,
+std 1). Encoder 12 → 24 → 32 → 48 channels with max pooling, bottleneck 64 at 12×9, decoder with skip connections
+back to 96×72, 3×3 convolutions with ReLU (batch norms folded in on export). Output: per cell of a 96×72 grid the
+probability that it belongs to the ODO line (trained with BCE + Dice against the share of the cell covered by the
+labelled `odo` quad).
+
+**From mask to corners:** cells above 0.5, the connected region with the largest probability mass, then an oriented
+rectangle from its second moments (centre, direction of the long axis, length and height from the variances). The
+same steps in Python (`quad_of`) and Kotlin (`lineOf`); on the target masks themselves this gives IoU ≥ 0.78
+(median 0.94), so the geometry is not the limit. `OdoLine.confidence` is the mean probability of the region; below
+0.75 it is `unsure` and the user should check the frame (app#40). No region: no line, the user draws it.
+
+**Results** on the fixed test set (400 photos, seed 37000, not trained on):
+
+| | |
+|---|---|
+| ODO line found (IoU ≥ 0.7) | **386 / 400 = 96.5 %**, median IoU 0.938 |
+| per kind | drum 100/100, lcd7 96/100, tft 96/100, dotmatrix 94/100 |
+| misses | trip meter taken instead 3, partly on the line 3, elsewhere 5, nothing found 3 |
+| clock taken instead | 0 |
+| inference | 98 ms per photo on a desktop JVM (one thread); on phones to be measured with app#40 |
+
+Real photos (app#41) are not collected yet; their results will be added here.
+
+**Training** (`tools/odometer-model/train_detector.py`, PyTorch, uses CUDA if available):
+
+```bash
+cd tools/odometer-model
+pip install -r requirements.txt torch
+python generate.py --count 30000 --seed 1 --out out/train --workers 16
+python generate.py --testset
+python train_detector.py prepare out/train cache/train.npz
+python train_detector.py prepare testset cache/test.npz
+python train_detector.py train 40      # → odo-detector.bin, odo-reference.txt (and cache/detector.pt)
+python train_detector.py eval          # the table above; per photo in cache/eval.tsv
+cp odo-detector.bin ../../app/src/main/assets/ && cp odo-reference.txt ../../app/src/test/resources/odometer/
+```
+
+40 epochs take about 18 minutes on an RTX 5070 Ti (about 30 s each, mostly augmentation on the CPU), several hours on
+16 CPU cores. The last 1,000 training photos are held out for validation; augmentation adds a brightness curve and
+shifts of up to 8 px. Seeds are fixed (38), but GPU training is not bit-exact – a new run gives similar, not equal
+numbers.
+
+`OdoDetectorTest` checks that the Kotlin forward pass matches PyTorch on a fixed input (`odo-reference.txt`: sums and
+every 997th logit), plus the geometry, the scaling and that broken files are rejected.
+
+**Weights format `BMO1`:** magic, tensor count, then per tensor rank, dimensions and little-endian float32 – conv
+weight and bias per layer in the order e1, e2, e3 (×2), e4 (×2), bottleneck (×2), d4, d3, d2, then the 1×1 head.
+
 ## Licences
 
-Code and generated photos: MIT like the rest of the app – no third-party images go in. Fonts (only in the
+Code, generated photos and the detector weights trained on them (`odo-detector.bin`): MIT like the rest of the
+app – no third-party images go in. Fonts (only in the
 generator, `tools/odometer-model/fonts/`): Noto Sans Mono (© Google) and Quicksand (© The Quicksand Project
 Authors), both SIL Open Font License 1.1 without Reserved Font Name, as subsets; sources and the subset command in
 `fonts/README.md`. Seven-segment and dot-matrix digits are drawn by the code. Known limits: no real cockpit
