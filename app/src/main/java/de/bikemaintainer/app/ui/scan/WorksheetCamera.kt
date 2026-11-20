@@ -1,6 +1,7 @@
 package de.bikemaintainer.app.ui.scan
 
 import android.util.Size
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -16,6 +17,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.FilledIconToggleButton
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -25,7 +29,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import de.bikemaintainer.app.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -34,17 +43,37 @@ import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import kotlinx.coroutines.delay
 
-/**
- * Live preview of the back camera and a shutter button. The picture is taken into memory (no file, no gallery),
- * turned upright and handed on as grey image; the camera frame is closed right away.
- */
+/** The camera for worksheets: frame in A4 proportions with the corner squares. */
 @Composable
 internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit) {
+    PhotoCamera(
+        hint = stringResource(R.string.scan_hint),
+        frame = { SheetFrame(it) },
+        onPhoto = onPhoto,
+        onFailed = onFailed,
+    )
+}
+
+/**
+ * Live preview of the back camera with a [frame] as guide, [hint] and a shutter button. The picture is taken into
+ * memory (no file, no gallery), turned upright and handed on as grey image; the camera frame is closed right away.
+ * If the camera has a flash, a button switches it on as torch (an odometer at night, app#40) when [torch] is set.
+ */
+@Composable
+internal fun PhotoCamera(
+    hint: String,
+    frame: @Composable (Modifier) -> Unit,
+    onPhoto: (GrayImage) -> Unit,
+    onFailed: () -> Unit,
+    torch: Boolean = false,
+) {
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val currentOnPhoto = rememberUpdatedState(onPhoto)
     val currentOnFailed = rememberUpdatedState(onFailed)
     var surfaceRequest by remember { mutableStateOf<SurfaceRequest?>(null) }
+    var camera by remember { mutableStateOf<Camera?>(null) }
+    var torchOn by remember { mutableStateOf(false) }
     val capture = remember {
         ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
@@ -69,7 +98,7 @@ internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit)
                     provider = p
                     val preview = Preview.Builder().build().also { it.setSurfaceProvider { request -> surfaceRequest = request } }
                     p.unbindAll()
-                    p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
+                    camera = p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
                 } catch (_: Exception) {
                     currentOnFailed.value()
                 }
@@ -101,9 +130,21 @@ internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit)
     Column(Modifier.fillMaxSize().background(Color.Black)) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             surfaceRequest?.let { CameraXViewfinder(surfaceRequest = it, modifier = Modifier.fillMaxSize()) }
-            SheetFrame(Modifier.fillMaxSize())
+            frame(Modifier.fillMaxSize())
+            val cam = camera
+            if (torch && cam != null && cam.cameraInfo.hasFlashUnit()) {
+                TorchButton(
+                    on = torchOn,
+                    onChange = { on ->
+                        torchOn = on
+                        cam.cameraControl.enableTorch(on)
+                    },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                )
+            }
         }
         CameraHints(
+            hint = hint,
             capturing = capturing,
             onCapture = {
                 capturing = true
@@ -135,6 +176,17 @@ internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit)
 }
 
 private const val CAPTURE_TIMEOUT_MILLIS = 15_000L
+
+/** Switches the flash on as a torch; the camera turns it off again when the screen closes. */
+@Composable
+internal fun TorchButton(on: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    FilledIconToggleButton(checked = on, onCheckedChange = onChange, modifier = modifier) {
+        Icon(
+            painterResource(R.drawable.ic_flashlight),
+            contentDescription = stringResource(if (on) R.string.camera_torch_off else R.string.camera_torch_on),
+        )
+    }
+}
 
 /** Upright grey copy of the captured frame; the bitmap is converted row by row and recycled. */
 private fun ImageProxy.toGrayImage(): GrayImage {

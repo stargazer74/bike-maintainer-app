@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
                             { openVehicle.value = null },
                             container.worksheetScanner,
                             container.pendingRepository,
+                            container.odometerScanner,
                         )
                     }
                     val errorId by container.errorIds.errorId.collectAsState()

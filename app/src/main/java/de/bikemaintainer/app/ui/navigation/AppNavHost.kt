@@ -36,6 +36,14 @@ import de.bikemaintainer.app.ui.profiles.ProfilesScreen
 import de.bikemaintainer.app.ui.profiles.ProfilesViewModel
 import de.bikemaintainer.app.ui.register.RegisterScreen
 import de.bikemaintainer.app.ui.register.RegisterViewModel
+import de.bikemaintainer.app.domain.odometer.OdoLine
+import de.bikemaintainer.app.domain.odometer.OdoReading
+import de.bikemaintainer.app.domain.odometer.Point
+import de.bikemaintainer.app.domain.scan.GrayImage
+import de.bikemaintainer.app.ui.odometer.OdoScan
+import de.bikemaintainer.app.ui.odometer.OdometerScanner
+import de.bikemaintainer.app.ui.odometer.OdometerScreen
+import de.bikemaintainer.app.ui.odometer.OdometerViewModel
 import de.bikemaintainer.app.ui.scan.ScanScreen
 import de.bikemaintainer.app.ui.scan.ScanViewModel
 import de.bikemaintainer.app.ui.scan.WorksheetScanner
@@ -80,7 +88,15 @@ class AppDependencies(
     val worksheetScanner: WorksheetScanner = WorksheetScanner { ScanOutcome.NoSheet },
     /** Recordings not sent yet (app#65). */
     val pending: PendingRepository = PendingRepository(),
+    /** Reads the odometer from a photo; tests without a camera keep the default (no line found). */
+    val odometerScanner: OdometerScanner = NoOdometerScanner,
 )
+
+private object NoOdometerScanner : OdometerScanner {
+    override suspend fun detect(photo: GrayImage): OdoLine? = null
+
+    override suspend fun read(photo: GrayImage, corners: List<Point>, last: Int?) = OdoScan(OdoReading(null, true), null)
+}
 
 @Composable
 fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostController = rememberNavController()) {
@@ -237,6 +253,11 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                         navController.navigate(LogMaintenanceRoute(route.vehicleId, id))
                     }
                 },
+                onScanOdometer = dropUnlessResumed {
+                    navController.navigate(ScanOdometerRoute(route.vehicleId, viewModel.state.value.vehicle?.currentMileage))
+                },
+                odometerResult = entry.savedStateHandle.getStateFlow<Int?>(ODOMETER_RESULT_KEY, null),
+                onOdometerResultShown = { entry.savedStateHandle[ODOMETER_RESULT_KEY] = null },
             )
         }
         composable<VehicleFormRoute> { entry ->
@@ -310,9 +331,19 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                     entry.savedStateHandle[SCAN_RESULT_KEY] = null
                 }
             }
+            val odometer by entry.savedStateHandle.getStateFlow<Int?>(ODOMETER_RESULT_KEY, null).collectAsState()
+            LaunchedEffect(odometer) {
+                odometer?.let {
+                    entry.savedStateHandle[ODOMETER_RESULT_KEY] = null
+                    viewModel.onMileageInput(it.toString())
+                }
+            }
             LogMaintenanceScreen(
                 viewModel = viewModel,
                 onBack = back,
+                onScanOdometer = dropUnlessResumed {
+                    navController.navigate(ScanOdometerRoute(route.vehicleId, viewModel.state.value.vehicle?.currentMileage))
+                },
                 onScanWorksheet = dropUnlessResumed {
                     val templates = viewModel.state.value.measurementContext?.templates.orEmpty()
                     navController.navigate(ScanWorksheetRoute(route.vehicleId, templates.map { it.name }))
@@ -347,6 +378,24 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                     // Only the entry still on top hands its values over, exactly once.
                     if (navController.currentBackStackEntry == entry) {
                         navController.previousBackStackEntry?.savedStateHandle?.set(SCAN_RESULT_KEY, Json.encodeToString(transfer))
+                        navController.popBackStack()
+                    }
+                },
+            )
+        }
+        composable<ScanOdometerRoute> { entry ->
+            val route = entry.toRoute<ScanOdometerRoute>()
+            val back = navController.popBackOnce()
+            val viewModel: OdometerViewModel = viewModel(
+                factory = viewModelFactory { initializer { OdometerViewModel(route.lastMileage, deps.odometerScanner) } },
+            )
+            OdometerScreen(
+                viewModel = viewModel,
+                onBack = back,
+                onAccepted = { km ->
+                    // Only the entry still on top hands its value over, exactly once.
+                    if (navController.currentBackStackEntry == entry) {
+                        navController.previousBackStackEntry?.savedStateHandle?.set(ODOMETER_RESULT_KEY, km)
                         navController.popBackStack()
                     }
                 },

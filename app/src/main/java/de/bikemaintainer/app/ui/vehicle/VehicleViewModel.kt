@@ -233,6 +233,15 @@ class VehicleViewModel(
 
     fun onMileageInput(text: String) = updateDialog { it.copy(input = text, error = null) }
 
+    /**
+     * A mileage read from a photo (app#40) goes into the dialog, which is opened again if it was closed meanwhile
+     * (e.g. the app was restarted while the camera was open). Saved only with "Save".
+     */
+    fun applyOdometer(km: Int) {
+        if (_state.value.mileageDialog == null) openMileageDialog()
+        onMileageInput(km.toString())
+    }
+
     fun dismissMileageDialog() {
         if (_state.value.mileageDialog?.saving == true) return
         replacingMileage = null

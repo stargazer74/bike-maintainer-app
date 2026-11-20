@@ -15,6 +15,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -54,6 +55,8 @@ class LogMaintenanceScreenTest {
     private fun task(id: Long, name: String, status: TaskStatus) =
         MaintenanceTask(id, 3, name, false, true, status, null, if (status == TaskStatus.OVERDUE) -100 else null, null, null, null, null)
 
+    private var cameras = 0
+
     private fun show() {
         vehicles.vehicleResult = Outcome.Success(vehicle)
         vehicles.updateMileageResult = Outcome.Success(vehicle)
@@ -61,7 +64,13 @@ class LogMaintenanceScreenTest {
             listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE), task(2, "Kette", TaskStatus.DUE_SOON)),
         )
         val vm = LogMaintenanceViewModel(3, vehicles, maintenance, SavedStateHandle(), FakeMeasurementRepository(), today = { today })
-        compose.setContent { LogMaintenanceScreen(vm, onBack = {}, onDone = { done += it }) }
+        compose.setContent { LogMaintenanceScreen(vm, onBack = {}, onDone = { done += it }, onScanOdometer = { cameras++ }) }
+    }
+
+    @Test fun theMileageCanBePhotographed() {
+        show()
+        compose.onNodeWithContentDescription("Tacho fotografieren").performClick()
+        assertEquals(1, cameras)
     }
 
     @Test fun logMaintenanceEndToEnd() {
@@ -128,6 +137,7 @@ class LogMaintenanceScreenTest {
         compose.waitForIdle()
         compose.onNode(hasText("Ölwechsel")).assertIsNotEnabled()
         compose.onNodeWithText("Notiz (optional)").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Tacho fotografieren").assertIsNotEnabled()
     }
 
     @Test fun vehicleDeletedOnSaveShowsNotFoundWithBack() {

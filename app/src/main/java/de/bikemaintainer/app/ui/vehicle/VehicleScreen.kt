@@ -71,6 +71,7 @@ import de.bikemaintainer.app.ui.common.VehicleTypeTile
 import de.bikemaintainer.app.ui.common.formatNumber
 import de.bikemaintainer.app.ui.common.isNotFound
 import de.bikemaintainer.app.ui.common.mileageText
+import de.bikemaintainer.app.ui.odometer.OdometerCameraButton
 import de.bikemaintainer.app.ui.common.saveMessageRes
 import de.bikemaintainer.app.ui.common.statusColor
 import de.bikemaintainer.app.ui.common.vehicleLoadMessageRes
@@ -95,6 +96,10 @@ fun VehicleScreen(
     /** Opens the form for a queued maintenance (app#70). */
     onEditPendingLog: (String) -> Unit = {},
     onDeleteRequestConsumed: () -> Unit = {},
+    /** Opens the camera for the odometer (app#40); the value comes back via [odometerResult]. */
+    onScanOdometer: () -> Unit = {},
+    odometerResult: StateFlow<Int?> = MutableStateFlow(null),
+    onOdometerResultShown: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val currentOnDeleted by rememberUpdatedState(onDeleted)
@@ -106,6 +111,15 @@ fun VehicleScreen(
         // Consume first: a recreated screen must not delete a second time.
         currentConsumed()
         viewModel.deleteVehicle()
+    }
+    val odometer by odometerResult.collectAsState()
+    val currentOdometerShown by rememberUpdatedState(onOdometerResultShown)
+    LaunchedEffect(odometer) {
+        odometer?.let {
+            // Consume first: a recreated screen must not take the value over twice.
+            currentOdometerShown()
+            viewModel.applyOdometer(it)
+        }
     }
     val result by logResult.collectAsState()
     val snackbarHost = remember { SnackbarHostState() }
@@ -154,6 +168,7 @@ fun VehicleScreen(
             onMileageInput = viewModel::onMileageInput,
             onSaveMileage = viewModel::saveMileage,
             onDismissMileage = viewModel::dismissMileageDialog,
+            onScanOdometer = onScanOdometer,
             onLogMaintenance = onLogMaintenance,
             onEditVehicle = onEditVehicle,
             onAddTask = onAddTask,
@@ -173,6 +188,8 @@ data class VehicleActions(
     val onSaveMileage: () -> Unit,
     val onDismissMileage: () -> Unit,
     val onLogMaintenance: () -> Unit,
+    /** Photograph the odometer instead of typing (app#40). */
+    val onScanOdometer: () -> Unit = {},
     val onEditVehicle: () -> Unit = {},
     val onAddTask: () -> Unit = {},
     val onEditTask: (Long) -> Unit = {},
@@ -304,6 +321,7 @@ private fun MileageDialog(dialog: MileageDialogState, actions: VehicleActions) {
                     isError = dialog.error != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { actions.onSaveMileage() }),
+                    trailingIcon = { OdometerCameraButton(onClick = actions.onScanOdometer, enabled = !dialog.saving) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 when (val error = dialog.error) {

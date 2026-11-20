@@ -32,6 +32,6 @@ treated as one and shared under the same license.
   Mono, © Google, and Quicksand, © The Quicksand Project Authors, both SIL Open Font License 1.1, as subsets; see
   `tools/odometer-model/fonts/README.md` and `OFL.txt` there.
 
-- Launcher icon and the icons in `app/src/main/res/drawable/ic_add.xml` and `ic_vehicle_*.xml`: Material Symbols
-  ("two_wheeler", "add", "directions_car", "pedal_bike", "electric_bike", "sports_motorsports", "moped"), Google,
-  Apache License 2.0.
+- Launcher icon and the icons in `app/src/main/res/drawable/ic_add.xml`, `ic_vehicle_*.xml`, `ic_photo_camera.xml`
+  and `ic_flashlight.xml`: Material Symbols ("two_wheeler", "add", "directions_car", "pedal_bike", "electric_bike",
+  "sports_motorsports", "moped", "photo_camera", "flashlight_on"), Google, Apache License 2.0.

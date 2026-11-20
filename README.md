@@ -39,6 +39,8 @@ the pipeline, the digit model and how to retrain it (`tools/digit-model/`).
 
 Reading the odometer from a photo (Epic backend#129) is trained on synthetic photos from `tools/odometer-model/` –
 see `docs/odometer-model.md` for the generator, the label format, the line detector and the digit reader.
+In the app, the camera button next to the mileage field reads the odometer on the phone; the value is checked and
+taken over by the user (app#40).
 
 Third-party data: the digit model is trained on MNIST (Y. LeCun, C. Cortes, C. J. C. Burges, CC BY-SA 3.0).
 

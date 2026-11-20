@@ -46,5 +46,11 @@ const val DELETE_VEHICLE_KEY = "delete_vehicle"
 /** Photograph a filled-in worksheet for the log form of [vehicleId]; [templates] are the names that fit the vehicle. */
 @Serializable data class ScanWorksheetRoute(val vehicleId: Long, val templates: List<String>)
 
+/** Read the odometer of [vehicleId] from a photo; [lastMileage] is the vehicle's mileage for the plausibility check. */
+@Serializable data class ScanOdometerRoute(val vehicleId: Long, val lastMileage: Int? = null)
+
+/** SavedStateHandle key under which [ScanOdometerRoute] hands the taken-over mileage (Int) to the screen below. */
+const val ODOMETER_RESULT_KEY = "odometer_result"
+
 /** SavedStateHandle key under which the scan screen hands a [de.bikemaintainer.app.ui.logmaintenance.ScanTransfer] (JSON) to the log form. */
 const val SCAN_RESULT_KEY = "scan_result"
