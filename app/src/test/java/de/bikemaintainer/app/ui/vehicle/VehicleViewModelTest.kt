@@ -440,4 +440,44 @@ class VehicleViewModelTest {
         vm.saveMileage()
         assertEquals(VehicleUiState(error = AppError.NotFound), vm.state.value)
     }
+
+    @Test fun aRefusedQueuedMileageIsEditedInTheDialogWithTheServersValue() = kotlinx.coroutines.runBlocking {
+        val outbox = de.bikemaintainer.app.data.storage.InMemoryOutbox()
+        outbox.add(de.bikemaintainer.app.data.storage.OutboxEntry("m", 7, 0, mileage = 12000, problem = "MILEAGE_BELOW_CURRENT"))
+        val pending = de.bikemaintainer.app.data.repository.PendingRepository(outbox)
+        vehicles.vehicleResult = Outcome.Success(vehicle)
+        vehicles.updateMileageResult = Outcome.Success(vehicle.copy(currentMileage = 12400))
+        val vm = VehicleViewModel(7, vehicles, maintenance, measurements, auth, pending)
+        vm.editPendingMileage("m")
+        assertEquals("12345", vm.state.value.mileageDialog!!.input)
+        vm.onMileageInput("12400")
+        vm.saveMileage()
+        assertEquals(listOf(7L to 12400), vehicles.updateMileageCalls)
+        assertTrue(outbox.entries.value.isEmpty())
+    }
+
+    @Test fun keepingTheServersMileageDropsTheRefusedEntry() = kotlinx.coroutines.runBlocking {
+        val outbox = de.bikemaintainer.app.data.storage.InMemoryOutbox()
+        outbox.add(de.bikemaintainer.app.data.storage.OutboxEntry("m", 7, 0, mileage = 12000, problem = "MILEAGE_BELOW_CURRENT"))
+        vehicles.vehicleResult = Outcome.Success(vehicle)
+        val vm = VehicleViewModel(7, vehicles, maintenance, measurements, auth, de.bikemaintainer.app.data.repository.PendingRepository(outbox))
+        vm.editPendingMileage("m")
+        vm.saveMileage()
+        assertTrue(vehicles.updateMileageCalls.isEmpty())
+        assertTrue(outbox.entries.value.isEmpty())
+    }
+
+    @Test fun cancellingTheDialogKeepsTheRefusedEntry() = kotlinx.coroutines.runBlocking {
+        val outbox = de.bikemaintainer.app.data.storage.InMemoryOutbox()
+        outbox.add(de.bikemaintainer.app.data.storage.OutboxEntry("m", 7, 0, mileage = 12000, problem = "MILEAGE_BELOW_CURRENT"))
+        vehicles.vehicleResult = Outcome.Success(vehicle)
+        val vm = VehicleViewModel(7, vehicles, maintenance, measurements, auth, de.bikemaintainer.app.data.repository.PendingRepository(outbox))
+        vm.editPendingMileage("m")
+        vm.dismissMileageDialog()
+        vm.openMileageDialog()
+        vm.onMileageInput("12500")
+        vehicles.updateMileageResult = Outcome.Success(vehicle.copy(currentMileage = 12500))
+        vm.saveMileage()
+        assertEquals(1, outbox.entries.value.size)
+    }
 }

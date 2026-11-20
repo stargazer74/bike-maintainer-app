@@ -29,7 +29,7 @@ const val SERVER_QR_KEY = "server_qr"
 
 @Serializable data class VehicleRoute(val vehicleId: Long)
 
-@Serializable data class LogMaintenanceRoute(val vehicleId: Long)
+@Serializable data class LogMaintenanceRoute(val vehicleId: Long, val pendingId: String? = null)
 
 /** Create a vehicle ([vehicleId] `null`) or edit one. */
 @Serializable data class VehicleFormRoute(val vehicleId: Long? = null)

@@ -40,6 +40,8 @@ interface MaintenanceRepository {
         measurements: Measurements? = null,
         clientEntryId: UUID = UUID.randomUUID(),
         raiseMileageTo: Int? = null,
+        /** Kept with a queued log, to name a task deleted before it is sent (app#70). */
+        taskNames: Map<Long, String> = emptyMap(),
     ): Outcome<Recorded>
 }
 
@@ -82,13 +84,19 @@ class ApiMaintenanceRepository(
     private fun Outcome<Unit>.unreadableCreatedAsSaved(): Outcome<Unit> =
         if (this is Outcome.Failure && error == AppError.Http(-1, null)) Outcome.Success(Unit) else this
 
-    private suspend fun queued(vehicleId: Long, request: MaintenanceLogRequest, raiseMileageTo: Int?): Outcome<Recorded> {
+    private suspend fun queued(
+        vehicleId: Long,
+        request: MaintenanceLogRequest,
+        raiseMileageTo: Int?,
+        taskNames: Map<Long, String>,
+    ): Outcome<Recorded> {
         val entry = OutboxEntry(
             id = request.clientEntryId.toString(),
             vehicleId = vehicleId,
             createdAt = clock.millis(),
             log = request,
             raiseMileageTo = raiseMileageTo,
+            taskNames = taskNames.filterKeys { it in request.performedTaskIds.orEmpty() },
         )
         return if (pending!!.enqueue(entry)) Outcome.Success(Recorded.QUEUED) else Outcome.Failure(AppError.Storage)
     }
@@ -103,22 +111,33 @@ class ApiMaintenanceRepository(
         measurements: Measurements?,
         clientEntryId: UUID,
         raiseMileageTo: Int?,
+        taskNames: Map<Long, String>,
     ): Outcome<Recorded> {
-        val request = MaintenanceLogRequest(
-            clientEntryId = clientEntryId,
-            performedAt = performedAt,
-            mileageAtPerformed = mileage,
-            notes = notes?.trim()?.takeIf { it.isNotEmpty() },
-            performedTaskIds = taskIds,
-            measurements = measurements?.takeUnless { it.isEmpty }?.toRequest(),
-        )
+        val request = logRequest(clientEntryId, performedAt, mileage, taskIds, notes, measurements)
         val result = provider.callStored { it.logs.createMaintenanceLog(vehicleId, request) }.map { }
             .unreadableCreatedAsSaved()
         return when {
             result is Outcome.Success -> Outcome.Success(Recorded.SAVED)
             result is Outcome.Failure && result.error == AppError.Network && pending != null ->
-                queued(vehicleId, request, raiseMileageTo)
+                queued(vehicleId, request, raiseMileageTo, taskNames)
             else -> result as Outcome.Failure
         }
     }
 }
+
+/** Blank [notes] are not sent (the spec requires at least one character); empty [measurements] neither. */
+internal fun logRequest(
+    clientEntryId: UUID,
+    performedAt: LocalDate,
+    mileage: Int,
+    taskIds: Set<Long>,
+    notes: String?,
+    measurements: Measurements?,
+) = MaintenanceLogRequest(
+    clientEntryId = clientEntryId,
+    performedAt = performedAt,
+    mileageAtPerformed = mileage,
+    notes = notes?.trim()?.takeIf { it.isNotEmpty() },
+    performedTaskIds = taskIds,
+    measurements = measurements?.takeUnless { it.isEmpty }?.toRequest(),
+)

@@ -32,8 +32,10 @@ data class OutboxEntry(
     val confirmed: Boolean = false,
     /** ISO date of the possible duplicate on the server; set while waiting for the user's decision. */
     val duplicateOn: String? = null,
-    /** [de.bikemaintainer.app.domain.PendingProblem] name: cannot be sent as it is, waits to be discarded. */
+    /** [de.bikemaintainer.app.domain.PendingProblem] name: cannot be sent as it is, waits to be discarded or edited. */
     val problem: String? = null,
+    /** Names of the log's tasks when it was recorded, to name one that is deleted meanwhile (app#70). */
+    val taskNames: Map<Long, String> = emptyMap(),
 ) {
     /** Sent by the next sync: no open question, no problem. */
     val ready: Boolean get() = problem == null && (duplicateOn == null || confirmed)

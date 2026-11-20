@@ -240,4 +240,98 @@ class OutboxSyncTest {
         const val VEHICLE = """{"id":3,"name":"Tenere","type":"MOTORCYCLE","modelYear":2021,"firstRegistrationDate":"2021-05-04",
             "currentMileage":24500,"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"""
     }
+
+    // app#70: edit an entry that cannot be sent as it is.
+
+    private fun rejectThenAccept(): () -> Unit {
+        var reject = true
+        answer = { req -> if (req.method == "POST" && reject) json("""{"status":400}""", 400) else null }
+        return { reject = false }
+    }
+
+    @Test
+    fun aRejectedEntryCanBeEditedAndIsThenSentOnceWithItsId() {
+        val (sync, pending) = setUp()
+        val accept = rejectThenAccept()
+        runBlocking { pending.enqueue(logEntry().copy(taskNames = mapOf(1L to "Kette"))) }
+        runBlocking { sync.run() }
+        assertEquals(PendingState.Failed(PendingProblem.REJECTED), items(pending).single().state)
+
+        val log = runBlocking { pending.log(entryId) }!!
+        assertEquals(mapOf(1L to "Kette"), log.taskNames)
+        val before = scheduled
+        assertTrue(runBlocking { pending.replaceLog(entryId, log.copy(taskIds = setOf(2L), taskNames = mapOf(2L to "Öl"))) })
+        assertEquals(before + 1, scheduled)
+        assertEquals(PendingState.Waiting, items(pending).single().state)
+
+        accept()
+        assertEquals(SyncResult.DONE, runBlocking { sync.run() })
+        val post = requests("POST").last()
+        val body = Json.parseToJsonElement(post.body!!.utf8()).jsonObject
+        assertEquals(entryId, body["clientEntryId"]!!.jsonPrimitive.content)
+        assertEquals("[2]", body["performedTaskIds"].toString())
+        assertTrue(items(pending).isEmpty())
+    }
+
+    @Test
+    fun anEditedEntryThatAlreadyReachedTheServerIsNotSentTwice() {
+        val (sync, pending) = setUp()
+        val accept = rejectThenAccept()
+        runBlocking { pending.enqueue(logEntry()) }
+        runBlocking { sync.run() }
+        val log = runBlocking { pending.log(entryId) }!!
+        runBlocking { pending.replaceLog(entryId, log) }
+        accept()
+        // The server has it already (an earlier attempt got through, only its answer was lost).
+        serverLogs = "[${logJson(entryId, "2026-11-09", "[1]")}]"
+        val posts = requests("POST").size
+        assertEquals(SyncResult.DONE, runBlocking { sync.run() })
+        assertEquals(posts, requests("POST").size)
+        assertTrue(items(pending).isEmpty())
+    }
+
+    @Test
+    fun savingAnEditedPossibleDuplicateConfirmsIt() {
+        val (sync, pending) = setUp()
+        serverLogs = "[${logJson(null, "2026-11-09", "[1]")}]"
+        runBlocking { pending.enqueue(logEntry()) }
+        runBlocking { sync.run() }
+        assertTrue(items(pending).single().state is PendingState.PossibleDuplicate)
+        val log = runBlocking { pending.log(entryId) }!!
+        runBlocking { pending.replaceLog(entryId, log.copy(notes = "zweimal")) }
+        assertEquals(SyncResult.DONE, runBlocking { sync.run() })
+        assertEquals(1, requests("POST").size)
+        assertTrue(items(pending).isEmpty())
+    }
+
+    @Test
+    fun measurementsSurviveEditing() {
+        val (_, pending) = setUp()
+        val measured = de.bikemaintainer.app.domain.Measurements(
+            brakes = de.bikemaintainer.app.domain.BrakeMeasurement(
+                padFront = de.bikemaintainer.app.domain.Measured(java.math.BigDecimal("3.5")),
+                fluidCondition = "klar",
+            ),
+            valves = listOf(
+                de.bikemaintainer.app.domain.ValveMeasurement(
+                    1, de.bikemaintainer.app.domain.ValveKind.INTAKE, 1,
+                    java.math.BigDecimal("0.12"), java.math.BigDecimal("2.55"), null,
+                ),
+            ),
+        )
+        val entry = logEntry().let { it.copy(log = it.log!!.copy(measurements = measured.toRequest())) }
+        runBlocking { pending.enqueue(entry) }
+        val log = runBlocking { pending.log(entryId) }!!
+        assertEquals(measured, log.measurements)
+        runBlocking { pending.replaceLog(entryId, log) }
+        assertEquals(measured, runBlocking { pending.log(entryId) }!!.measurements)
+    }
+
+    @Test
+    fun anEntryThatIsGoneCannotBeReplaced() {
+        val (_, pending) = setUp()
+        assertEquals(null, runBlocking { pending.log("gone") })
+        val log = de.bikemaintainer.app.domain.PendingLog(LocalDate.of(2026, 11, 9), 1, setOf(1L))
+        assertEquals(false, runBlocking { pending.replaceLog("5b2c3f8e-1d4a-4c1e-9f00-00000000a009", log) })
+    }
 }

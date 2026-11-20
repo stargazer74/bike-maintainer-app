@@ -169,6 +169,47 @@ internal fun Measurements.toRequest() = MaintenanceMeasurementsRequest(
     },
 )
 
+/** Back from a request kept in the queue, to edit it (app#70); statuses are unknown until the backend checks again. */
+internal fun MaintenanceMeasurementsRequest.toDomain() = Measurements(
+    valves = valveClearance?.valves?.map {
+        ValveMeasurement(it.cylinder, it.valve.toDomain(), it.index, it.measured, it.shimOld, it.shimNew)
+    },
+    brakes = brakes?.let {
+        BrakeMeasurement(
+            padFront = Measured(it.padFront),
+            padRear = Measured(it.padRear),
+            discFront = Measured(it.discFront),
+            discRear = Measured(it.discRear),
+            discConditionFront = it.discConditionFront,
+            discConditionRear = it.discConditionRear,
+            fluidCondition = it.fluidCondition,
+        )
+    },
+    chain = chain?.let {
+        ChainMeasurement(
+            slack = Measured(it.slack),
+            wearLength = Measured(it.wearLength),
+            wearLinks = it.wearLinks,
+            sprocketCondition = it.sprocketCondition,
+            rearSprocketCondition = it.rearSprocketCondition,
+            cleaned = it.cleaned,
+            lubricated = it.lubricated,
+        )
+    },
+    tires = tires?.let {
+        TireMeasurement(
+            pressureFront = Measured(it.pressureFront),
+            pressureRear = Measured(it.pressureRear),
+            treadFront = Measured(it.treadFront),
+            treadRear = Measured(it.treadRear),
+            dotFront = it.dotFront,
+            dotRear = it.dotRear,
+            conditionFront = it.conditionFront,
+            conditionRear = it.conditionRear,
+        )
+    },
+)
+
 internal fun ShimInput.toApi() = ShimCalculationInput(kind.toApi(), measured, shimOld)
 
 internal fun ShimCalculationResult.toDomain() =

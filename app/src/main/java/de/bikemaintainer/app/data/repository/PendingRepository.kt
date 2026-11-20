@@ -4,10 +4,12 @@ import de.bikemaintainer.app.data.storage.InMemoryOutbox
 import de.bikemaintainer.app.data.storage.Outbox
 import de.bikemaintainer.app.data.storage.OutboxEntry
 import de.bikemaintainer.app.domain.PendingItem
+import de.bikemaintainer.app.domain.PendingLog
 import de.bikemaintainer.app.domain.PendingProblem
 import de.bikemaintainer.app.domain.PendingState
 import java.io.IOException
 import java.time.LocalDate
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -42,6 +44,47 @@ class PendingRepository(
     }
 
     suspend fun discard(id: String) = outbox.update(id) { null }
+
+    /** The maintenance [id] to edit it in the form (app#70); null if it is gone (sent or discarded meanwhile). */
+    suspend fun log(id: String): PendingLog? {
+        val entry = outbox.load().firstOrNull { it.id == id } ?: return null
+        val log = entry.log ?: return null
+        return PendingLog(
+            date = log.performedAt,
+            mileage = log.mileageAtPerformed,
+            taskIds = log.performedTaskIds.orEmpty(),
+            taskNames = entry.taskNames,
+            notes = log.notes,
+            measurements = log.measurements?.toDomain(),
+            raiseMileageTo = entry.raiseMileageTo,
+        )
+    }
+
+    /**
+     * Replaces the maintenance [id] with the edited [log] and sends it again (app#70). It keeps its id, which is its
+     * `clientEntryId`: if an earlier attempt reached the server, the server answers with that log instead of a second
+     * one. Saving an edited possible duplicate confirms it. False if the entry is gone or could not be stored.
+     */
+    suspend fun replaceLog(id: String, log: PendingLog): Boolean {
+        var found = false
+        try {
+            outbox.update(id) { entry ->
+                if (entry.log == null) return@update entry
+                found = true
+                entry.copy(
+                    log = logRequest(UUID.fromString(id), log.date, log.mileage, log.taskIds, log.notes, log.measurements),
+                    raiseMileageTo = log.raiseMileageTo,
+                    taskNames = log.taskNames.filterKeys { it in log.taskIds },
+                    confirmed = entry.confirmed || entry.duplicateOn != null,
+                    problem = null,
+                )
+            }
+        } catch (_: IOException) {
+            return false
+        }
+        if (found) scheduler.schedule()
+        return found
+    }
 
     /** After a new login: sends what was waiting for it. */
     suspend fun scheduleIfPending() {

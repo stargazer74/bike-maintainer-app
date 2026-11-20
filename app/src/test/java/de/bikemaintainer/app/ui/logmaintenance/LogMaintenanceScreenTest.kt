@@ -8,6 +8,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
@@ -148,5 +149,39 @@ class LogMaintenanceScreenTest {
         compose.onNodeWithText("Abbrechen").assertExists()
         restoration.emulateSavedInstanceStateRestore()
         compose.onNodeWithText("Abbrechen").assertExists()
+    }
+
+    @Test fun editingAQueuedEntryNamesItsDeletedTask() {
+        val id = "5b2c3f8e-1d4a-4c1e-9f00-00000000a001"
+        val outbox = de.bikemaintainer.app.data.storage.InMemoryOutbox()
+        kotlinx.coroutines.runBlocking {
+            outbox.add(
+                de.bikemaintainer.app.data.storage.OutboxEntry(
+                    id = id,
+                    vehicleId = 3,
+                    createdAt = 0,
+                    log = de.bikemaintainer.app.data.repository.logRequest(
+                        java.util.UUID.fromString(id), today, 24100, setOf(1L, 9L), null, null,
+                    ),
+                    problem = "REJECTED",
+                    taskNames = mapOf(9L to "Zündkerzen"),
+                ),
+            )
+        }
+        vehicles.vehicleResult = Outcome.Success(vehicle)
+        maintenance.tasksResult = Outcome.Success(listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE), task(2, "Kette", TaskStatus.DUE_SOON)))
+        val vm = LogMaintenanceViewModel(
+            3, vehicles, maintenance, SavedStateHandle(), FakeMeasurementRepository(), today = { today },
+            pendingId = id, pending = de.bikemaintainer.app.data.repository.PendingRepository(outbox),
+        )
+        compose.setContent { LogMaintenanceScreen(vm, onBack = {}, onDone = { done += it }) }
+        compose.onNodeWithText("Eintrag bearbeiten").assertExists()
+        compose.onNodeWithText("„Zündkerzen“ gibt es nicht mehr.").assertExists()
+        compose.onNode(hasText("Ölwechsel")).assertIsOn()
+        compose.onNode(hasText("Kette")).assertIsOff()
+        compose.onNodeWithText("Speichern").performScrollTo().performClick()
+        compose.waitForIdle()
+        assertEquals(listOf(LogResult.UPDATED), done)
+        assertEquals(0, maintenance.logCalls.size)
     }
 }

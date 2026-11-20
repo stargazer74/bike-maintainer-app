@@ -232,6 +232,11 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                 onDeleted = back,
                 deleteRequested = entry.savedStateHandle.getStateFlow(DELETE_VEHICLE_KEY, false),
                 onDeleteRequestConsumed = { entry.savedStateHandle[DELETE_VEHICLE_KEY] = false },
+                onEditPendingLog = { id ->
+                    if (entry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                        navController.navigate(LogMaintenanceRoute(route.vehicleId, id))
+                    }
+                },
             )
         }
         composable<VehicleFormRoute> { entry ->
@@ -292,6 +297,8 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                             createSavedStateHandle(),
                             deps.measurements,
                             accessSource = deps.auth,
+                            pendingId = route.pendingId,
+                            pending = deps.pending,
                         )
                     }
                 },

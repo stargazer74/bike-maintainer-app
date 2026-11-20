@@ -387,8 +387,17 @@
     <string name="pending_duplicate">The web app already has a maintenance with these tasks on %1$s. Send this one anyway?</string>
     <string name="pending_send_anyway">Send anyway</string>
     <string name="pending_discard">Discard</string>
+    <string name="pending_edit">Edit</string>
+    <string name="pending_edit_title">Edit entry</string>
+    <string name="pending_edit_saved">Entry changed – it will be sent.</string>
+    <string name="pending_edit_gone">This entry no longer exists – it was sent or discarded meanwhile.</string>
+    <string name="pending_edit_task_gone">“%1$s” no longer exists.</string>
+    <plurals name="pending_edit_tasks_gone">
+        <item quantity="one">One task of this entry no longer exists.</item>
+        <item quantity="other">%1$d tasks of this entry no longer exist.</item>
+    </plurals>
     <string name="pending_problem_vehicle_gone">The vehicle no longer exists, so this cannot be sent.</string>
-    <string name="pending_problem_rejected">The server rejected this, e.g. because a task was deleted meanwhile. Please record it again.</string>
+    <string name="pending_problem_rejected">The server rejected this, e.g. because a task was deleted meanwhile. Edit or discard the entry.</string>
     <string name="pending_problem_mileage">The server already has a higher mileage.</string>
     <string name="pending_problem_read_only">Your account is read-only, so this cannot be sent.</string>
     <plurals name="vehicles_pending_waiting">

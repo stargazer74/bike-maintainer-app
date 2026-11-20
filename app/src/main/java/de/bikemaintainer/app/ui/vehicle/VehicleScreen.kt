@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import de.bikemaintainer.app.R
 import de.bikemaintainer.app.domain.MaintenanceTask
+import de.bikemaintainer.app.domain.PendingItem
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.ui.common.AppCard
@@ -90,6 +91,8 @@ fun VehicleScreen(
     onDeleted: () -> Unit = {},
     /** Set by the vehicle form after the user confirmed deleting there. */
     deleteRequested: StateFlow<Boolean> = MutableStateFlow(false),
+    /** Opens the form for a queued maintenance (app#70). */
+    onEditPendingLog: (String) -> Unit = {},
     onDeleteRequestConsumed: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
@@ -111,6 +114,7 @@ fun VehicleScreen(
     val saved = stringResource(R.string.log_saved)
     val savedMileageFailed = stringResource(R.string.log_saved_mileage_failed)
     val queued = stringResource(R.string.log_queued)
+    val updated = stringResource(R.string.pending_edit_saved)
     val mileageQueued = stringResource(R.string.mileage_queued)
     LaunchedEffect(state.mileageQueued) {
         if (!state.mileageQueued) return@LaunchedEffect
@@ -123,6 +127,7 @@ fun VehicleScreen(
             LogResult.SAVED.name -> saved to SnackbarDuration.Short
             LogResult.SAVED_MILEAGE_FAILED.name -> savedMileageFailed to SnackbarDuration.Long
             LogResult.QUEUED.name -> queued to SnackbarDuration.Long
+            LogResult.UPDATED.name -> updated to SnackbarDuration.Short
             else -> return@LaunchedEffect
         }
         // Consume first (the effect restarts when the value changes, so the snackbar runs in its own scope):
@@ -154,6 +159,9 @@ fun VehicleScreen(
             onEditTask = onEditTask,
             onSendPendingAnyway = viewModel::sendPendingAnyway,
             onDiscardPending = viewModel::discardPending,
+            onEditPending = { item ->
+                if (item.kind == PendingItem.Kind.MILEAGE) viewModel.editPendingMileage(item.id) else onEditPendingLog(item.id)
+            },
         ),
     )
 }
@@ -169,6 +177,8 @@ data class VehicleActions(
     val onEditTask: (Long) -> Unit = {},
     val onSendPendingAnyway: (String) -> Unit = {},
     val onDiscardPending: (String) -> Unit = {},
+    /** A maintenance opens the form, a mileage the mileage dialog (app#70). */
+    val onEditPending: (PendingItem) -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -238,6 +248,7 @@ fun VehicleContent(
                                     state.tasks + state.inactiveTasks,
                                     actions.onSendPendingAnyway,
                                     actions.onDiscardPending,
+                                    actions.onEditPending,
                                 )
                             }
                         }
