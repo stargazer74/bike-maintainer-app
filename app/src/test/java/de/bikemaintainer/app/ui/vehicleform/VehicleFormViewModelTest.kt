@@ -96,4 +96,20 @@ class VehicleFormViewModelTest {
         vehicles.createVehicleGate!!.complete(Unit)
         assertEquals(7L, vm.state.value.saved)
     }
+
+    @Test fun readOnlyAccountOnlyShowsAnExistingVehicle() {
+        vehicles.vehicleResult = Outcome.Success(vehicle)
+        auth.access.value = auth.access.value.copy(status = AccessStatus.EXPIRED)
+        val vm = viewModel(7)
+        assertTrue(vm.state.value.readOnly)
+        vm.edit { it.copy(name = "Polo") }
+        vm.save()
+        assertEquals("Golf", vm.state.value.draft!!.name)
+        assertTrue(vehicles.updateVehicleCalls.isEmpty())
+    }
+
+    @Test fun aNewVehicleIsNeverReadOnly() {
+        auth.access.value = auth.access.value.copy(status = AccessStatus.EXPIRED)
+        assertFalse(viewModel().state.value.readOnly)
+    }
 }

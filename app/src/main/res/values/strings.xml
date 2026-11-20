@@ -327,12 +327,15 @@
     <string name="vehicle_add">Add vehicle</string>
     <string name="vehicle_add_first">Add your first vehicle</string>
     <string name="vehicle_edit">Edit vehicle</string>
+    <string name="vehicle_show">Show vehicle details</string>
     <string name="vehicle_delete">Delete vehicle</string>
     <string name="vehicle_delete_confirm_title">Delete vehicle?</string>
     <string name="vehicle_delete_confirm_text">%1$s and everything recorded for it – tasks, maintenance entries and measurements – will be deleted for good.</string>
     <string name="vehicle_delete_failed">The vehicle could not be deleted.</string>
     <string name="vehicle_form_new">New vehicle</string>
     <string name="vehicle_form_edit">Edit vehicle</string>
+    <string name="vehicle_form_view">Vehicle details</string>
+    <string name="vehicle_form_read_only">With read-only access you can view the vehicle details but not change them. Deleting is still possible.</string>
     <string name="vehicle_form_name">Name</string>
     <string name="vehicle_form_type">Type</string>
     <string name="vehicle_form_make">Make (optional)</string>

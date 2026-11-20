@@ -230,6 +230,8 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                 },
                 // The list reloads when it is shown again.
                 onDeleted = back,
+                deleteRequested = entry.savedStateHandle.getStateFlow(DELETE_VEHICLE_KEY, false),
+                onDeleteRequestConsumed = { entry.savedStateHandle[DELETE_VEHICLE_KEY] = false },
             )
         }
         composable<VehicleFormRoute> { entry ->
@@ -248,6 +250,15 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                         if (route.vehicleId == null) {
                             navController.navigate(VehicleRoute(id)) { popUpTo<VehicleFormRoute> { inclusive = true } }
                         } else {
+                            navController.popBackStack()
+                        }
+                    }
+                },
+                // Back to the detail, which deletes (with its notification and pending entries) and then leaves.
+                onDelete = route.vehicleId?.let {
+                    {
+                        if (navController.currentBackStackEntry == entry) {
+                            navController.previousBackStackEntry?.savedStateHandle?.set(DELETE_VEHICLE_KEY, true)
                             navController.popBackStack()
                         }
                     }

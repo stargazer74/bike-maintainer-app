@@ -40,6 +40,9 @@ const val SERVER_QR_KEY = "server_qr"
 /** SavedStateHandle key under which the log screen hands its [de.bikemaintainer.app.ui.logmaintenance.LogResult] name to the detail. */
 const val LOG_RESULT_KEY = "log_result"
 
+/** SavedStateHandle key under which the vehicle form asks the detail to delete the vehicle (confirmed there already). */
+const val DELETE_VEHICLE_KEY = "delete_vehicle"
+
 /** Photograph a filled-in worksheet for the log form of [vehicleId]; [templates] are the names that fit the vehicle. */
 @Serializable data class ScanWorksheetRoute(val vehicleId: Long, val templates: List<String>)
 
