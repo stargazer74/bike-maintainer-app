@@ -139,6 +139,15 @@ class VehiclesScreenTest {
         compose.onNodeWithText("Africa Twin").assertExists()
     }
 
+    @Test fun storedListIsShownWithAQuietHintWhileUpdating() {
+        show(VehiclesUiState(summaries = listOf(summary), updating = true))
+        compose.onNodeWithText("Africa Twin").assertExists()
+        compose.onNodeWithText("Wird aktualisiert …").assertExists()
+        compose.onNodeWithText("Offline – Stand vom", substring = true).assertDoesNotExist()
+        compose.onNode(androidx.compose.ui.test.hasProgressBarRangeInfo(androidx.compose.ui.semantics.ProgressBarRangeInfo.Indeterminate))
+            .assertDoesNotExist()
+    }
+
     @Test fun tappingCardOpensVehicle() {
         var opened: Long? = null
         show(VehiclesUiState(summaries = listOf(summary)), onOpenVehicle = { opened = it })

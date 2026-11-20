@@ -11,6 +11,9 @@ sealed interface Outcome<out T> {
     data class Failure(val error: AppError) : Outcome<Nothing>
 }
 
+/** Data stored on the device, read without asking the server (app#69): [asOf] is when it was fetched. */
+data class Snapshot<out T>(val value: T, val asOf: Instant)
+
 /** The older of two offline times: data combined from several answers is as old as its oldest part. */
 fun olderOf(a: Instant?, b: Instant?): Instant? = when {
     a == null -> b

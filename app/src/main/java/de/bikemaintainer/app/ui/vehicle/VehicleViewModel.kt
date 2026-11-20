@@ -15,6 +15,7 @@ import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.PendingItem
 import de.bikemaintainer.app.domain.PendingState
 import de.bikemaintainer.app.domain.Recorded
+import de.bikemaintainer.app.domain.Snapshot
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.forDisplay
 import de.bikemaintainer.app.domain.inactiveForDisplay
@@ -47,6 +48,8 @@ data class VehicleUiState(
     val error: AppError? = null,
     /** Set while vehicle and tasks are the ones stored offline (no connection): when they were loaded. */
     val asOf: Instant? = null,
+    /** The stored vehicle and tasks are shown while the server is asked (app#69). */
+    val updating: Boolean = false,
     /** The "enter mileage" dialog, `null` while closed. */
     val mileageDialog: MileageDialogState? = null,
     /** Target values and last measurements; `null` until loaded. A failure only hides them, the screen works on. */
@@ -90,7 +93,15 @@ class VehicleViewModel(
     val state: StateFlow<VehicleUiState> = _state.asStateFlow()
 
     // A deleted vehicle is terminal: its old data must not stay on screen, also not after a silent reload.
-    private val loader = ReloadableLoader(viewModelScope, isTerminal = AppError::isNotFound) {
+    private val loader = ReloadableLoader(
+        viewModelScope,
+        isTerminal = AppError::isNotFound,
+        stored = {
+            val vehicle = vehicles.storedVehicle(vehicleId)
+            val tasks = maintenance.storedTasks(vehicleId)
+            if (vehicle == null || tasks == null) null else Snapshot(vehicle.value to tasks.value, minOf(vehicle.asOf, tasks.asOf))
+        },
+    ) {
         coroutineScope {
             val v = async { vehicles.vehicle(vehicleId) }
             val t = async { maintenance.tasks(vehicleId) }
@@ -111,9 +122,12 @@ class VehicleViewModel(
         viewModelScope.launch {
             var loaded: Any? = null
             loader.state.collect { l ->
-                // Every successful (re)load also refreshes the measurements, e.g. after a log was saved.
-                if (l.data != null && l.data !== loaded) loadMeasurements()
-                loaded = l.data
+                // Every successful (re)load also refreshes the measurements, e.g. after a log was saved; not yet for
+                // the stored state shown while the server is asked – the answer follows.
+                if (!l.updating) {
+                    if (l.data != null && l.data !== loaded) loadMeasurements()
+                    loaded = l.data
+                }
                 _state.update {
                     VehicleUiState(
                         vehicle = l.data?.first,
@@ -122,6 +136,7 @@ class VehicleViewModel(
                         refreshing = l.refreshing,
                         error = l.error,
                         asOf = l.asOf,
+                        updating = l.updating,
                         // The dialog outlives silent reloads, but not the vehicle (deleted).
                         mileageDialog = if (l.data == null) null else it.mileageDialog,
                         measurements = if (l.data == null) null else it.measurements,

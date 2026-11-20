@@ -6,6 +6,7 @@ import de.bikemaintainer.app.domain.Account
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.Outcome
+import de.bikemaintainer.app.domain.Snapshot
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleType
@@ -439,5 +440,33 @@ class VehicleViewModelTest {
         vehicles.vehicleResult = Outcome.Failure(AppError.NotFound)
         vm.saveMileage()
         assertEquals(VehicleUiState(error = AppError.NotFound), vm.state.value)
+    }
+
+    @Test fun storedVehicleIsShownWhileTheServerIsAskedAndMeasurementsWaitForTheAnswer() {
+        val at = java.time.Instant.parse("2026-11-19T07:00:00Z")
+        vehicles.storedVehicle = Snapshot(vehicle.copy(currentMileage = 12000), at)
+        maintenance.storedTasks = Snapshot(listOf(task(1, TaskStatus.OK)), at)
+        vehicles.vehicleGate = CompletableDeferred()
+        maintenance.tasksResult = Outcome.Success(listOf(task(1, TaskStatus.DUE_SOON)))
+        val vm = viewModel()
+        assertEquals(12000, vm.state.value.vehicle!!.currentMileage)
+        assertEquals(TaskStatus.OK, vm.state.value.tasks.single().status)
+        assertTrue(vm.state.value.updating)
+        assertNull(vm.state.value.asOf)
+        assertTrue(measurements.contextCalls.isEmpty())
+        vehicles.vehicleGate!!.complete(Unit)
+        assertEquals(12345, vm.state.value.vehicle!!.currentMileage)
+        assertEquals(TaskStatus.DUE_SOON, vm.state.value.tasks.single().status)
+        assertFalse(vm.state.value.updating)
+        assertEquals(listOf(7L), measurements.contextCalls)
+    }
+
+    @Test fun withoutStoredTasksTheVehicleWaitsForTheServer() {
+        vehicles.storedVehicle = Snapshot(vehicle, java.time.Instant.parse("2026-11-19T07:00:00Z"))
+        vehicles.vehicleGate = CompletableDeferred()
+        val vm = viewModel()
+        assertNull(vm.state.value.vehicle)
+        assertFalse(vm.state.value.updating)
+        vehicles.vehicleGate!!.complete(Unit)
     }
 }

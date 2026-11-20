@@ -10,6 +10,7 @@ import de.bikemaintainer.app.domain.Measurements
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Recorded
+import de.bikemaintainer.app.domain.Snapshot
 import de.bikemaintainer.app.domain.TaskInput
 import java.time.Clock
 import java.time.LocalDate
@@ -18,6 +19,9 @@ import java.util.UUID
 /** Maintenance tasks and logs; implemented by [ApiMaintenanceRepository], faked in UI tests. */
 interface MaintenanceRepository {
     suspend fun tasks(vehicleId: Long): Outcome<List<MaintenanceTask>>
+
+    /** The task list as stored on the device, without asking the server (app#69). */
+    suspend fun storedTasks(vehicleId: Long): Snapshot<List<MaintenanceTask>>? = null
 
     suspend fun task(vehicleId: Long, taskId: Long): Outcome<MaintenanceTask>
 
@@ -54,6 +58,11 @@ class ApiMaintenanceRepository(
     override suspend fun tasks(vehicleId: Long): Outcome<List<MaintenanceTask>> =
         provider.callCached(offline, OfflineKeys.tasks(vehicleId), TASKS) { it.tasks.listMaintenanceTasks(vehicleId) }
             .map { list -> list.map { it.toDomain() } }
+
+    override suspend fun storedTasks(vehicleId: Long): Snapshot<List<MaintenanceTask>>? =
+        offline.load(OfflineKeys.tasks(vehicleId), TASKS)?.let { stored ->
+            Snapshot(stored.value.map { it.toDomain() }, stored.fetchedAt)
+        }
 
     override suspend fun task(vehicleId: Long, taskId: Long): Outcome<MaintenanceTask> =
         provider.callStored { it.tasks.getMaintenanceTask(vehicleId, taskId) }.map { it.toDomain() }

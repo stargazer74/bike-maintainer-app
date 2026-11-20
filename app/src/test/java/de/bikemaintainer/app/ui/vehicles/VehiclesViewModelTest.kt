@@ -5,6 +5,7 @@ import de.bikemaintainer.app.domain.AccessStatus
 import de.bikemaintainer.app.domain.Account
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
+import de.bikemaintainer.app.domain.Snapshot
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleSummary
@@ -161,5 +162,20 @@ class VehiclesViewModelTest {
         val vm = viewModel()
         assertEquals(AccessStatus.EXPIRED, vm.state.value.access.status)
         assertEquals(1, auth.currentAccountCalls)
+    }
+
+    @Test fun storedListIsShownWhileTheServerIsAskedAndThenReplaced() {
+        val stored = summary.copy(dueCount = 1)
+        repo.storedSummaries = Snapshot(listOf(stored), java.time.Instant.parse("2026-11-19T07:00:00Z"))
+        repo.summariesGate = CompletableDeferred()
+        repo.summariesResult = Outcome.Success(listOf(summary))
+        val vm = viewModel()
+        assertEquals(listOf(stored), vm.state.value.summaries)
+        assertTrue(vm.state.value.updating)
+        assertNull(vm.state.value.asOf)
+        assertFalse(vm.state.value.refreshing)
+        repo.summariesGate!!.complete(Unit)
+        assertEquals(listOf(summary), vm.state.value.summaries)
+        assertFalse(vm.state.value.updating)
     }
 }

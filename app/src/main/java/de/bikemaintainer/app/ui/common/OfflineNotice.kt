@@ -28,3 +28,17 @@ fun OfflineNotice(asOf: Instant, modifier: Modifier = Modifier, zone: ZoneId = Z
         modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite },
     )
 }
+
+/**
+ * Shown while a screen shows the data stored on the device and asks the server (app#69): quiet, no spinner over the
+ * data; the fresh answer replaces it, or [OfflineNotice] follows.
+ */
+@Composable
+fun UpdatingNotice(modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(R.string.updating),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = modifier,
+    )
+}

@@ -9,6 +9,7 @@ import de.bikemaintainer.app.data.storage.OutboxEntry
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Recorded
+import de.bikemaintainer.app.domain.Snapshot
 import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleInput
 import de.bikemaintainer.app.domain.VehicleSummary
@@ -31,6 +32,15 @@ interface VehicleRepository {
 
     /** All vehicles with their overall task status; the first failing task list fails the whole call. */
     suspend fun summaries(): Outcome<List<VehicleSummary>>
+
+    /**
+     * The summaries as stored on the device, without asking the server (app#69); null if not everything is stored.
+     * Only for showing something at once – background work keeps using the fresh calls.
+     */
+    suspend fun storedSummaries(): Snapshot<List<VehicleSummary>>? = null
+
+    /** The vehicle as stored on the device, without asking the server (app#69). */
+    suspend fun storedVehicle(id: Long): Snapshot<Vehicle>? = null
 
     /**
      * Raises only the mileage (`PUT …/mileage`). Without a connection it is kept on the device and sent later
@@ -119,6 +129,22 @@ class ApiVehicleRepository(
         make = make,
         model = model,
     )
+
+    override suspend fun storedVehicle(id: Long): Snapshot<Vehicle>? =
+        offline.load(OfflineKeys.vehicle(id), VehicleResponse.serializer())?.let { Snapshot(it.value.toDomain(), it.fetchedAt) }
+
+    override suspend fun storedSummaries(): Snapshot<List<VehicleSummary>>? {
+        val list = offline.load(OfflineKeys.VEHICLES, ListSerializer(VehicleResponse.serializer())) ?: return null
+        var asOf = list.fetchedAt
+        val summaries = list.value.map { vehicle ->
+            // A vehicle without stored tasks would show a wrong status: then rather wait for the server.
+            val stored = offline.load(OfflineKeys.tasks(vehicle.id), TASKS) ?: return null
+            asOf = minOf(asOf, stored.fetchedAt)
+            val tasks = stored.value.map { it.toDomain() }
+            VehicleSummary(vehicle.toDomain(), tasks.overallStatus(), tasks.dueCount())
+        }
+        return Snapshot(summaries, asOf)
+    }
 
     override suspend fun summaries(): Outcome<List<VehicleSummary>> {
         val result = vehicles()
