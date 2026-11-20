@@ -26,6 +26,8 @@ data class VehicleFormUiState(
     val saveError: AppError? = null,
     /** Id of the saved vehicle; the screen leaves once. */
     val saved: Long? = null,
+    /** Read-only account editing a vehicle: the data is only shown, deleting stays possible (Epic backend#136). */
+    val readOnly: Boolean = false,
 )
 
 /** Creates a vehicle ([vehicleId] `null`) or edits one; the same fields and checks as the web app. */
@@ -44,7 +46,12 @@ class VehicleFormViewModel(
     val today: LocalDate get() = clock()
 
     init {
-        if (vehicleId != null) load(vehicleId)
+        if (vehicleId != null) {
+            load(vehicleId)
+            viewModelScope.launch {
+                accessSource.access.collect { a -> _state.update { it.copy(readOnly = !a.canWrite) } }
+            }
+        }
     }
 
     fun retryLoad() {
@@ -62,12 +69,12 @@ class VehicleFormViewModel(
     }
 
     fun edit(change: (VehicleDraft) -> VehicleDraft) = _state.update { s ->
-        if (s.saving || s.saved != null || s.draft == null) s else s.copy(draft = change(s.draft), saveError = null)
+        if (s.saving || s.saved != null || s.draft == null || s.readOnly) s else s.copy(draft = change(s.draft), saveError = null)
     }
 
     fun save() {
         val s = _state.value
-        if (s.saving || s.saved != null) return
+        if (s.saving || s.saved != null || s.readOnly) return
         val input = s.draft?.toInput(clock())
         if (input == null) {
             _state.update { it.copy(showErrors = true) }

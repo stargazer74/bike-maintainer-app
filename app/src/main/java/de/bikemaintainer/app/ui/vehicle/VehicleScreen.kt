@@ -73,6 +73,7 @@ import de.bikemaintainer.app.ui.common.saveMessageRes
 import de.bikemaintainer.app.ui.common.statusColor
 import de.bikemaintainer.app.ui.common.vehicleLoadMessageRes
 import de.bikemaintainer.app.ui.logmaintenance.LogResult
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -87,10 +88,21 @@ fun VehicleScreen(
     onAddTask: () -> Unit = {},
     onEditTask: (Long) -> Unit = {},
     onDeleted: () -> Unit = {},
+    /** Set by the vehicle form after the user confirmed deleting there. */
+    deleteRequested: StateFlow<Boolean> = MutableStateFlow(false),
+    onDeleteRequestConsumed: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val currentOnDeleted by rememberUpdatedState(onDeleted)
     LaunchedEffect(state.deleted) { if (state.deleted) currentOnDeleted() }
+    val deleteRequest by deleteRequested.collectAsState()
+    val currentConsumed by rememberUpdatedState(onDeleteRequestConsumed)
+    LaunchedEffect(deleteRequest) {
+        if (!deleteRequest) return@LaunchedEffect
+        // Consume first: a recreated screen must not delete a second time.
+        currentConsumed()
+        viewModel.deleteVehicle()
+    }
     val result by logResult.collectAsState()
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -138,7 +150,6 @@ fun VehicleScreen(
             onDismissMileage = viewModel::dismissMileageDialog,
             onLogMaintenance = onLogMaintenance,
             onEditVehicle = onEditVehicle,
-            onDeleteVehicle = viewModel::deleteVehicle,
             onAddTask = onAddTask,
             onEditTask = onEditTask,
             onSendPendingAnyway = viewModel::sendPendingAnyway,
@@ -154,7 +165,6 @@ data class VehicleActions(
     val onDismissMileage: () -> Unit,
     val onLogMaintenance: () -> Unit,
     val onEditVehicle: () -> Unit = {},
-    val onDeleteVehicle: () -> Unit = {},
     val onAddTask: () -> Unit = {},
     val onEditTask: (Long) -> Unit = {},
     val onSendPendingAnyway: (String) -> Unit = {},
@@ -360,40 +370,17 @@ private fun VehicleButtons(state: VehicleUiState, actions: VehicleActions) {
     }
 }
 
-/** Edit and delete the vehicle; deleting stays possible on a read-only account (Epic backend#136). */
+/**
+ * Opens the vehicle form; deleting is there, not on this page. A read-only account gets the form too, showing the data,
+ * so it can still delete (Epic backend#136). A failed delete is reported here, where it runs.
+ */
 @Composable
 private fun VehicleManagement(state: VehicleUiState, actions: VehicleActions) {
-    var confirm by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         state.deleteError?.let { ErrorText(stringResource(R.string.vehicle_delete_failed)) }
-        if (state.access.canWrite) {
-            OutlinedButton(onClick = actions.onEditVehicle, enabled = !state.deleting, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.vehicle_edit))
-            }
+        OutlinedButton(onClick = actions.onEditVehicle, enabled = !state.deleting, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(if (state.access.canWrite) R.string.vehicle_edit else R.string.vehicle_show))
         }
-        OutlinedButton(
-            onClick = { confirm = true },
-            enabled = !state.deleting,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text(stringResource(R.string.vehicle_delete)) }
-    }
-    if (confirm) {
-        AlertDialog(
-            onDismissRequest = { confirm = false },
-            title = { Text(stringResource(R.string.vehicle_delete_confirm_title)) },
-            text = { Text(stringResource(R.string.vehicle_delete_confirm_text, state.vehicle?.name.orEmpty())) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirm = false
-                        actions.onDeleteVehicle()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text(stringResource(R.string.delete)) }
-            },
-            dismissButton = { TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.cancel)) } },
-        )
     }
 }
 

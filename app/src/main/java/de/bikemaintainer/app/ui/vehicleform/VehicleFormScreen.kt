@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,8 +48,14 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
+/** [onDelete] (only when editing) runs after the user confirmed; the vehicle detail then deletes and leaves. */
 @Composable
-fun VehicleFormScreen(viewModel: VehicleFormViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit) {
+fun VehicleFormScreen(
+    viewModel: VehicleFormViewModel,
+    onBack: () -> Unit,
+    onSaved: (Long) -> Unit,
+    onDelete: (() -> Unit)? = null,
+) {
     val state by viewModel.state.collectAsState()
     val currentOnSaved by rememberUpdatedState(onSaved)
     LaunchedEffect(state.saved) { state.saved?.let(currentOnSaved) }
@@ -58,6 +66,7 @@ fun VehicleFormScreen(viewModel: VehicleFormViewModel, onBack: () -> Unit, onSav
         onRetry = viewModel::retryLoad,
         onEdit = viewModel::edit,
         onSave = viewModel::save,
+        onDelete = onDelete,
     )
 }
 
@@ -69,9 +78,15 @@ fun VehicleFormContent(
     onRetry: () -> Unit,
     onEdit: ((VehicleDraft) -> VehicleDraft) -> Unit,
     onSave: () -> Unit,
+    onDelete: (() -> Unit)? = null,
 ) {
+    val title = when {
+        state.readOnly -> R.string.vehicle_form_view
+        state.editing -> R.string.vehicle_form_edit
+        else -> R.string.vehicle_form_new
+    }
     FormScaffold(
-        title = stringResource(if (state.editing) R.string.vehicle_form_edit else R.string.vehicle_form_new),
+        title = stringResource(title),
         onBack = onBack,
         loading = state.draft == null,
         loadError = state.loadError,
@@ -79,7 +94,14 @@ fun VehicleFormContent(
     ) {
         val draft = state.draft ?: return@FormScaffold
         val invalid = if (state.showErrors) draft.invalidFields(today) else emptySet()
-        val enabled = !state.saving && state.saved == null
+        val enabled = !state.saving && state.saved == null && !state.readOnly
+        if (state.readOnly) {
+            Text(
+                stringResource(R.string.vehicle_form_read_only),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         FormTextField(
             value = draft.name,
             onValueChange = { v -> onEdit { it.copy(name = v) } },
@@ -124,9 +146,43 @@ fun VehicleFormContent(
             number = true,
         )
         state.saveError?.let { ErrorText(stringResource(it.saveMessageRes())) }
-        Button(onClick = onSave, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-            Text(stringResource(R.string.save))
+        if (!state.readOnly) {
+            Button(onClick = onSave, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.save))
+            }
         }
+        if (state.editing && onDelete != null) {
+            DeleteVehicle(state.draft.name, enabled = !state.saving && state.saved == null, onDelete = onDelete)
+        }
+    }
+}
+
+/** Kept off the vehicle page on purpose: deleting is rare and cannot be undone, so it asks first. */
+@Composable
+private fun DeleteVehicle(name: String, enabled: Boolean, onDelete: () -> Unit) {
+    var confirm by rememberSaveable { mutableStateOf(false) }
+    OutlinedButton(
+        onClick = { confirm = true },
+        enabled = enabled,
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+        modifier = Modifier.fillMaxWidth().padding(top = 16.dp).heightIn(min = 48.dp),
+    ) { Text(stringResource(R.string.vehicle_delete)) }
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text(stringResource(R.string.vehicle_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.vehicle_delete_confirm_text, name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirm = false
+                        onDelete()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 }
 

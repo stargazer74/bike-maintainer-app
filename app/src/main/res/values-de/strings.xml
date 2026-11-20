@@ -327,12 +327,15 @@
     <string name="vehicle_add">Fahrzeug hinzufügen</string>
     <string name="vehicle_add_first">Erstes Fahrzeug anlegen</string>
     <string name="vehicle_edit">Fahrzeug bearbeiten</string>
+    <string name="vehicle_show">Fahrzeugdaten anzeigen</string>
     <string name="vehicle_delete">Fahrzeug löschen</string>
     <string name="vehicle_delete_confirm_title">Fahrzeug löschen?</string>
     <string name="vehicle_delete_confirm_text">%1$s und alles dazu Erfasste – Aufgaben, Wartungseinträge und Messwerte – werden endgültig gelöscht.</string>
     <string name="vehicle_delete_failed">Das Fahrzeug konnte nicht gelöscht werden.</string>
     <string name="vehicle_form_new">Neues Fahrzeug</string>
     <string name="vehicle_form_edit">Fahrzeug bearbeiten</string>
+    <string name="vehicle_form_view">Fahrzeugdaten</string>
+    <string name="vehicle_form_read_only">Mit Lesezugriff kannst du die Fahrzeugdaten ansehen, aber nicht ändern. Löschen ist weiterhin möglich.</string>
     <string name="vehicle_form_name">Name</string>
     <string name="vehicle_form_type">Art</string>
     <string name="vehicle_form_make">Hersteller (optional)</string>

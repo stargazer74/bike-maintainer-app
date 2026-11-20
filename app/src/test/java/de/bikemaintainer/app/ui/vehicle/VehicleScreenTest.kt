@@ -93,7 +93,9 @@ class VehicleScreenTest {
         compose.onNodeWithText("Wartung erfassen").assertDoesNotExist()
         compose.onNodeWithText("Aufgabe hinzufügen").assertDoesNotExist()
         compose.onNodeWithText("Fahrzeug bearbeiten").assertDoesNotExist()
-        compose.onNodeWithText("Fahrzeug löschen").performScrollTo().assertExists()
+        // Deleting stays possible through the (read-only) vehicle form.
+        compose.onNodeWithText("Fahrzeugdaten anzeigen").performScrollTo().assertExists()
+        compose.onNodeWithText("Fahrzeug löschen").assertDoesNotExist()
     }
 
     @Test fun whileDeletingTheActionsAreDisabled() {
@@ -103,21 +105,25 @@ class VehicleScreenTest {
         compose.onNodeWithText("Aufgabe hinzufügen").assertIsNotEnabled()
     }
 
-    @Test fun deletingAsksFirst() {
-        var deleted = 0
+    @Test fun deletingIsOnlyOfferedInTheVehicleForm() {
+        var edited = 0
         compose.setContent {
             VehicleContent(
                 state = VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK))),
                 onBack = {},
                 onRefresh = {},
                 onRetry = {},
-                actions = VehicleActions({}, {}, {}, {}, {}, onDeleteVehicle = { deleted++ }),
+                actions = VehicleActions({}, {}, {}, {}, {}, onEditVehicle = { edited++ }),
             )
         }
-        compose.onNodeWithText("Fahrzeug löschen").performScrollTo().performClick()
-        assertEquals(0, deleted)
-        compose.onNodeWithText("Löschen").performClick()
-        assertEquals(1, deleted)
+        compose.onNodeWithText("Fahrzeug löschen").assertDoesNotExist()
+        compose.onNodeWithText("Fahrzeug bearbeiten").performScrollTo().performClick()
+        assertEquals(1, edited)
+    }
+
+    @Test fun aFailedDeleteIsReportedOnTheVehiclePage() {
+        show(VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK)), deleteError = AppError.Network))
+        compose.onNodeWithText("Das Fahrzeug konnte nicht gelöscht werden.").performScrollTo().assertExists()
     }
 
     @Test fun tapOnATaskOpensItsForm() {
