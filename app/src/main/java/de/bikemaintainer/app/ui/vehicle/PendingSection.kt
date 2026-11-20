@@ -2,7 +2,8 @@ package de.bikemaintainer.app.ui.vehicle
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -39,6 +40,7 @@ fun PendingSection(
     tasks: List<MaintenanceTask>,
     onSendAnyway: (String) -> Unit,
     onDiscard: (String) -> Unit,
+    onEdit: (PendingItem) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -46,16 +48,18 @@ fun PendingSection(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.semantics { heading() },
         )
-        items.forEach { PendingCard(it, tasks, onSendAnyway, onDiscard) }
+        items.forEach { PendingCard(it, tasks, onSendAnyway, onDiscard, onEdit) }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PendingCard(
     item: PendingItem,
     tasks: List<MaintenanceTask>,
     onSendAnyway: (String) -> Unit,
     onDiscard: (String) -> Unit,
+    onEdit: (PendingItem) -> Unit,
 ) {
     AppCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -83,7 +87,12 @@ private fun PendingCard(
                 },
             )
             if (state != PendingState.Waiting) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (item.editable) {
+                        OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Text(stringResource(R.string.pending_edit))
+                        }
+                    }
                     if (state is PendingState.PossibleDuplicate) {
                         OutlinedButton(onClick = { onSendAnyway(item.id) }, modifier = Modifier.heightIn(min = 48.dp)) {
                             Text(stringResource(R.string.pending_send_anyway))
@@ -97,6 +106,20 @@ private fun PendingCard(
         }
     }
 }
+
+/**
+ * Can be corrected in a form (app#70): a rejected or possibly duplicate maintenance, a mileage below the server's.
+ * A deleted vehicle or a read-only account cannot be fixed by editing.
+ */
+val PendingItem.editable: Boolean
+    get() = when (val s = state) {
+        PendingState.Waiting -> false
+        is PendingState.PossibleDuplicate -> kind == PendingItem.Kind.MAINTENANCE
+        is PendingState.Failed -> when (kind) {
+            PendingItem.Kind.MAINTENANCE -> s.problem == PendingProblem.REJECTED
+            PendingItem.Kind.MILEAGE -> s.problem == PendingProblem.MILEAGE_BELOW_CURRENT
+        }
+    }
 
 @Composable
 private fun formatDate(date: LocalDate?): String {

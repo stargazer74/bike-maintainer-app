@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
@@ -126,7 +127,7 @@ fun LogMaintenanceContent(state: LogMaintenanceUiState, today: LocalDate, onBack
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.log_title)) },
+                title = { Text(stringResource(if (state.editingPending) R.string.pending_edit_title else R.string.log_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
@@ -138,6 +139,14 @@ fun LogMaintenanceContent(state: LogMaintenanceUiState, today: LocalDate, onBack
         Box(Modifier.padding(padding).fillMaxSize()) {
             val loadError = state.loadError
             when {
+                state.pendingGone -> Column(
+                    Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(stringResource(R.string.pending_edit_gone), Modifier.padding(bottom = 8.dp))
+                    TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
+                }
                 loadError != null -> Column(
                     Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.Center,
@@ -165,6 +174,7 @@ private fun Form(state: LogMaintenanceUiState, today: LocalDate, actions: LogAct
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (state.removedTasks.isNotEmpty()) RemovedTasks(state.removedTasks)
         DateField(state.date, today, enabled = !state.locked, onDate = actions.onDate)
         OutlinedTextField(
             value = state.mileageInput,
@@ -296,3 +306,14 @@ private fun DateField(date: LocalDate, today: LocalDate, enabled: Boolean, onDat
 /** The picker works in UTC milliseconds regardless of the default time zone; only [today] and earlier days qualify. */
 internal fun isSelectableLogDate(utcMillis: Long, today: LocalDate): Boolean =
     Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate() <= today
+
+/** Tasks of a queued entry that are deleted meanwhile (app#70): they are no longer selected, the user should know. */
+@Composable
+private fun RemovedTasks(names: List<String>) {
+    val known = names.filter { it.isNotEmpty() }
+    val unknown = names.size - known.size
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        known.forEach { ErrorText(stringResource(R.string.pending_edit_task_gone, it)) }
+        if (unknown > 0) ErrorText(pluralStringResource(R.plurals.pending_edit_tasks_gone, unknown, unknown))
+    }
+}

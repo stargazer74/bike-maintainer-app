@@ -42,5 +42,17 @@ enum class PendingProblem {
     SUBSCRIPTION_REQUIRED,
 }
 
+/** A maintenance waiting in the queue, as the form edits it (app#70). */
+data class PendingLog(
+    val date: LocalDate,
+    val mileage: Int,
+    val taskIds: Set<Long>,
+    /** Names of the tasks when it was recorded; may be empty for entries of older app versions. */
+    val taskNames: Map<Long, String> = emptyMap(),
+    val notes: String? = null,
+    val measurements: Measurements? = null,
+    val raiseMileageTo: Int? = null,
+)
+
 /** How a recording ended: on the server, or kept on the device until there is a connection. */
 enum class Recorded { SAVED, QUEUED }

@@ -125,6 +125,7 @@ class FakeMaintenanceRepository : MaintenanceRepository {
     var logQueued = false
     val logEntryIds = mutableListOf<UUID>()
     val logRaises = mutableListOf<Int?>()
+    val logTaskNames = mutableListOf<Map<Long, String>>()
     var logGate: CompletableDeferred<Unit>? = null
     val logCalls = mutableListOf<LogCall>()
 
@@ -143,8 +144,10 @@ class FakeMaintenanceRepository : MaintenanceRepository {
         measurements: Measurements?,
         clientEntryId: UUID,
         raiseMileageTo: Int?,
+        taskNames: Map<Long, String>,
     ): Outcome<Recorded> {
         logCalls += LogCall(vehicleId, performedAt, mileage, taskIds, notes, measurements)
+        logTaskNames += taskNames
         logEntryIds += clientEntryId
         logRaises += raiseMileageTo
         logGate?.await()

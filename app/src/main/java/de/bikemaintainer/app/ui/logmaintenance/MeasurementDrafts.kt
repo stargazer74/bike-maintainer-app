@@ -287,3 +287,46 @@ fun rangeStatus(text: String, kind: MeasureKind, min: BigDecimal?, max: BigDecim
     val above = max != null && value > max
     return if (below || above) MeasurementStatus.OUT_OF_RANGE else MeasurementStatus.OK
 }
+
+/** Drafts of stored measurements, e.g. of a queued log being edited (app#70); values read like the user's input. */
+fun Measurements.toDrafts(decimalSeparator: Char): MeasurementDrafts {
+    fun BigDecimal?.text() = this?.toInput(decimalSeparator).orEmpty()
+    fun Measured.text() = value.text()
+    return MeasurementDrafts(
+        valves = valves?.map { ValveDraft(it.cylinder, it.kind, it.index, it.measured.text(), it.shimOld.text(), it.shimNew.text()) },
+        brakes = brakes?.let {
+            BrakeDraft(
+                padFront = it.padFront.text(),
+                padRear = it.padRear.text(),
+                discFront = it.discFront.text(),
+                discRear = it.discRear.text(),
+                discConditionFront = it.discConditionFront.orEmpty(),
+                discConditionRear = it.discConditionRear.orEmpty(),
+                fluidCondition = it.fluidCondition.orEmpty(),
+            )
+        },
+        chain = chain?.let {
+            ChainDraft(
+                slack = it.slack.text(),
+                wearLength = it.wearLength.text(),
+                wearLinks = it.wearLinks?.toString().orEmpty(),
+                sprocketCondition = it.sprocketCondition.orEmpty(),
+                rearSprocketCondition = it.rearSprocketCondition.orEmpty(),
+                cleaned = it.cleaned == true,
+                lubricated = it.lubricated == true,
+            )
+        },
+        tires = tires?.let {
+            TireDraft(
+                pressureFront = it.pressureFront.text(),
+                pressureRear = it.pressureRear.text(),
+                treadFront = it.treadFront.text(),
+                treadRear = it.treadRear.text(),
+                dotFront = it.dotFront.orEmpty(),
+                dotRear = it.dotRear.orEmpty(),
+                conditionFront = it.conditionFront.orEmpty(),
+                conditionRear = it.conditionRear.orEmpty(),
+            )
+        },
+    )
+}

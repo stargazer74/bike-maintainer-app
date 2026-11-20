@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.MeasurementRepository
+import de.bikemaintainer.app.data.repository.PendingRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.domain.Access
 import de.bikemaintainer.app.domain.AccessSource
@@ -14,6 +15,7 @@ import de.bikemaintainer.app.domain.MeasurementContext
 import de.bikemaintainer.app.domain.MeasurementTemplate
 import de.bikemaintainer.app.domain.ShimSuggestion
 import de.bikemaintainer.app.domain.Outcome
+import de.bikemaintainer.app.domain.PendingLog
 import de.bikemaintainer.app.domain.Recorded
 import de.bikemaintainer.app.domain.TaskStatus
 import de.bikemaintainer.app.domain.Vehicle
@@ -54,6 +56,9 @@ enum class LogResult {
 
     /** No connection: kept on the device and sent later (app#65). */
     QUEUED,
+
+    /** An entry of the queue was edited and is sent again (app#70). */
+    UPDATED,
 }
 
 sealed interface LogError {
@@ -91,6 +96,12 @@ data class LogMaintenanceUiState(
     val finished: Boolean = false,
     /** Scanning needs [Access.canScan]; worksheets of the trial carry a demo code. */
     val access: Access = Access.FULL,
+    /** Editing an entry of the queue (app#70): its tasks that are deleted meanwhile, by name (empty name: unknown). */
+    val removedTasks: List<String> = emptyList(),
+    /** The queued entry to edit is gone (sent or discarded meanwhile): nothing to edit. */
+    val pendingGone: Boolean = false,
+    /** The form edits an entry of the queue instead of recording a new maintenance. */
+    val editingPending: Boolean = false,
 ) {
     /** No edits and no save: a save is running or the log is already saved. */
     val locked: Boolean get() = saving || finished
@@ -116,12 +127,15 @@ class LogMaintenanceViewModel(
     private val shimDebounceMillis: Long = SHIM_DEBOUNCE_MILLIS,
     private val decimalSeparator: Char = DecimalFormatSymbols.getInstance().decimalSeparator,
     private val accessSource: AccessSource = AccessSource.Unrestricted,
+    /** Set to edit this entry of the queue instead of recording a new maintenance (app#70). */
+    private val pendingId: String? = null,
+    private val pending: PendingRepository = PendingRepository(),
 ) : ViewModel() {
     /** The latest selectable day. */
     val latestDate: LocalDate get() = today()
 
     private val _state = MutableStateFlow(
-        LogMaintenanceUiState(date = today()).let { initial ->
+        LogMaintenanceUiState(date = today(), editingPending = pendingId != null).let { initial ->
             val result = savedState.get<String>(KEY_RESULT)?.let { name -> LogResult.entries.firstOrNull { it.name == name } }
             // Restored after the log was saved: hand the result on again instead of offering a second save.
             if (result == null) initial else initial.copy(done = result, finished = true)
@@ -160,7 +174,8 @@ class LogMaintenanceViewModel(
     }
 
     fun retryLoad() {
-        if (loading || _state.value.vehicle != null || _state.value.loadError?.isNotFound() == true) return
+        val s = _state.value
+        if (loading || s.vehicle != null || s.loadError?.isNotFound() == true || s.pendingGone) return
         loading = true
         _state.update { it.copy(loadError = null) }
         viewModelScope.launch {
@@ -170,6 +185,14 @@ class LogMaintenanceViewModel(
                     is Outcome.Success -> {
                         val (vehicle, tasks) = result.value
                         val ids = tasks.map { it.id }.toSet()
+                        val queued = pendingId?.let { pending.log(it) }
+                        if (pendingId != null && queued == null && !_state.value.finished) {
+                            _state.update { it.copy(pendingGone = true) }
+                            return@launch
+                        }
+                        val removed = queued?.let { log ->
+                            (log.taskIds - ids).map { id -> log.taskNames[id].orEmpty() }
+                        }.orEmpty()
                         _state.update {
                             if (savedState.contains(KEY_SELECTED)) {
                                 // Restored: the user's form wins over the prefill; deleted tasks drop out.
@@ -182,6 +205,20 @@ class LogMaintenanceViewModel(
                                     notes = savedState.get<String>(KEY_NOTES).orEmpty(),
                                     raiseMileage = savedState.get<Boolean>(KEY_RAISE) ?: true,
                                     measurements = restoreMeasurements(),
+                                    removedTasks = removed,
+                                )
+                            } else if (queued != null) {
+                                // The queued entry as it was recorded; deleted tasks are dropped and named.
+                                it.copy(
+                                    vehicle = vehicle,
+                                    tasks = tasks,
+                                    selected = queued.taskIds intersect ids,
+                                    mileageInput = queued.mileage.toString(),
+                                    date = queued.date,
+                                    notes = queued.notes.orEmpty(),
+                                    raiseMileage = queued.raiseMileageTo != null,
+                                    measurements = queued.measurements?.toDrafts(decimalSeparator) ?: MeasurementDrafts(),
+                                    removedTasks = removed,
                                 )
                             } else {
                                 it.copy(
@@ -308,6 +345,10 @@ class LogMaintenanceViewModel(
                 _state.update { it.copy(error = LogError.Measurements, showMeasurementErrors = true) }
             else -> {
                 _state.update { it.copy(saving = true, error = null) }
+                if (pendingId != null) {
+                    replacePending(pendingId, s, km)
+                    return
+                }
                 val raise = s.offerRaise && s.raiseMileage
                 viewModelScope.launch {
                     val result = maintenance.logMaintenance(
@@ -319,6 +360,7 @@ class LogMaintenanceViewModel(
                         s.measurements.toMeasurements().takeUnless { it.isEmpty },
                         clientEntryId = clientEntryId(),
                         raiseMileageTo = if (raise) km else null,
+                        taskNames = s.tasks.filter { it.id in s.selected }.associate { it.id to it.name },
                     )
                     when (result) {
                         is Outcome.Failure -> onSaveFailed(result.error)
@@ -337,6 +379,34 @@ class LogMaintenanceViewModel(
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Saves the edited entry back into the queue (app#70) instead of sending a new log; it keeps its id, so it never
+     * becomes a second log on the server. The raise choice is kept with it, as when it was recorded.
+     */
+    private fun replacePending(id: String, s: LogMaintenanceUiState, km: Int) {
+        val raise = s.offerRaise && s.raiseMileage
+        val log = PendingLog(
+            date = s.date,
+            mileage = km,
+            taskIds = s.selected,
+            taskNames = s.tasks.filter { it.id in s.selected }.associate { it.id to it.name },
+            notes = s.notes.ifBlank { null },
+            measurements = s.measurements.toMeasurements().takeUnless { it.isEmpty },
+            raiseMileageTo = if (raise) km else null,
+        )
+        viewModelScope.launch {
+            if (pending.replaceLog(id, log)) {
+                savedState[KEY_RESULT] = LogResult.UPDATED.name
+                shimJob?.cancel()
+                _state.update { it.copy(saving = false, finished = true, done = LogResult.UPDATED) }
+            } else if (pending.log(id) == null) {
+                _state.update { it.copy(saving = false, pendingGone = true) }
+            } else {
+                _state.update { it.copy(saving = false, error = LogError.Save(AppError.Storage)) }
             }
         }
     }

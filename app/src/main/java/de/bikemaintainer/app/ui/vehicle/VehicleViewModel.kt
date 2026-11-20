@@ -182,6 +182,27 @@ class VehicleViewModel(
         viewModelScope.launch { pending.discard(id) }
     }
 
+    /** The queued mileage the open dialog replaces (app#70); dropped once a value is saved or the server's is kept. */
+    private var replacingMileage: String? = null
+
+    /**
+     * A queued mileage below the server's (app#70): the dialog opens with the server's current value; whatever is
+     * saved there replaces the entry.
+     */
+    fun editPendingMileage(id: String) {
+        if (!_state.value.canRecord) return
+        val vehicle = loader.state.value.data?.first ?: return
+        replacingMileage = id
+        _state.update { it.copy(mileageDialog = MileageDialogState(currentMileage(vehicle).toString())) }
+    }
+
+    /** The replaced entry is obsolete once the dialog saved a value (or kept the server's). */
+    private fun dropReplacedMileage() {
+        val id = replacingMileage ?: return
+        replacingMileage = null
+        viewModelScope.launch { pending.discard(id) }
+    }
+
     private var measurementJob: Job? = null
 
     private fun loadMeasurements() {
@@ -205,6 +226,7 @@ class VehicleViewModel(
 
     fun openMileageDialog() {
         if (!_state.value.canRecord) return
+        replacingMileage = null
         val vehicle = loader.state.value.data?.first ?: return
         _state.update { it.copy(mileageDialog = MileageDialogState(currentMileage(vehicle).toString())) }
     }
@@ -212,7 +234,9 @@ class VehicleViewModel(
     fun onMileageInput(text: String) = updateDialog { it.copy(input = text, error = null) }
 
     fun dismissMileageDialog() {
-        _state.update { if (it.mileageDialog?.saving == true) it else it.copy(mileageDialog = null) }
+        if (_state.value.mileageDialog?.saving == true) return
+        replacingMileage = null
+        _state.update { it.copy(mileageDialog = null) }
     }
 
     fun saveMileage() {
@@ -225,14 +249,19 @@ class VehicleViewModel(
         when {
             km == null -> updateDialog { it.copy(error = MileageError.Invalid) }
             km < current -> updateDialog { it.copy(error = MileageError.TooLow(current)) }
-            km == current -> _state.update { it.copy(mileageDialog = null) }
+            km == current -> {
+                dropReplacedMileage()
+                _state.update { it.copy(mileageDialog = null) }
+            }
             else -> {
                 updateDialog { it.copy(saving = true, error = null) }
                 viewModelScope.launch {
                     when (val result = vehicles.raiseMileage(vehicleId, km)) {
                         is Outcome.Success -> if (result.value == Recorded.QUEUED) {
+                            dropReplacedMileage()
                             _state.update { it.copy(mileageDialog = null, mileageQueued = true) }
                         } else {
+                            dropReplacedMileage()
                             _state.update { it.copy(mileageDialog = null) }
                             loader.refresh()
                         }

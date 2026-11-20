@@ -325,4 +325,85 @@ class LogMaintenanceViewModelTest {
         vm.retryLoad()
         assertEquals(1, vehicles.vehicleCalls.size) // terminal: only "Back" is offered
     }
+
+    // app#70: edit an entry of the queue.
+
+    private val queuedId = "5b2c3f8e-1d4a-4c1e-9f00-00000000a001"
+
+    private fun queued(outbox: de.bikemaintainer.app.data.storage.InMemoryOutbox) = kotlinx.coroutines.runBlocking {
+        outbox.add(
+            de.bikemaintainer.app.data.storage.OutboxEntry(
+                id = queuedId,
+                vehicleId = 3,
+                createdAt = 0,
+                log = de.bikemaintainer.app.data.repository.logRequest(
+                    java.util.UUID.fromString(queuedId),
+                    LocalDate.of(2026, 11, 1),
+                    24100,
+                    setOf(1L, 9L),
+                    "Öl gewechselt",
+                    de.bikemaintainer.app.domain.Measurements(
+                        brakes = de.bikemaintainer.app.domain.BrakeMeasurement(
+                            padFront = de.bikemaintainer.app.domain.Measured(java.math.BigDecimal("3.5")),
+                        ),
+                    ),
+                ),
+                problem = "REJECTED",
+                taskNames = mapOf(1L to "T1", 9L to "Kette"),
+            ),
+        )
+    }
+
+    private fun editing(outbox: de.bikemaintainer.app.data.storage.InMemoryOutbox): LogMaintenanceViewModel {
+        vehicles.vehicleResult = Outcome.Success(vehicle)
+        maintenance.tasksResult = Outcome.Success(allTasks)
+        return LogMaintenanceViewModel(
+            3, vehicles, maintenance, SavedStateHandle(), measurements,
+            today = { today }, shimDebounceMillis = 0, decimalSeparator = ',',
+            pendingId = queuedId, pending = de.bikemaintainer.app.data.repository.PendingRepository(outbox),
+        )
+    }
+
+    @Test fun aQueuedEntryOpensPrefilledWithTheDeletedTaskDroppedAndNamed() {
+        val outbox = de.bikemaintainer.app.data.storage.InMemoryOutbox()
+        queued(outbox)
+        val state = editing(outbox).state.value
+        assertTrue(state.editingPending)
+        assertEquals(LocalDate.of(2026, 11, 1), state.date)
+        assertEquals("24100", state.mileageInput)
+        assertEquals(setOf(1L), state.selected)
+        assertEquals(listOf("Kette"), state.removedTasks)
+        assertEquals("Öl gewechselt", state.notes)
+        assertEquals("3,5", state.measurements.brakes!!.padFront)
+    }
+
+    @Test fun savingReplacesTheQueuedEntryInsteadOfSendingANewLog() {
+        val outbox = de.bikemaintainer.app.data.storage.InMemoryOutbox()
+        queued(outbox)
+        val vm = editing(outbox)
+        vm.toggleTask(2)
+        vm.save()
+        assertEquals(LogResult.UPDATED, vm.state.value.done)
+        assertTrue(maintenance.logCalls.isEmpty())
+        val entry = outbox.entries.value.single()
+        assertEquals(queuedId, entry.id)
+        assertNull(entry.problem)
+        assertEquals(setOf(1L, 2L), entry.log!!.performedTaskIds)
+        assertEquals(java.util.UUID.fromString(queuedId), entry.log!!.clientEntryId)
+        // The measurements are kept.
+        assertEquals(java.math.BigDecimal("3.5"), entry.log!!.measurements!!.brakes!!.padFront)
+    }
+
+    @Test fun anEntrySentOrDiscardedMeanwhileCannotBeEdited() {
+        val vm = editing(de.bikemaintainer.app.data.storage.InMemoryOutbox())
+        assertTrue(vm.state.value.pendingGone)
+        vm.save()
+        assertTrue(maintenance.logCalls.isEmpty())
+    }
+
+    @Test fun aNewLogKeepsTheTaskNamesForTheQueue() {
+        val vm = viewModel()
+        vm.save()
+        assertEquals(mapOf(1L to "T1", 2L to "T2"), maintenance.logTaskNames.single())
+    }
 }
