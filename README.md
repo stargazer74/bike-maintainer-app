@@ -13,6 +13,30 @@ this one (`../bike-maintainer-api`) or point to the spec with `-Pbm.apiSpec=<pat
 
 After changing dependencies: `./gradlew :app:dependencies --write-locks`. Releases: [docs/release.md](docs/release.md).
 
+## Cucumber tests
+
+Behaviour from the user's view is described in Gherkin (`app/src/test/resources/features/*.feature`, English like
+the backend's and the web app's features; quoted UI text is the German UI). The scenarios run with the unit tests
+(`testDebugUnitTest`, no emulator): `CucumberTest` runs each scenario as its own Robolectric test with the real app –
+navigation, view models, repositories, offline storage and queue. Only one scenario:
+`./gradlew :app:testDebugUnitTest --tests '*CucumberTest*maintenance: Recording*'`.
+
+- **No real backend:** `features/support/FakeBackend.kt` answers every `/api/` request in memory on a MockWebServer,
+  typed with the generated API models. A request to an endpoint the fake does not implement **fails the scenario** –
+  add the endpoint to the fake rather than loosening that. The fake keeps rules simple (task status by km only,
+  measurement status unknown); business rules are tested in the backend's Cucumber suite.
+- **Replaced** is only what needs real hardware (`features/support/TestApp.kt`): the Android Keystore, WorkManager
+  (sending what was kept offline is a step), notifications and the camera. Camera flows (worksheet, QR code,
+  odometer photo) are not covered; their recognition has unit tests.
+- **Steps:** `steps/UiSteps.kt` (generic, by visible text, label or content description; it waits for the app and
+  scrolls lazy lists), `steps/BackendSteps.kt` (seed the fake and the app's stored login, assert what the app sent).
+  Prefer reusing generic steps over new screen-specific ones. On failure a step lists the texts on screen.
+- **Known bugs:** a scenario tagged `@bug @app-<n>` describes behaviour that is still broken and is skipped until the
+  fix for that issue removes the tag.
+- **Not yet runnable:** a scenario tagged `@wip` is skipped too. These open a dialog with a focused text field (mileage,
+  delete account) or depend on its timing; the blinking cursor keeps Compose from ever becoming idle under Robolectric.
+- When UI text in `res/values-de/strings.xml` changes, scenarios quoting it must change too.
+
 ## Installation
 
 The app is not tied to Google services. Signed APKs are published under

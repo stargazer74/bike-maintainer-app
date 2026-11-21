@@ -184,6 +184,9 @@ dependencies {
     testImplementation(libs.okhttp.mockwebserver3)
     testImplementation(libs.okhttp.tls)
     testImplementation(libs.androidx.work.testing)
+    // Behaviour scenarios in Gherkin (app/src/test/resources/features), run by CucumberTest with the unit tests.
+    testImplementation(libs.cucumber.java)
+    testImplementation(libs.cucumber.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -194,6 +197,8 @@ dependencies {
 
 // Robolectric reflects into JDK internals, which newer JDKs close by default.
 tasks.withType<Test>().configureEach {
+    // The Cucumber scenarios run one Robolectric test each (app/src/test/resources/features).
+    maxHeapSize = "3g"
     jvmArgs(
         "--add-opens=java.base/java.io=ALL-UNNAMED",
         "--add-opens=java.base/java.lang=ALL-UNNAMED",
