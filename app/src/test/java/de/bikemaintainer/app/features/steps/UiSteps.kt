@@ -97,10 +97,7 @@ class UiSteps {
     }
 
     @Then("I do not see the text {string}")
-    fun notSeeText(text: String) {
-        settle()
-        assertTrue("Unexpected text \"$text\"\nOn screen: ${screenTexts()}", !existsOrScroll(hasText(text, substring = true)))
-    }
+    fun notSeeText(text: String) = waitForAbsence("text \"$text\"", hasText(text, substring = true))
 
     @Then("I see a button {string}")
     fun seeButton(text: String) {
@@ -108,10 +105,7 @@ class UiSteps {
     }
 
     @Then("I do not see a button {string}")
-    fun notSeeButton(text: String) {
-        settle()
-        assertTrue("Unexpected button \"$text\"", !existsOrScroll(clickable(text)))
-    }
+    fun notSeeButton(text: String) = waitForAbsence("button \"$text\"", clickable(text))
 
     @Then("the field {string} contains {string}")
     fun fieldContains(label: String, value: String) {
@@ -169,6 +163,16 @@ class UiSteps {
             }
         } catch (e: androidx.compose.ui.test.ComposeTimeoutException) {
             throw AssertionError("Not found within ${TIMEOUT_MILLIS / 1000} s: $what\nOn screen: ${screenTexts()}", e)
+        }
+    }
+
+    /** Waits until [matcher] is gone, e.g. after a reload whose answer is still on its way. */
+    private fun waitForAbsence(what: String, matcher: SemanticsMatcher) {
+        settle()
+        try {
+            compose.waitUntil(TIMEOUT_MILLIS) { !existsOrScroll(matcher) }
+        } catch (e: androidx.compose.ui.test.ComposeTimeoutException) {
+            throw AssertionError("Still there after ${TIMEOUT_MILLIS / 1000} s: $what\nOn screen: ${screenTexts()}", e)
         }
     }
 
