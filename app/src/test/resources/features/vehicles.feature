@@ -47,8 +47,6 @@ Feature: Managing vehicles
     Then I see the text "Tenere"
     And the backend has a motorcycle "Tenere"
 
-  # Leaving after the delete is dropped while the page is not resumed yet (app#90).
-  @bug @app-90
   Scenario: Deleting a vehicle
     Given a motorcycle "Africa Twin" with 12345 km exists
     And a car "Golf" with 80000 km exists

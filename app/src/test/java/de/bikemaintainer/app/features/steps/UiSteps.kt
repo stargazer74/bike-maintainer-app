@@ -1,6 +1,7 @@
 package de.bikemaintainer.app.features.steps
 
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasAnyAncestor
@@ -56,6 +57,7 @@ class UiSteps {
     @When("I click {string}")
     fun click(text: String) {
         node(clickable(text), "button \"$text\"")
+        awaitResumed()
         awaitStable()
         val before = screenTexts()
         act { first(clickable(text)).performClick() }
@@ -173,6 +175,18 @@ class UiSteps {
             compose.waitUntil(TIMEOUT_MILLIS) { !existsOrScroll(matcher) }
         } catch (e: androidx.compose.ui.test.ComposeTimeoutException) {
             throw AssertionError("Still there after ${TIMEOUT_MILLIS / 1000} s: $what\nOn screen: ${screenTexts()}", e)
+        }
+    }
+
+    /** Until the current page accepts taps: navigation drops them (dropUnlessResumed) while it is still entering. */
+    private fun awaitResumed() {
+        val nav = World.app.navController ?: return
+        try {
+            compose.waitUntil(TIMEOUT_MILLIS) {
+                nav.currentBackStackEntry?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.RESUMED) != false
+            }
+        } catch (e: androidx.compose.ui.test.ComposeTimeoutException) {
+            throw AssertionError("Page not ready for taps within ${TIMEOUT_MILLIS / 1000} s\nOn screen: ${screenTexts()}", e)
         }
     }
 

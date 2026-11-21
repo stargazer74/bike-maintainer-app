@@ -76,16 +76,47 @@ class FakeBackend {
             if (value == field) return
             field = value
             if (value) {
-                server = MockWebServer().also {
-                    it.dispatcher = dispatcher
-                    it.start(port)
-                }
+                server = startOnPort()
             } else {
                 server.close()
             }
         }
 
     private val port: Int
+
+    /**
+     * A port below the ephemeral range (Linux: from 32768): while the server is off, no outgoing connection can take
+     * it as its local port, so it can be bound again when the connection is back.
+     */
+    private fun startOnFreePort(server: MockWebServer): Int {
+        val random = java.util.Random()
+        repeat(BIND_ATTEMPTS) {
+            val candidate = FIXED_PORTS.first + random.nextInt(FIXED_PORTS.last - FIXED_PORTS.first)
+            try {
+                server.start(candidate)
+                return candidate
+            } catch (_: java.net.BindException) {
+                // taken, try another
+            }
+        }
+        error("No free port in $FIXED_PORTS")
+    }
+
+    /** After the stop the port may be held for a moment (TIME_WAIT); try again shortly. */
+    private fun startOnPort(): MockWebServer {
+        repeat(BIND_ATTEMPTS) { attempt ->
+            val next = MockWebServer().also { it.dispatcher = dispatcher }
+            try {
+                next.start(port)
+                return next
+            } catch (e: java.net.BindException) {
+                next.close()
+                if (attempt == BIND_ATTEMPTS - 1) throw e
+                Thread.sleep(BIND_PAUSE_MILLIS)
+            }
+        }
+        error("unreachable")
+    }
 
     val accounts = mutableMapOf<String, Account>()
     @Volatile var signedIn: Account? = null
@@ -110,8 +141,7 @@ class FakeBackend {
 
     init {
         server.dispatcher = dispatcher
-        server.start()
-        port = server.port
+        port = startOnFreePort(server)
         url = server.url("/").toString()
     }
 
@@ -426,6 +456,9 @@ class FakeBackend {
     }
 
     private companion object {
+        const val BIND_ATTEMPTS = 20
+        val FIXED_PORTS = 20_000..30_000
+        const val BIND_PAUSE_MILLIS = 100L
         /** A cheap ALTCHA challenge (few PBKDF2 rounds, one hex digit): the app really solves it, the fake does not check. */
         const val CHALLENGE = """{"parameters":{"algorithm":"PBKDF2/SHA-256","cost":10,"expiresAt":4102444800,
             "keyLength":32,"keyPrefix":"0","nonce":"f169e76eacde014b37796bb59c45a342",

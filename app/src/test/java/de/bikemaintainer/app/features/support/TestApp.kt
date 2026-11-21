@@ -7,6 +7,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
 import de.bikemaintainer.app.api.infrastructure.Serializer
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.network.ErrorIdState
@@ -76,6 +78,10 @@ class TestApp(dir: File) {
         pending = pending,
     )
 
+    /** The app's navigation, so steps can wait until a page accepts taps (RESUMED). */
+    var navController: NavHostController? = null
+        private set
+
     /** Ends the DataStore's scope, so scenarios do not pile up running stores. */
     fun close() = scope.cancel()
 
@@ -88,7 +94,8 @@ class TestApp(dir: File) {
                 }
                 val errorId by errorIds.errorId.collectAsState()
                 Box(Modifier.fillMaxSize()) {
-                    start?.let { AppNavHost(deps = deps, start = it) }
+                    val nav = rememberNavController().also { navController = it }
+                    start?.let { AppNavHost(deps = deps, start = it, navController = nav) }
                     ErrorIdNotice(errorId = errorId, onDismiss = errorIds::dismiss, modifier = Modifier.align(Alignment.BottomCenter))
                 }
             }
