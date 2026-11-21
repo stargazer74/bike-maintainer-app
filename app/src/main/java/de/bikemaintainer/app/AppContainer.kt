@@ -28,7 +28,9 @@ import de.bikemaintainer.app.notifications.DueTaskNotifier
 import de.bikemaintainer.app.notifications.ReminderScheduler
 import de.bikemaintainer.app.notifications.WorkManagerReminderScheduler
 import de.bikemaintainer.app.notifications.notificationsAllowed
+import de.bikemaintainer.app.scan.AndroidOdometerScanner
 import de.bikemaintainer.app.scan.AndroidWorksheetScanner
+import de.bikemaintainer.app.ui.odometer.OdometerScanner
 import de.bikemaintainer.app.sync.WorkManagerOutboxScheduler
 import de.bikemaintainer.app.ui.scan.WorksheetScanner
 import java.io.File
@@ -73,5 +75,7 @@ class AppContainer(context: Context) {
     val reminderScheduler: ReminderScheduler = WorkManagerReminderScheduler(context, settings, notificationsAllowed)
     /** Reads photographed worksheets on the device (Epic #120). */
     val worksheetScanner: WorksheetScanner = AndroidWorksheetScanner(context.applicationContext)
+    /** Reads the odometer from a photo on the device (Epic backend#129). */
+    val odometerScanner: OdometerScanner = AndroidOdometerScanner(context.applicationContext)
     val dueTaskCheck = DueTaskCheck(vehicleRepository, maintenanceRepository, settings, notifier, notificationsAllowed)
 }

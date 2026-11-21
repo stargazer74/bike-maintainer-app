@@ -206,6 +206,25 @@ test photos against the Python code, and the plausibility and roll rules on made
 **Weights format `BMR1`:** like `BMO1` – conv weight and bias of the five 2-D and two 1-D layers, then class head
 and turning head.
 
+## In the app (app#40)
+
+"Photograph odometer" is the camera button in the mileage field of the vehicle page's "Enter mileage" dialog and of
+"Log maintenance" (`ui/odometer/`). The flow:
+
+1. **Camera** (`PhotoCamera`, shared with the worksheet scan): a 4:3 landscape frame as guide, the flash as a torch
+   if the phone has one. The camera permission is asked only on the first tap; without it the mileage is typed in as
+   before.
+2. **Reading** (`AndroidOdometerScanner`, off the main thread): the 4:3 area in the middle of the photo
+   (`odoPhotoArea` – the models only know landscape photos), the line detector, then the reader against the vehicle's
+   current mileage.
+3. **Review:** the photo with the line framed, the straightened line, the value (editable). Unsure values (reader or
+   detector frame) are marked until the user edits them. "Adjust the area" lets the user drag a frame on the photo if
+   the wrong line was found or none.
+4. **Take over** fills the mileage field; it is saved only with the form's "Save".
+
+The photo lives only in the screen's ViewModel (memory) and is dropped once the value is taken over or the screen
+closes – never saved, never sent, not kept across a process restart.
+
 ## Licences
 
 Code, generated photos and the weights trained on them (`odo-detector.bin`, `odo-reader.bin`) and the test photos

@@ -4,6 +4,8 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
+import org.junit.Assert.assertNull
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -226,6 +228,38 @@ class VehicleScreenTest {
         compose.onNode(hasSetTextAction()).performTextInput("24000")
         compose.onNodeWithText("Speichern").performClick()
         compose.onNodeWithText("Darf nicht kleiner sein als bisher (24.500 km).").assertExists()
+    }
+
+    @Test fun theMileageCanBePhotographedInsteadOfTyped() {
+        val viewModel = VehicleViewModel(
+            7,
+            FakeVehicleRepository().apply { vehicleResult = Outcome.Success(vehicle.copy(currentMileage = 24500)) },
+            FakeMaintenanceRepository(),
+            FakeMeasurementRepository(),
+        )
+        val result = MutableStateFlow<Int?>(null)
+        var cameras = 0
+        compose.setContent {
+            VehicleScreen(
+                viewModel = viewModel,
+                onBack = {},
+                onLogMaintenance = {},
+                logResult = MutableStateFlow(null),
+                onLogResultShown = {},
+                onScanOdometer = { cameras++ },
+                odometerResult = result,
+                onOdometerResultShown = { result.value = null },
+            )
+        }
+        compose.onNodeWithText("Kilometerstand eintragen").performClick()
+        compose.onNodeWithContentDescription("Tacho fotografieren").performClick()
+        assertEquals(1, cameras)
+        // Back from the camera with a value: it is in the dialog, not saved yet.
+        result.value = 24_800
+        compose.waitForIdle()
+        compose.onNode(hasSetTextAction() and hasText("24800")).assertExists()
+        assertNull(result.value)
+        compose.onNodeWithText("Speichern").assertExists()
     }
 
     @Test fun logButtonHiddenWithoutTasks() {

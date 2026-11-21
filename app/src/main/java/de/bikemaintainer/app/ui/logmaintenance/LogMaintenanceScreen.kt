@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import de.bikemaintainer.app.R
 import de.bikemaintainer.app.domain.MaintenanceTask
 import de.bikemaintainer.app.domain.parseMileage
+import de.bikemaintainer.app.ui.odometer.OdometerCameraButton
 import de.bikemaintainer.app.ui.common.ErrorText
 import de.bikemaintainer.app.ui.common.LoadingIndicator
 import de.bikemaintainer.app.ui.common.StatusDot
@@ -72,6 +73,8 @@ fun LogMaintenanceScreen(
     onBack: () -> Unit,
     onDone: (LogResult) -> Unit,
     onScanWorksheet: () -> Unit = {},
+    /** Opens the camera for the odometer (app#40); the value comes back via [LogMaintenanceViewModel.onMileageInput]. */
+    onScanOdometer: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val currentOnDone by rememberUpdatedState(onDone)
@@ -93,6 +96,7 @@ fun LogMaintenanceScreen(
             onNotes = viewModel::onNotes,
             onRaise = viewModel::onRaiseMileage,
             onSave = viewModel::save,
+            onScanOdometer = onScanOdometer,
             measurements = MeasurementActions(
                 onRetry = viewModel::retryMeasurements,
                 onAdd = viewModel::addTemplate,
@@ -118,6 +122,8 @@ data class LogActions(
     val onRaise: (Boolean) -> Unit,
     val onSave: () -> Unit,
     val measurements: MeasurementActions,
+    /** Photograph the odometer instead of typing (app#40). */
+    val onScanOdometer: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -184,6 +190,7 @@ private fun Form(state: LogMaintenanceUiState, today: LocalDate, actions: LogAct
             enabled = !state.locked,
             isError = state.error == LogError.InvalidMileage,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            trailingIcon = { OdometerCameraButton(onClick = actions.onScanOdometer, enabled = !state.locked) },
             modifier = Modifier.fillMaxWidth(),
         )
         if (state.offerRaise) {

@@ -37,6 +37,10 @@ import de.bikemaintainer.app.ui.FakeMeasurementRepository
 import de.bikemaintainer.app.ui.FakeReminderScheduler
 import de.bikemaintainer.app.ui.FakeVehicleRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
+import de.bikemaintainer.app.ui.odometer.FakeOdometerScanner
+import de.bikemaintainer.app.ui.odometer.OdometerViewModel
+import de.bikemaintainer.app.domain.scan.GrayImage
+import androidx.lifecycle.ViewModelProvider
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
@@ -69,6 +73,7 @@ class AppNavGraphTest {
     private val openVehicle = MutableStateFlow<Long?>(null)
     private var vehicleOpened = 0
     private lateinit var nav: TestNavHostController
+    private val odometer = FakeOdometerScanner()
 
     private fun show(start: Any) {
         compose.setContent {
@@ -76,6 +81,7 @@ class AppNavGraphTest {
             AppNavHost(AppDependencies(
                     auth, vehicles, maintenance, FakeMeasurementRepository(), session.status,
                     reminders, notifications, { true }, openVehicle, { vehicleOpened++; openVehicle.value = null },
+                    odometerScanner = odometer,
                 ), start, nav)
         }
         compose.waitForIdle()
@@ -251,6 +257,40 @@ class AppNavGraphTest {
         assertEquals(listOf("VehiclesRoute", "VehicleRoute"), stack())
         compose.onNodeWithText("Wartung gespeichert, aber der Kilometerstand konnte nicht angehoben werden.").assertExists()
         assertEquals(1, maintenance.logCalls.size)
+    }
+
+    /** The camera is not available in tests: the photo goes straight to the screen's ViewModel. */
+    private fun photographOdometer() {
+        compose.onNodeWithContentDescription("Tacho fotografieren").performClick()
+        compose.waitForIdle()
+        assertEquals(true, current().contains("ScanOdometerRoute"))
+        compose.runOnIdle {
+            ViewModelProvider(nav.currentBackStackEntry!!)[OdometerViewModel::class.java].onPhoto(GrayImage(400, 300))
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("Übernehmen").performScrollTo().performClick()
+        compose.waitForIdle()
+    }
+
+    @Test fun mileagePhotographedFromTheVehicleGoesIntoTheDialog() {
+        show(VehiclesRoute)
+        compose.onNodeWithText("Africa Twin").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Kilometerstand eintragen").performClick()
+        photographOdometer()
+        assertEquals(listOf("VehiclesRoute", "VehicleRoute"), stack())
+        // Checked against the vehicle's mileage; in the dialog, not saved yet.
+        assertEquals(12345, odometer.reads.single().second)
+        compose.onNode(hasSetTextAction() and hasText("12400")).assertExists()
+        assertEquals(0, vehicles.updateMileageCalls.size)
+    }
+
+    @Test fun mileagePhotographedInTheLogGoesIntoItsField() {
+        openLog()
+        photographOdometer()
+        assertEquals(listOf("VehiclesRoute", "VehicleRoute", "LogMaintenanceRoute"), stack())
+        compose.onNode(hasSetTextAction() and hasText("12400")).assertExists()
+        assertEquals(0, maintenance.logCalls.size)
     }
 
     @Test fun backFromLogReturnsToDetailWithoutSaving() {
