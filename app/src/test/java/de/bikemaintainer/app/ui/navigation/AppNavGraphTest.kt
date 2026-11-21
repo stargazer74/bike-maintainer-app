@@ -121,6 +121,25 @@ class AppNavGraphTest {
         assertEquals(listOf("VehiclesRoute"), stack())
     }
 
+    /** app#90: a server answering at once must not keep the app on "not found" after the delete. */
+    @Test fun deletingAVehicleReturnsToTheListAlsoWithAnImmediateAnswer() {
+        show(VehiclesRoute)
+        compose.onNodeWithText("Africa Twin").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Fahrzeug bearbeiten").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Fahrzeug löschen").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithText("Löschen").performClick()
+        // The detail is still entering when the delete returns: no waiting for the transition before the answer.
+        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        assertEquals(listOf(7L), vehicles.deleteVehicleCalls)
+        assertEquals(listOf("VehiclesRoute"), stack())
+    }
+
     @Test fun loginRequiredOnVehicleDetailRedirects() {
         show(VehicleRoute(7))
         session.require(SessionStatus.LOGIN_REQUIRED)

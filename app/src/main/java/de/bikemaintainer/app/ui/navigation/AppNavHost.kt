@@ -244,8 +244,10 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                         navController.navigate(TaskFormRoute(route.vehicleId, taskId))
                     }
                 },
-                // The list reloads when it is shown again.
-                onDeleted = back,
+                // The list reloads when it is shown again. Not via dropUnlessResumed (that guard is for taps): a fast
+                // server answers while this page is still entering, and the leave must not be dropped (app#90).
+                // Popping exactly this entry keeps it from popping anything else if it has left already.
+                onDeleted = { navController.popBackStack(route, inclusive = true) },
                 deleteRequested = entry.savedStateHandle.getStateFlow(DELETE_VEHICLE_KEY, false),
                 onDeleteRequestConsumed = { entry.savedStateHandle[DELETE_VEHICLE_KEY] = false },
                 onEditPendingLog = { id ->
