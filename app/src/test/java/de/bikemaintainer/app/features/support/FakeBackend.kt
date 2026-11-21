@@ -76,16 +76,29 @@ class FakeBackend {
             if (value == field) return
             field = value
             if (value) {
-                server = MockWebServer().also {
-                    it.dispatcher = dispatcher
-                    it.start(port)
-                }
+                server = startOnPort()
             } else {
                 server.close()
             }
         }
 
     private val port: Int
+
+    /** The port may still be held for a moment after the stop; try again shortly. */
+    private fun startOnPort(): MockWebServer {
+        repeat(BIND_ATTEMPTS) { attempt ->
+            val next = MockWebServer().also { it.dispatcher = dispatcher }
+            try {
+                next.start(port)
+                return next
+            } catch (e: java.net.BindException) {
+                next.close()
+                if (attempt == BIND_ATTEMPTS - 1) throw e
+                Thread.sleep(BIND_PAUSE_MILLIS)
+            }
+        }
+        error("unreachable")
+    }
 
     val accounts = mutableMapOf<String, Account>()
     @Volatile var signedIn: Account? = null
@@ -426,6 +439,8 @@ class FakeBackend {
     }
 
     private companion object {
+        const val BIND_ATTEMPTS = 20
+        const val BIND_PAUSE_MILLIS = 100L
         /** A cheap ALTCHA challenge (few PBKDF2 rounds, one hex digit): the app really solves it, the fake does not check. */
         const val CHALLENGE = """{"parameters":{"algorithm":"PBKDF2/SHA-256","cost":10,"expiresAt":4102444800,
             "keyLength":32,"keyPrefix":"0","nonce":"f169e76eacde014b37796bb59c45a342",
