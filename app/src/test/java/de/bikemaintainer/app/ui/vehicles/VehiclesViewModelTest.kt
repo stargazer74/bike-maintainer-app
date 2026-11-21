@@ -11,6 +11,7 @@ import de.bikemaintainer.app.domain.Vehicle
 import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.domain.VehicleType
 import de.bikemaintainer.app.ui.FakeAuthRepository
+import de.bikemaintainer.app.ui.FakeMeasurementRepository
 import de.bikemaintainer.app.ui.FakeVehicleRepository
 import de.bikemaintainer.app.ui.MainDispatcherRule
 import java.time.LocalDate
@@ -177,5 +178,46 @@ class VehiclesViewModelTest {
         repo.summariesGate!!.complete(Unit)
         assertEquals(listOf(summary), vm.state.value.summaries)
         assertFalse(vm.state.value.updating)
+    }
+
+    private val measurements = FakeMeasurementRepository()
+    private val second = summary.copy(vehicle = summary.vehicle.copy(id = 8))
+
+    private fun prefetchingViewModel() = VehiclesViewModel(repo, auth, measurements = measurements)
+
+    @Test fun freshListStoresTheMeasurementsOfEveryVehicleForOffline() {
+        repo.summariesResult = Outcome.Success(listOf(summary, second))
+        prefetchingViewModel()
+        assertEquals(listOf(7L, 8L), measurements.contextCalls)
+    }
+
+    @Test fun eachFreshReloadFetchesTheMeasurementsAgain() {
+        repo.summariesResult = Outcome.Success(listOf(summary))
+        val vm = prefetchingViewModel()
+        repo.summariesResult = Outcome.Success(listOf(summary)) // every server answer is a new list
+        vm.refresh()
+        assertEquals(listOf(7L, 7L), measurements.contextCalls)
+    }
+
+    @Test fun offlineListFetchesNoMeasurements() {
+        repo.summariesResult = Outcome.Success(listOf(summary), java.time.Instant.parse("2026-11-19T07:00:00Z"))
+        prefetchingViewModel()
+        assertEquals(emptyList<Long>(), measurements.contextCalls)
+    }
+
+    @Test fun storedListShownWhileTheServerIsAskedFetchesNoMeasurements() {
+        repo.storedSummaries = Snapshot(listOf(summary), java.time.Instant.parse("2026-11-19T07:00:00Z"))
+        repo.summariesGate = CompletableDeferred()
+        repo.summariesResult = Outcome.Success(listOf(second))
+        prefetchingViewModel()
+        assertEquals(emptyList<Long>(), measurements.contextCalls)
+        repo.summariesGate!!.complete(Unit)
+        assertEquals(listOf(8L), measurements.contextCalls)
+    }
+
+    @Test fun failedListFetchesNoMeasurements() {
+        repo.summariesResult = Outcome.Failure(AppError.Network)
+        prefetchingViewModel()
+        assertEquals(emptyList<Long>(), measurements.contextCalls)
     }
 }

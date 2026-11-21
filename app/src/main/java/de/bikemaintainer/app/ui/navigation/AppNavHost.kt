@@ -202,7 +202,7 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
         composable<VehiclesRoute> {
             val viewModel: VehiclesViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { VehiclesViewModel(deps.vehicles, deps.auth, deps.pending) }
+                    initializer { VehiclesViewModel(deps.vehicles, deps.auth, deps.pending, deps.measurements) }
                 },
             )
             VehiclesScreen(

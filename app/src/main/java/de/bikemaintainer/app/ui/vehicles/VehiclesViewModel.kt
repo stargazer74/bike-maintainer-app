@@ -2,6 +2,7 @@ package de.bikemaintainer.app.ui.vehicles
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import de.bikemaintainer.app.data.repository.MeasurementRepository
 import de.bikemaintainer.app.data.repository.PendingRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.domain.Access
@@ -12,6 +13,7 @@ import de.bikemaintainer.app.domain.PendingState
 import de.bikemaintainer.app.domain.VehicleSummary
 import de.bikemaintainer.app.ui.common.ReloadableLoader
 import java.time.Instant
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,10 +55,16 @@ class VehiclesViewModel(
     vehicles: VehicleRepository,
     private val accessSource: AccessSource = AccessSource.Unrestricted,
     private val pending: PendingRepository = PendingRepository(),
+    /**
+     * Loaded for every listed vehicle after each fresh list, only so it is stored offline: without it, a vehicle whose
+     * screen was never opened online could not take measurements or a worksheet photo offline. Null: no prefetch.
+     */
+    private val measurements: MeasurementRepository? = null,
 ) : ViewModel() {
     private val _state = MutableStateFlow(VehiclesUiState(access = accessSource.access.value))
     val state: StateFlow<VehiclesUiState> = _state.asStateFlow()
     private val loader = ReloadableLoader(viewModelScope, stored = vehicles::storedSummaries) { vehicles.summaries() }
+    private var prefetchJob: Job? = null
 
     init {
         viewModelScope.launch { accessSource.access.collect { a -> _state.update { it.copy(access = a) } } }
@@ -71,7 +79,13 @@ class VehiclesViewModel(
             }
         }
         viewModelScope.launch {
+            var prefetched: Any? = null
             loader.state.collect { l ->
+                // Only a fresh answer: offline (asOf set) or while the stored list is shown, there is nothing to fetch.
+                if (l.data != null && l.data !== prefetched && l.asOf == null && !l.updating) {
+                    prefetched = l.data
+                    prefetchMeasurements(l.data.map { it.vehicle.id })
+                }
                 _state.update { it.copy(
                         summaries = l.data,
                         refreshing = l.refreshing,
@@ -82,6 +96,13 @@ class VehiclesViewModel(
             }
         }
         loader.refresh()
+    }
+
+    /** One vehicle after the other; a newer list replaces a running prefetch. Failures are ignored (best effort). */
+    private fun prefetchMeasurements(ids: List<Long>) {
+        val repository = measurements ?: return
+        prefetchJob?.cancel()
+        prefetchJob = viewModelScope.launch { ids.forEach { repository.context(it) } }
     }
 
     /** Drops the entries that belong to none of the listed vehicles. */
