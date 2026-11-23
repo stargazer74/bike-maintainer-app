@@ -46,6 +46,7 @@ class OutboxSyncTest {
             answer(req) ?: when {
                 req.method == "GET" && req.url.encodedPath.endsWith("/maintenance-logs") -> json(serverLogs)
                 req.method == "POST" -> json(logJson(entryId, "2026-11-09", "[1]"), 201)
+                req.method == "PUT" && req.url.encodedPath.endsWith("/maintenance-logs/9") -> json(logJson(entryId, "2026-11-09", "[1]"))
                 req.url.encodedPath.endsWith("/mileage") -> json(VEHICLE)
                 else -> json("{}", 404)
             }
@@ -274,7 +275,7 @@ class OutboxSyncTest {
     }
 
     @Test
-    fun anEditedEntryThatAlreadyReachedTheServerIsNotSentTwice() {
+    fun anEditedEntryThatAlreadyReachedTheServerUpdatesItInsteadOfSendingItTwice() {
         val (sync, pending) = setUp()
         val accept = rejectThenAccept()
         runBlocking { pending.enqueue(logEntry()) }
@@ -287,6 +288,8 @@ class OutboxSyncTest {
         val posts = requests("POST").size
         assertEquals(SyncResult.DONE, runBlocking { sync.run() })
         assertEquals(posts, requests("POST").size)
+        // The edited version replaces the one the server has (app#96).
+        assertEquals("/api/v1/vehicles/3/maintenance-logs/9", requests("PUT").single().url.encodedPath)
         assertTrue(items(pending).isEmpty())
     }
 
@@ -325,6 +328,105 @@ class OutboxSyncTest {
         assertEquals(measured, log.measurements)
         runBlocking { pending.replaceLog(entryId, log) }
         assertEquals(measured, runBlocking { pending.log(entryId) }!!.measurements)
+    }
+
+    // app#96: nothing the user recorded or edited may get lost.
+
+    private val outboxFile get() = File(tmp.root, "outbox/entries.json")
+
+    @Test
+    fun aReadErrorDoesNotLetTheNextEntryReplaceTheStoredOnes() {
+        setUp()
+        runBlocking { outbox.add(logEntry()) }
+        val reopened = FileOutbox(outboxFile, Serializer.kotlinxSerializationJson)
+        val pending = PendingRepository(reopened) { scheduled++ }
+        assertTrue(outboxFile.setReadable(false))
+        try {
+            assertEquals(false, runBlocking { pending.enqueue(OutboxEntry("m1", 3, 0, mileage = 24500)) })
+        } finally {
+            outboxFile.setReadable(true)
+        }
+        assertEquals(listOf(entryId), runBlocking { reopened.load() }.map { it.id })
+        assertTrue(runBlocking { pending.enqueue(OutboxEntry("m1", 3, 0, mileage = 24500)) })
+        assertEquals(listOf(entryId, "m1"), runBlocking { reopened.load() }.map { it.id })
+    }
+
+    @Test
+    fun anUnreadableOutboxIsRetriedLater() {
+        val (sync, _) = setUp()
+        runBlocking { outbox.add(logEntry()) }
+        val reopened = FileOutbox(outboxFile, Serializer.kotlinxSerializationJson)
+        assertTrue(outboxFile.setReadable(false))
+        try {
+            assertEquals(SyncResult.RETRY, runBlocking { OutboxSync(env.provider, reopened).run() })
+        } finally {
+            outboxFile.setReadable(true)
+        }
+        assertTrue(requests("POST").isEmpty())
+        assertEquals(SyncResult.DONE, runBlocking { sync.run() })
+    }
+
+    @Test
+    fun aWriteErrorWhileSendingIsRetriedLater() {
+        val (sync, pending) = setUp()
+        runBlocking { pending.enqueue(OutboxEntry("m1", 3, 0, mileage = 24500)) }
+        val dir = outboxFile.parentFile!!
+        assertTrue(dir.setWritable(false))
+        try {
+            assertEquals(SyncResult.RETRY, runBlocking { sync.run() })
+        } finally {
+            dir.setWritable(true)
+        }
+        assertEquals(1, items(pending).size)
+    }
+
+    @Test
+    fun anEditMadeWhileTheOldVersionIsSentReachesTheServer() {
+        val (sync, pending) = setUp()
+        runBlocking { pending.enqueue(logEntry()) }
+        answer = { req ->
+            if (req.method == "POST") {
+                // The user saves an edit while the old version is on its way.
+                runBlocking {
+                    val log = pending.log(entryId)!!
+                    pending.replaceLog(entryId, log.copy(taskIds = setOf(1L, 2L), notes = "nachgetragen"))
+                }
+                serverLogs = "[${logJson(entryId, "2026-11-09", "[1]")}]"
+                json(logJson(entryId, "2026-11-09", "[1]"), 201)
+            } else if (req.method == "PUT" && req.url.encodedPath.endsWith("/maintenance-logs/9")) {
+                json(logJson(entryId, "2026-11-09", "[1,2]"))
+            } else {
+                null
+            }
+        }
+        assertEquals(SyncResult.DONE, runBlocking { sync.run() })
+        // The edit is still there and goes out with the next run, as an update of the log the server has.
+        assertEquals(PendingState.Waiting, items(pending).single().state)
+        assertEquals(SyncResult.DONE, runBlocking { sync.run() })
+        assertEquals(1, requests("POST").size)
+        val put = requests("PUT").single { it.url.encodedPath.endsWith("/maintenance-logs/9") }
+        val body = Json.parseToJsonElement(put.body!!.utf8()).jsonObject
+        assertEquals("[1,2]", body["performedTaskIds"].toString())
+        assertEquals("nachgetragen", body["notes"]!!.jsonPrimitive.content)
+        assertTrue(items(pending).isEmpty())
+    }
+
+    @Test
+    fun anEditMadeWhileTheOldVersionIsMarkedKeepsTheEdit() {
+        val (sync, pending) = setUp()
+        runBlocking { pending.enqueue(logEntry()) }
+        answer = { req ->
+            if (req.method == "POST") {
+                runBlocking { pending.replaceLog(entryId, pending.log(entryId)!!.copy(notes = "korrigiert")) }
+                json("""{"status":400}""", 400)
+            } else {
+                null
+            }
+        }
+        assertEquals(SyncResult.DONE, runBlocking { sync.run() })
+        // The rejection concerned the old version; the edit waits to be sent, not marked as rejected.
+        assertEquals(PendingState.Waiting, items(pending).single().state)
+        assertEquals("korrigiert", runBlocking { pending.log(entryId) }!!.notes)
     }
 
     @Test

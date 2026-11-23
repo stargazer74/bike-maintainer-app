@@ -39,13 +39,25 @@ class PendingRepository(
 
     /** Sends a possible duplicate anyway. */
     suspend fun confirm(id: String) {
-        outbox.update(id) { it.copy(confirmed = true) }
+        // Not stored: the question stays and can be answered again.
+        if (!tryStore { outbox.update(id) { it.copy(confirmed = true) } }) return
         scheduler.schedule()
     }
 
-    suspend fun discard(id: String) = outbox.update(id) { null }
+    /** False if it could not be removed (storage error): it stays in the list. */
+    suspend fun discard(id: String): Boolean = tryStore { outbox.update(id) { null } }
 
-    /** The maintenance [id] to edit it in the form (app#70); null if it is gone (sent or discarded meanwhile). */
+    private inline fun tryStore(block: () -> Unit): Boolean = try {
+        block()
+        true
+    } catch (_: IOException) {
+        false
+    }
+
+    /**
+     * The maintenance [id] to edit it in the form (app#70); null if it is gone (sent or discarded meanwhile).
+     * @throws IOException if the stored entries cannot be read right now.
+     */
     suspend fun log(id: String): PendingLog? {
         val entry = outbox.load().firstOrNull { it.id == id } ?: return null
         val log = entry.log ?: return null
@@ -62,8 +74,9 @@ class PendingRepository(
 
     /**
      * Replaces the maintenance [id] with the edited [log] and sends it again (app#70). It keeps its id, which is its
-     * `clientEntryId`: if an earlier attempt reached the server, the server answers with that log instead of a second
-     * one. Saving an edited possible duplicate confirms it. False if the entry is gone or could not be stored.
+     * `clientEntryId`: if an earlier attempt reached the server, that log is updated with the edit instead of a second
+     * one being created (app#96). Saving an edited possible duplicate confirms it. False if the entry is gone or could
+     * not be stored.
      */
     suspend fun replaceLog(id: String, log: PendingLog): Boolean {
         var found = false
@@ -77,6 +90,7 @@ class PendingRepository(
                     taskNames = log.taskNames.filterKeys { it in log.taskIds },
                     confirmed = entry.confirmed || entry.duplicateOn != null,
                     problem = null,
+                    edited = true,
                 )
             }
         } catch (_: IOException) {
@@ -88,7 +102,13 @@ class PendingRepository(
 
     /** After a new login: sends what was waiting for it. */
     suspend fun scheduleIfPending() {
-        if (outbox.load().isNotEmpty()) scheduler.schedule()
+        // Unreadable right now: the run tries again and retries until it can read them.
+        val pending = try {
+            outbox.load().isNotEmpty()
+        } catch (_: IOException) {
+            true
+        }
+        if (pending) scheduler.schedule()
     }
 
     suspend fun count(): Int = outbox.load().size

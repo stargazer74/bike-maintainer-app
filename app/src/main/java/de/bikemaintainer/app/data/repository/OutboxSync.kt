@@ -1,11 +1,13 @@
 package de.bikemaintainer.app.data.repository
 
+import de.bikemaintainer.app.api.models.MaintenanceLogResponse
 import de.bikemaintainer.app.data.network.ApiProvider
 import de.bikemaintainer.app.data.storage.Outbox
 import de.bikemaintainer.app.data.storage.OutboxEntry
 import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.PendingProblem
+import java.io.IOException
 import java.util.UUID
 
 enum class SyncResult {
@@ -45,18 +47,29 @@ class OutboxSync(private val provider: ApiProvider, private val outbox: Outbox) 
         data class MileageLeft(val mileage: Int) : Step
     }
 
-    suspend fun run(): SyncResult {
+    /** A read or write error of the outbox is [SyncResult.RETRY]: nothing is lost, the next run tries again. */
+    suspend fun run(): SyncResult = try {
+        sendAll()
+    } catch (_: IOException) {
+        SyncResult.RETRY
+    }
+
+    private suspend fun sendAll(): SyncResult {
         for (entry in outbox.load()) {
             if (!entry.ready) continue
             val step = if (entry.log != null) sendLog(entry) else sendMileage(entry.vehicleId, entry.mileage ?: 0)
+            // What was sent is [entry]; the user may have edited it meanwhile (app#70). Such an edit stays as it is
+            // and goes out with the next run – as an update if the old version reached the server (app#96).
             when (step) {
-                Step.Sent -> outbox.update(entry.id) { null }
+                Step.Sent -> outbox.update(entry.id) { if (it == entry) null else it.copy(edited = true) }
                 Step.Retry -> return SyncResult.RETRY
                 Step.Stop -> return SyncResult.STOP
-                is Step.Problem -> outbox.update(entry.id) { it.copy(problem = step.problem.name) }
-                is Step.Duplicate -> outbox.update(entry.id) { it.copy(duplicateOn = step.date) }
+                is Step.Problem -> outbox.update(entry.id) { if (it == entry) it.copy(problem = step.problem.name) else it }
+                is Step.Duplicate -> outbox.update(entry.id) { if (it == entry) it.copy(duplicateOn = step.date) else it }
                 is Step.MileageLeft -> {
-                    outbox.update(entry.id) { it.copy(log = null, raiseMileageTo = null, mileage = step.mileage) }
+                    outbox.update(entry.id) {
+                        if (it == entry) it.copy(log = null, raiseMileageTo = null, mileage = step.mileage) else it.copy(edited = true)
+                    }
                     return SyncResult.RETRY
                 }
             }
@@ -74,25 +87,28 @@ class OutboxSync(private val provider: ApiProvider, private val outbox: Outbox) 
     private suspend fun sendLog(entry: OutboxEntry): Step {
         val clientEntryId = UUID.fromString(entry.id)
         val request = entry.log!!.copy(clientEntryId = clientEntryId)
-        var alreadySaved = false
-        if (!entry.confirmed) {
+        var saved: MaintenanceLogResponse? = null
+        if (!entry.confirmed || entry.edited) {
             val logs = when (val result = provider.callStored { it.logs.listMaintenanceLogs(entry.vehicleId) }) {
                 is Outcome.Failure -> return step(result.error)
                 is Outcome.Success -> result.value
             }
-            // An earlier attempt reached the server, only its answer got lost.
-            alreadySaved = logs.any { it.clientEntryId == clientEntryId }
+            // An earlier attempt reached the server, only its answer got lost (or the entry was edited meanwhile).
+            saved = logs.firstOrNull { it.clientEntryId == clientEntryId }
             val duplicate = logs.firstOrNull {
                 it.clientEntryId != clientEntryId &&
                     it.performedAt == request.performedAt &&
                     it.performedTaskIds.orEmpty().toSet() == request.performedTaskIds.orEmpty()
             }
-            if (!alreadySaved && duplicate != null) return Step.Duplicate(duplicate.performedAt.toString())
+            if (saved == null && duplicate != null && !entry.confirmed) return Step.Duplicate(duplicate.performedAt.toString())
         }
-        if (!alreadySaved) {
-            val created = provider.callStored { it.logs.createMaintenanceLog(entry.vehicleId, request) }
-            if (created is Outcome.Failure && created.error != AppError.Http(-1, null)) return step(created.error)
+        val result = when {
+            saved == null -> provider.callStored { it.logs.createMaintenanceLog(entry.vehicleId, request) }
+            // A repeated create would return the server's version unchanged: the edit replaces it.
+            entry.edited -> provider.callStored { it.logs.updateMaintenanceLog(entry.vehicleId, saved.id, request) }
+            else -> null
         }
+        if (result is Outcome.Failure && result.error != AppError.Http(-1, null)) return step(result.error)
         val raise = entry.raiseMileageTo ?: return Step.Sent
         return when (sendMileage(entry.vehicleId, raise)) {
             Step.Retry, Step.Stop -> Step.MileageLeft(raise)

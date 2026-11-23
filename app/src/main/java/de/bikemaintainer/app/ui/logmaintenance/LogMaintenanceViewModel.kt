@@ -23,6 +23,7 @@ import de.bikemaintainer.app.domain.forDisplay
 import de.bikemaintainer.app.domain.isSubscriptionRequired
 import de.bikemaintainer.app.domain.parseMileage
 import de.bikemaintainer.app.ui.common.isNotFound
+import java.io.IOException
 import java.text.DecimalFormatSymbols
 import java.time.LocalDate
 import java.util.UUID
@@ -185,7 +186,12 @@ class LogMaintenanceViewModel(
                     is Outcome.Success -> {
                         val (vehicle, tasks) = result.value
                         val ids = tasks.map { it.id }.toSet()
-                        val queued = pendingId?.let { pending.log(it) }
+                        val queued = try {
+                            pendingId?.let { pending.log(it) }
+                        } catch (_: IOException) {
+                            _state.update { it.copy(loadError = AppError.Storage) }
+                            return@launch
+                        }
                         if (pendingId != null && queued == null && !_state.value.finished) {
                             _state.update { it.copy(pendingGone = true) }
                             return@launch
@@ -238,6 +244,13 @@ class LogMaintenanceViewModel(
                 loading = false
             }
         }
+    }
+
+    /** The queued entry [id] is gone (sent or discarded meanwhile); false while it cannot be read. */
+    private suspend fun isGone(id: String): Boolean = try {
+        pending.log(id) == null
+    } catch (_: IOException) {
+        false
     }
 
     /** Called once the screen has handed [LogMaintenanceUiState.done] on, so a recreated screen does not report it again. */
@@ -403,7 +416,7 @@ class LogMaintenanceViewModel(
                 savedState[KEY_RESULT] = LogResult.UPDATED.name
                 shimJob?.cancel()
                 _state.update { it.copy(saving = false, finished = true, done = LogResult.UPDATED) }
-            } else if (pending.log(id) == null) {
+            } else if (isGone(id)) {
                 _state.update { it.copy(saving = false, pendingGone = true) }
             } else {
                 _state.update { it.copy(saving = false, error = LogError.Save(AppError.Storage)) }

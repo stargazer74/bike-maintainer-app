@@ -36,6 +36,12 @@ data class OutboxEntry(
     val problem: String? = null,
     /** Names of the log's tasks when it was recorded, to name one that is deleted meanwhile (app#70). */
     val taskNames: Map<Long, String> = emptyMap(),
+    /**
+     * The user changed the log after recording it (app#70). If the server already has a log with this
+     * `clientEntryId` (an earlier attempt got through), it is updated with this version instead of being kept as it
+     * was – a repeated create would return the old one unchanged (app#96).
+     */
+    val edited: Boolean = false,
 ) {
     /** Sent by the next sync: no open question, no problem. */
     val ready: Boolean get() = problem == null && (duplicateOn == null || confirmed)
@@ -49,12 +55,19 @@ data class OutboxEntry(
 interface Outbox {
     val entries: StateFlow<List<OutboxEntry>>
 
-    /** Reads the stored entries if not done yet; every other call does this itself. */
+    /**
+     * Reads the stored entries if not done yet; every other call does this itself.
+     * @throws java.io.IOException if they cannot be read right now (nothing is assumed, the next call tries again).
+     */
     suspend fun load(): List<OutboxEntry>
 
+    /** @throws java.io.IOException if the entries cannot be read or the entry cannot be stored. */
     suspend fun add(entry: OutboxEntry)
 
-    /** Replaces the entry [id] with [change] of it; `null` removes it. Unknown ids are ignored. */
+    /**
+     * Replaces the entry [id] with [change] of it; `null` removes it. Unknown ids are ignored.
+     * @throws java.io.IOException if the entries cannot be read or the change cannot be stored.
+     */
     suspend fun update(id: String, change: (OutboxEntry) -> OutboxEntry?)
 
     suspend fun clear()
@@ -106,6 +119,8 @@ class FileOutbox(private val file: File, private val json: Json) : Outbox {
     private suspend fun <R> locked(block: () -> R): R = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (!loaded) {
+                // A read error is passed on and the file is read again next time: treating it as empty would let
+                // the next write replace entries that exist nowhere else (app#96).
                 _entries.value = read()
                 loaded = true
             }
@@ -113,12 +128,11 @@ class FileOutbox(private val file: File, private val json: Json) : Outbox {
         }
     }
 
+    /** @throws IOException if the file exists but cannot be read right now. */
     private fun read(): List<OutboxEntry> {
         if (!file.exists()) return emptyList()
         return try {
             json.decodeFromString(serializer, file.readText())
-        } catch (_: IOException) {
-            emptyList()
         } catch (_: SerializationException) {
             // Unreadable (e.g. written by an incompatible version): keep it aside instead of overwriting it.
             file.renameTo(File(file.parentFile, file.name + ".unreadable"))
