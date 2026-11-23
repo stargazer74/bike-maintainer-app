@@ -10,27 +10,64 @@ import de.bikemaintainer.app.domain.PendingState
 import java.io.IOException
 import java.time.LocalDate
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onStart
 
 /** Starts sending the outbox once there is a connection; implemented with WorkManager. */
 fun interface OutboxScheduler {
     fun schedule()
+
+    /** Stops a run that is waiting or under way (logout, another person signs in). */
+    fun cancel() {}
+}
+
+/** How long recordings of a person who is not signed in are kept for them (app#97). */
+internal val FOREIGN_ENTRIES_KEPT_MS = TimeUnit.DAYS.toMillis(30)
+
+/** Entries from before app#97 have no owner and belong to whoever is signed in. */
+internal fun OutboxEntry.belongsTo(owner: String?) = this.owner == null || this.owner == owner
+
+/**
+ * Marks entries of other people as hidden from [now] on (and unmarks the own ones: their person is back), and drops
+ * those hidden for longer than [FOREIGN_ENTRIES_KEPT_MS] – data minimisation (app#97).
+ */
+internal suspend fun Outbox.tidyUp(owner: String?, now: Long) = updateAll { entry ->
+    val hiddenSince = entry.hiddenSince
+    when {
+        entry.belongsTo(owner) -> if (hiddenSince == null) entry else entry.copy(hiddenSince = null)
+        hiddenSince == null -> entry.copy(hiddenSince = now)
+        now - hiddenSince > FOREIGN_ENTRIES_KEPT_MS -> null
+        else -> entry
+    }
 }
 
 /**
  * The recordings waiting to be sent (app#65), as the screens see them, and what the user can do with them. The data
  * layer adds entries itself when a save fails for lack of a connection ([enqueue]).
+ *
+ * Every entry belongs to the person who recorded it ([owner] at that time, app#97). Only that person sees it, and only
+ * under their session is it sent. If someone else signs in (a session ran out, nobody logged out), the entries wait
+ * hidden for their person to come back, for at most [FOREIGN_ENTRIES_KEPT_MS].
  */
 class PendingRepository(
     private val outbox: Outbox = InMemoryOutbox(),
+    /** [de.bikemaintainer.app.data.storage.StoredSettings.owner]: who is signed in. */
+    private val owner: Flow<String?> = flowOf(null),
+    private val now: () -> Long = System::currentTimeMillis,
     private val scheduler: OutboxScheduler = OutboxScheduler {},
 ) {
-    val items: Flow<List<PendingItem>> = outbox.entries.map { list -> list.map { it.toItem() } }
+    /** Opening a list of them also drops what was kept too long for someone else. */
+    val items: Flow<List<PendingItem>> = combine(outbox.entries, owner) { list, owner ->
+        list.filter { it.belongsTo(owner) }.map { it.toItem() }
+    }.onStart { tryStore { outbox.tidyUp(owner.first(), now()) } }
 
     /** Keeps [entry] for later and starts sending once there is a connection; false if it could not be stored. */
     suspend fun enqueue(entry: OutboxEntry): Boolean = try {
-        outbox.add(entry)
+        outbox.add(entry.copy(owner = owner.first()))
         scheduler.schedule()
         true
     } catch (_: IOException) {
@@ -100,20 +137,48 @@ class PendingRepository(
         return found
     }
 
-    /** After a new login: sends what was waiting for it. */
+    /**
+     * After a new login or profile choice: a run started for the previous person stops, entries of other people are
+     * hidden (and dropped after a while), and what is waiting for the person now signed in is sent.
+     */
+    suspend fun sessionStarted() {
+        scheduler.cancel()
+        scheduleIfPending()
+    }
+
+    /** At app start and after a new login: sends what is waiting for the person signed in, tidies up the rest. */
     suspend fun scheduleIfPending() {
+        val owner = owner.first()
         // Unreadable right now: the run tries again and retries until it can read them.
         val pending = try {
-            outbox.load().isNotEmpty()
+            outbox.tidyUp(owner, now())
+            outbox.load().any { it.belongsTo(owner) }
         } catch (_: IOException) {
             true
         }
         if (pending) scheduler.schedule()
     }
 
-    suspend fun count(): Int = outbox.load().size
+    /** The entries of the person signed in, which a logout would drop. */
+    suspend fun count(): Int {
+        val owner = owner.first()
+        return outbox.load().count { it.belongsTo(owner) }
+    }
 
-    suspend fun clear() = outbox.clear()
+    /**
+     * Logout or account deletion of [owner]: stops sending and drops their entries; those of other people stay. If
+     * [owner] is unknown, everything is dropped. A storage error leaves the entries hidden until the next try.
+     */
+    suspend fun clearFor(owner: String?) {
+        scheduler.cancel()
+        tryStore { if (owner == null) outbox.clear() else outbox.updateAll { if (it.belongsTo(owner)) null else it } }
+    }
+
+    /** Server switch: drops everyone's entries. */
+    suspend fun clearAll() {
+        scheduler.cancel()
+        tryStore { outbox.clear() }
+    }
 }
 
 internal fun OutboxEntry.toItem(): PendingItem {

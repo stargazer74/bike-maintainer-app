@@ -30,6 +30,16 @@ class OfflineStoreTest {
         assertEquals(Stored(listOf("a", "b"), now), s.load("vehicles", strings))
     }
 
+    @Test fun answerFetchedBeforeAClearIsNotStored() = runBlocking {
+        val s = store()
+        val before = s.generation
+        s.clear() // logout while the request was on its way (app#97)
+        s.save("vehicles", strings, listOf("a"), before)
+        assertNull(s.load("vehicles", strings))
+        s.save("vehicles", strings, listOf("b"), s.generation)
+        assertEquals(listOf("b"), s.load("vehicles", strings)?.value)
+    }
+
     @Test fun survivesANewInstance() = runBlocking {
         store().save("tasks-1", strings, listOf("x"))
         assertEquals(listOf("x"), store().load("tasks-1", strings)?.value)

@@ -34,6 +34,7 @@ import de.bikemaintainer.app.ui.odometer.OdometerScanner
 import de.bikemaintainer.app.sync.WorkManagerOutboxScheduler
 import de.bikemaintainer.app.ui.scan.WorksheetScanner
 import java.io.File
+import kotlinx.coroutines.flow.map
 
 /**
  * Manual dependency wiring of the data layer. Created exactly once in [BikeMaintainerApp.onCreate]: there must be
@@ -59,10 +60,14 @@ class AppContainer(context: Context) {
     /** Last server answers for use without a connection (app#64); app-private, cleared with the session. */
     private val offline = FileOfflineStore(File(context.filesDir, "offline"), Serializer.kotlinxSerializationJson)
 
-    /** Recordings made without a connection (app#65); app-private, survives a new login, cleared on logout. */
+    /**
+     * Recordings made without a connection (app#65); app-private, each belonging to the person who recorded it
+     * (app#97), cleared on their logout.
+     */
     private val outbox = FileOutbox(File(context.filesDir, "outbox/entries.json"), Serializer.kotlinxSerializationJson)
-    val pendingRepository = PendingRepository(outbox, WorkManagerOutboxScheduler(context))
-    val outboxSync = OutboxSync(provider, outbox)
+    private val owner = settings.settings.map { it.owner }
+    val pendingRepository = PendingRepository(outbox, owner, scheduler = WorkManagerOutboxScheduler(context))
+    val outboxSync = OutboxSync(provider, outbox, owner)
 
     val authRepository: AuthRepository =
         ApiAuthRepository(provider, settings, tokens, sessionState, offline, pendingRepository)

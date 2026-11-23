@@ -20,6 +20,7 @@ import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.Profile
 import de.bikemaintainer.app.domain.ServerConfig
+import de.bikemaintainer.app.domain.ServerMode
 import java.io.IOException
 import java.security.GeneralSecurityException
 import java.util.concurrent.atomic.AtomicInteger
@@ -46,9 +47,9 @@ class ApiAuthRepository(
     private val state: SessionState,
     private val offline: OfflineStore = OfflineStore.None,
     /**
-     * Recordings not sent yet. They survive a new login (mostly the same person whose session ran out; entries for
-     * vehicles of another account are refused by the server and marked) and are cleared on logout, server switch
-     * and account deletion – the screens warn before.
+     * Recordings not sent yet. They belong to the person who recorded them and survive a new login: the same person
+     * gets them back, someone else does not see or send them (app#97). A logout or account deletion drops the own
+     * ones, a server switch all – the screens warn before.
      */
     private val pending: PendingRepository = PendingRepository(),
 ) : AuthRepository {
@@ -80,9 +81,9 @@ class ApiAuthRepository(
             // One write: on failure nothing has changed (in particular no new token next to an old server).
             try {
                 offline.clear()
-                tokens.saveLogin(base.toString(), result.value.deviceToken)
+                tokens.saveLogin(base.toString(), result.value.deviceToken, result.value.user.id)
                 state.sessionStarted()
-                pending.scheduleIfPending()
+                pending.sessionStarted()
                 Outcome.Success(Unit)
             } catch (_: GeneralSecurityException) {
                 Outcome.Failure(AppError.Storage)
@@ -122,7 +123,7 @@ class ApiAuthRepository(
                 offline.clear()
                 store.saveHouseholdProfile(base.toString(), id)
                 state.sessionStarted()
-                pending.scheduleIfPending()
+                pending.sessionStarted()
                 Outcome.Success(Unit)
             } catch (_: IOException) {
                 Outcome.Failure(AppError.Storage)
@@ -142,6 +143,7 @@ class ApiAuthRepository(
         }
         val post = if (hasServer) provider.callStored { it.auth.logout() } else Outcome.Success(Unit)
         return state.lock.withLock {
+            val owner = currentOwner()
             try {
                 store.clearSession()
                 post
@@ -149,7 +151,7 @@ class ApiAuthRepository(
                 Outcome.Failure(AppError.Storage)
             } finally {
                 offline.clear()
-                pending.clear()
+                pending.clearFor(owner)
                 provider.reset()
                 session.incrementAndGet()
                 _access.value = Access.FULL
@@ -166,6 +168,7 @@ class ApiAuthRepository(
             } catch (_: IOException) {
                 Outcome.Failure(AppError.Storage)
             } finally {
+                pending.clearAll()
                 provider.reset()
             }
         }
@@ -183,13 +186,14 @@ class ApiAuthRepository(
         val result = callNoBody { provider.apisFor(server).account.deleteCurrentUser(DeleteAccountRequest(password)) }
         if (result is Outcome.Failure) return result
         state.lock.withLock {
+            val owner = currentOwner()
             try {
                 store.clearAll()
             } catch (_: IOException) {
                 // intentionally ignored: the account and its token are gone on the server anyway
             } finally {
                 offline.clear()
-                pending.clear()
+                pending.clearFor(owner)
                 provider.reset()
                 session.incrementAndGet()
                 _access.value = Access.FULL
@@ -200,12 +204,32 @@ class ApiAuthRepository(
 
     override suspend fun currentAccount(): Outcome<Account> {
         val asked = session.get()
-        val result = provider.callStored { it.auth.getCurrentUser() }
+        val response = provider.callStored { it.auth.getCurrentUser() }
+        if (response is Outcome.Success) adoptUserId(asked, response.value.id)
+        val result = response
             .map { Account(it.email, it.displayName, Access.of(it.accessStatus.value, it.accessUntil, it.hasSubscription)) }
         if (result is Outcome.Success) {
             _access.update { old -> if (session.get() == asked) result.value.access else old }
         }
         return result
+    }
+
+    /** A portal login from before app#97 did not store the account id; new recordings need it as their owner. */
+    private suspend fun adoptUserId(asked: Int, id: Long) {
+        try {
+            val stored = store.current()
+            if (stored.mode != ServerMode.PORTAL || stored.userId != null) return
+            state.lock.withLock { if (session.get() == asked) store.adoptUserId(id) }
+        } catch (_: IOException) {
+            // intentionally ignored: tried again with the next answer
+        }
+    }
+
+    /** Null if the settings cannot be read: then all recordings are dropped, as before app#97. */
+    private suspend fun currentOwner(): String? = try {
+        store.current().owner
+    } catch (_: IOException) {
+        null
     }
 
     override suspend fun setNotificationsEnabled(enabled: Boolean) {

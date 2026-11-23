@@ -9,6 +9,9 @@ import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.PendingProblem
 import java.io.IOException
 import java.util.UUID
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 
 enum class SyncResult {
     /** Everything that could be sent is sent (entries waiting for the user stay). */
@@ -30,8 +33,16 @@ enum class SyncResult {
  * (recorded twice, e.g. once in the web app): such a log waits for the user's decision instead of being sent.
  * What cannot be sent (vehicle or task deleted, read-only account) is marked and waits to be discarded – nothing is
  * dropped silently.
+ *
+ * Only entries of the person signed in ([owner]) are sent, checked again before each one: someone else may sign in
+ * while a run is under way (app#97).
  */
-class OutboxSync(private val provider: ApiProvider, private val outbox: Outbox) {
+class OutboxSync(
+    private val provider: ApiProvider,
+    private val outbox: Outbox,
+    private val owner: Flow<String?> = flowOf(null),
+    private val now: () -> Long = System::currentTimeMillis,
+) {
     private sealed interface Step {
         data object Sent : Step
 
@@ -55,20 +66,21 @@ class OutboxSync(private val provider: ApiProvider, private val outbox: Outbox) 
     }
 
     private suspend fun sendAll(): SyncResult {
+        outbox.tidyUp(owner.first(), now())
         for (entry in outbox.load()) {
-            if (!entry.ready) continue
+            if (!entry.ready || !entry.belongsTo(owner.first())) continue
             val step = if (entry.log != null) sendLog(entry) else sendMileage(entry.vehicleId, entry.mileage ?: 0)
             // What was sent is [entry]; the user may have edited it meanwhile (app#70). Such an edit stays as it is
             // and goes out with the next run – as an update if the old version reached the server (app#96).
             when (step) {
-                Step.Sent -> outbox.update(entry.id) { if (it == entry) null else it.copy(edited = true) }
+                Step.Sent -> outbox.update(entry.id) { if (it.sameAs(entry)) null else it.copy(edited = true) }
                 Step.Retry -> return SyncResult.RETRY
                 Step.Stop -> return SyncResult.STOP
-                is Step.Problem -> outbox.update(entry.id) { if (it == entry) it.copy(problem = step.problem.name) else it }
-                is Step.Duplicate -> outbox.update(entry.id) { if (it == entry) it.copy(duplicateOn = step.date) else it }
+                is Step.Problem -> outbox.update(entry.id) { if (it.sameAs(entry)) it.copy(problem = step.problem.name) else it }
+                is Step.Duplicate -> outbox.update(entry.id) { if (it.sameAs(entry)) it.copy(duplicateOn = step.date) else it }
                 is Step.MileageLeft -> {
                     outbox.update(entry.id) {
-                        if (it == entry) it.copy(log = null, raiseMileageTo = null, mileage = step.mileage) else it.copy(edited = true)
+                        if (it.sameAs(entry)) it.copy(log = null, raiseMileageTo = null, mileage = step.mileage) else it.copy(edited = true)
                     }
                     return SyncResult.RETRY
                 }
@@ -76,6 +88,9 @@ class OutboxSync(private val provider: ApiProvider, private val outbox: Outbox) 
         }
         return SyncResult.DONE
     }
+
+    /** Unchanged since it was sent; being hidden meanwhile (someone else signed in, app#97) is no change by the user. */
+    private fun OutboxEntry.sameAs(sent: OutboxEntry) = copy(hiddenSince = sent.hiddenSince) == sent
 
     private suspend fun sendMileage(vehicleId: Long, mileage: Int): Step =
         when (val result = provider.raiseMileage(vehicleId, mileage)) {

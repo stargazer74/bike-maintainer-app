@@ -77,9 +77,9 @@ class DeviceTokenStore(private val settings: SettingsStore, private val cipher: 
         return emptyList()
     }
 
-    /** Stores [serverUrl] (portal mode) together with the encrypted [token] in one write. */
-    suspend fun saveLogin(serverUrl: String, token: String) {
-        settings.savePortalLogin(serverUrl, cipher.encrypt(token))
+    /** Stores [serverUrl] (portal mode) together with the encrypted [token] and the [userId] in one write. */
+    suspend fun saveLogin(serverUrl: String, token: String, userId: Long? = null) {
+        settings.savePortalLogin(serverUrl, cipher.encrypt(token), userId)
     }
 
     suspend fun clear() {
