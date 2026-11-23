@@ -20,8 +20,8 @@ fun sessionRedirect(status: SessionStatus, settings: StoredSettings): Any? {
 }
 
 /**
- * Navigates to login / profile selection whenever [statuses] requires it while an authenticated page (vehicles,
- * settings, notification question) is shown, including the value present when collection starts: after an Activity
+ * Navigates to login / profile selection whenever [statuses] requires it while an authenticated page (anything but
+ * setup and sign-in) is shown, including the value present when collection starts: after an Activity
  * recreation the restored back stack may still show such a page although the session broke meanwhile. On setup, login
  * and profile selection nothing happens, so a replayed status does not interrupt a sign-in in progress. Does nothing
  * when the target is already the current destination.
@@ -35,6 +35,12 @@ suspend fun NavController.redirectOnSessionChanges(statuses: StateFlow<SessionSt
     }
 }
 
-/** Pages that need a session. Login and profile selection are never among them, so a target is never shown twice. */
-internal fun NavDestination.isAuthenticated(): Boolean =
-    hasRoute<VehiclesRoute>() || hasRoute<VehicleRoute>() || hasRoute<LogMaintenanceRoute>() || hasRoute<SettingsRoute>() || hasRoute<NotificationPermissionRoute>()
+/**
+ * Pages that need a session: all but setup and sign-in (app#98) – a new page is covered without being listed. Login
+ * and profile selection are never among them, so a target is never shown twice.
+ */
+internal fun NavDestination.isAuthenticated(): Boolean = !isSignIn()
+
+private fun NavDestination.isSignIn(): Boolean =
+    hasRoute<SetupRoute>() || hasRoute<OwnServerRoute>() || hasRoute<ScanServerRoute>() || hasRoute<RegisterRoute>() ||
+        hasRoute<LoginRoute>() || hasRoute<ProfilesRoute>()

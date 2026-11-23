@@ -412,6 +412,46 @@ class SessionAuthenticatorTest {
     }
 
     @Test
+    fun transientFailureReadingThePendingTokensSendsNoToken() {
+        // A token from a lost answer is pending, but the Keystore cannot decrypt it right now. Sending the stored
+        // (used-up) token instead would make the server remove the device (backend#164).
+        val pending = "P".repeat(43)
+        val readable = FakeTokenCipher()
+        val cipher = object : TokenCipher {
+            override fun encrypt(plain: String): String = readable.encrypt(plain)
+            override fun decrypt(encrypted: String): String =
+                if (encrypted == "enc:$pending") throw GeneralSecurityException("keystore busy") else readable.decrypt(encrypted)
+        }
+        setUp(cipher = cipher) { req ->
+            when (req.url.encodedPath) {
+                VEHICLES -> status(401)
+                DEVICE_SESSION -> exchanged()
+                else -> status(500)
+            }
+        }
+        runBlocking { DeviceTokenStore(settings, readable).addPending(pending) }
+        get(VEHICLES).use { assertEquals(401, it.code) }
+        assertEquals(0, count(DEVICE_SESSION))
+        assertEquals(SessionStatus.ACTIVE, state.status.value)
+        assertEquals("the pending token is kept", "enc:$pending", runBlocking { settings.current() }.encryptedPendingDeviceTokens)
+        assertEquals("enc:alt", runBlocking { settings.current() }.encryptedDeviceToken)
+    }
+
+    @Test
+    fun redirectOfTheExchangeIsNotFollowed() {
+        setUp { req ->
+            when (req.url.encodedPath) {
+                VEHICLES -> status(401)
+                DEVICE_SESSION -> MockResponse.Builder().code(308).addHeader("Location", server.url("/elsewhere").toString()).build()
+                else -> status(500)
+            }
+        }
+        get(VEHICLES).use { assertEquals(401, it.code) }
+        assertEquals(1, count(DEVICE_SESSION))
+        assertEquals("token is not sent to the redirect target", 0, count("/elsewhere"))
+    }
+
+    @Test
     fun transientDecryptFailureKeepsTokenWithoutExchange() {
         val cipher = object : TokenCipher {
             override fun encrypt(plain: String): String = "x"

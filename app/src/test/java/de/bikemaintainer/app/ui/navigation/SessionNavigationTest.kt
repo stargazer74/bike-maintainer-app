@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.testing.TestNavHostController
 import androidx.compose.ui.platform.LocalContext
 import de.bikemaintainer.app.data.network.SessionState
+import de.bikemaintainer.app.data.network.SessionStatus
 import de.bikemaintainer.app.data.storage.StoredSettings
 import de.bikemaintainer.app.domain.ServerMode
 import de.bikemaintainer.app.ui.FakeAuthRepository
@@ -39,6 +40,8 @@ class SessionNavigationTest {
                 composable<LoginRoute> { LaunchedEffect(Unit) { if (afterSignIn) scope.launch { nav.navigateAfterSignIn(auth) } } }
                 composable<ProfilesRoute> {}
                 composable<VehiclesRoute> {}
+                composable<TaskFormRoute> {}
+                composable<ScanOdometerRoute> {}
                 composable<NotificationPermissionRoute> {}
                 composable<SettingsRoute> { val back = nav.popBackOnce(); onSettingsBack = back }
             }
@@ -79,5 +82,29 @@ class SessionNavigationTest {
         }
         compose.waitForIdle()
         assertEquals(listOf("VehiclesRoute"), stack())
+    }
+
+    @Test fun expiredSessionInTheTaskFormLeadsToTheLogin() {
+        val session = SessionState()
+        show(TaskFormRoute(vehicleId = 3), session)
+        compose.runOnUiThread { session.require(SessionStatus.LOGIN_REQUIRED) }
+        compose.waitForIdle()
+        assertEquals(listOf("LoginRoute/{serverUrl}"), stack())
+    }
+
+    @Test fun expiredSessionOnAnyOtherPageThanSignInLeadsToTheLogin() {
+        val session = SessionState()
+        show(ScanOdometerRoute(vehicleId = 3), session)
+        compose.runOnUiThread { session.require(SessionStatus.LOGIN_REQUIRED) }
+        compose.waitForIdle()
+        assertEquals(listOf("LoginRoute/{serverUrl}"), stack())
+    }
+
+    @Test fun sessionStatusDoesNotInterruptTheSetup() {
+        val session = SessionState()
+        show(SetupRoute, session)
+        compose.runOnUiThread { session.require(SessionStatus.LOGIN_REQUIRED) }
+        compose.waitForIdle()
+        assertEquals(listOf("SetupRoute"), stack())
     }
 }

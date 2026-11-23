@@ -44,7 +44,11 @@ class DeviceTokenStore(private val settings: SettingsStore, private val cipher: 
 
     /**
      * Tokens the app proposed as `nextDeviceToken` in an exchange whose answer never arrived, newest first: one of them
-     * may be the server's current token. Unreadable for good → empty (and forgotten); transient failure → empty.
+     * may be the server's current token. Unreadable for good → empty (and forgotten).
+     *
+     * @throws GeneralSecurityException on a transient (Keystore) failure: "none pending" would be wrong, the stored token
+     * may be used up already and presenting it would make the server remove the device (app#98). Adding or dropping
+     * a token fails the same way instead of overwriting the list.
      */
     suspend fun pending(): List<String> {
         val encrypted = settings.current().encryptedPendingDeviceTokens ?: return emptyList()
@@ -58,8 +62,6 @@ class DeviceTokenStore(private val settings: SettingsStore, private val cipher: 
             forgetPending()
         } catch (_: IllegalArgumentException) {
             forgetPending()
-        } catch (_: GeneralSecurityException) {
-            emptyList()
         }
     }
 
