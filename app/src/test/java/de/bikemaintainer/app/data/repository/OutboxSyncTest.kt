@@ -233,7 +233,7 @@ class OutboxSyncTest {
     fun clearRemovesTheFile() {
         val (_, pending) = setUp()
         runBlocking { pending.enqueue(logEntry()) }
-        runBlocking { pending.clear() }
+        runBlocking { pending.clearAll() }
         assertTrue(File(tmp.root, "outbox").listFiles().orEmpty().isEmpty())
     }
 

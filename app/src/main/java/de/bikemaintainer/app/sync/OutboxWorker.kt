@@ -42,6 +42,10 @@ class WorkManagerOutboxScheduler(context: Context) : OutboxScheduler {
         WorkManager.getInstance(context).enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
     }
 
+    override fun cancel() {
+        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+    }
+
     private companion object {
         const val WORK_NAME = "outbox"
     }

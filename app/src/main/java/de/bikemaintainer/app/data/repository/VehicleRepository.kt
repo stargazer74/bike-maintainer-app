@@ -68,11 +68,12 @@ class ApiVehicleRepository(
     private val clock: java.time.Clock = java.time.Clock.systemUTC(),
 ) : VehicleRepository {
     override suspend fun vehicles(): Outcome<List<Vehicle>> {
+        val generation = offline.generation
         val result = provider.callCached(offline, OfflineKeys.VEHICLES, ListSerializer(VehicleResponse.serializer())) {
             it.vehicles.listVehicles()
         }
         if (result is Outcome.Success && result.asOf == null) {
-            result.value.forEach { offline.save(OfflineKeys.vehicle(it.id), VehicleResponse.serializer(), it) }
+            result.value.forEach { offline.save(OfflineKeys.vehicle(it.id), VehicleResponse.serializer(), it, generation) }
             val ids = result.value.map { it.id }.toSet()
             offline.retain { key -> OfflineKeys.vehicleIdOf(key)?.let { it in ids } ?: true }
         }
@@ -85,10 +86,11 @@ class ApiVehicleRepository(
         }.map { it.toDomain() }
 
     override suspend fun raiseMileage(vehicleId: Long, mileage: Int): Outcome<Recorded> {
+        val generation = offline.generation
         val result = provider.raiseMileage(vehicleId, mileage)
         return when {
             result is Outcome.Success -> {
-                offline.save(OfflineKeys.vehicle(vehicleId), VehicleResponse.serializer(), result.value)
+                offline.save(OfflineKeys.vehicle(vehicleId), VehicleResponse.serializer(), result.value, generation)
                 Outcome.Success(Recorded.SAVED)
             }
             // A 2xx whose body cannot be read: the value is set.

@@ -248,7 +248,7 @@ class AuthRepositoryTest {
         }
         writesLeft.set(1)
         assertEquals(Outcome.Success(Unit), runBlocking { repo.deviceLogin(env.url, "a@b.de", "pw", "Pixel") })
-        assertEquals(StoredSettings(env.url, ServerMode.PORTAL, "enc:tok", null), runBlocking { env.settings.current() })
+        assertEquals(StoredSettings(env.url, ServerMode.PORTAL, "enc:tok", null, userId = 1), runBlocking { env.settings.current() })
     }
 
     @Test

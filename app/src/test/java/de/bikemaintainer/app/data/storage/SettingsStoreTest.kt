@@ -47,6 +47,32 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun ownerIsServerAndAccountOfTheSession() = runTest {
+        val store = store()
+        store.savePortalLogin("https://bm.example/", "tok", 12)
+        assertEquals("https://bm.example/#12", store.current().owner)
+        store.saveHouseholdProfile("http://192.168.0.2:8080/", 7)
+        assertEquals("the profile is the account", "http://192.168.0.2:8080/#7", store.current().owner)
+        store.clearSession()
+        assertEquals(null, store.current().owner)
+        assertEquals(null, store.current().userId)
+    }
+
+    @Test
+    fun accountIdOfAnOlderPortalLoginIsAdoptedOnlyWhileItIsStored() = runTest {
+        val store = store()
+        store.savePortalLogin("https://bm.example/", "tok")
+        assertEquals(null, store.current().owner)
+        assertEquals(true, store.adoptUserId(12))
+        assertEquals("https://bm.example/#12", store.current().owner)
+        assertEquals("an id once known is not replaced", false, store.adoptUserId(13))
+        store.clearSession()
+        assertEquals("no login, nothing to adopt", false, store.adoptUserId(12))
+        store.saveHouseholdProfile("http://192.168.0.2:8080/", 7)
+        assertEquals(false, store.adoptUserId(12))
+    }
+
+    @Test
     fun portalLoginReplacesHouseholdProfile() = runTest {
         val store = store()
         store.saveHouseholdProfile("http://192.168.0.2:8080/", 7)

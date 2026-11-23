@@ -23,7 +23,14 @@ data class Stored<T>(val value: T, val fetchedAt: Instant)
  * profile choice, logout, server switch and account deletion. Implemented by [FileOfflineStore]; [None] keeps nothing.
  */
 interface OfflineStore {
-    suspend fun <T> save(key: String, serializer: KSerializer<T>, value: T)
+    /**
+     * Counts the [clear]s. An answer is stored with the generation read before its request was sent: if the store was
+     * cleared meanwhile (logout, someone else signed in), it belongs to the previous person and is dropped (app#97).
+     */
+    val generation: Long
+
+    /** Stores [value] under [key] unless [generation] is given and the store was cleared since it was read. */
+    suspend fun <T> save(key: String, serializer: KSerializer<T>, value: T, generation: Long? = null)
 
     /** The stored answer, or null if there is none or it cannot be read (then it is dropped). */
     suspend fun <T> load(key: String, serializer: KSerializer<T>): Stored<T>?
@@ -37,7 +44,9 @@ interface OfflineStore {
 
     /** Stores nothing: the behaviour before offline support, used where offline data must not be kept (tests). */
     object None : OfflineStore {
-        override suspend fun <T> save(key: String, serializer: KSerializer<T>, value: T) = Unit
+        override val generation: Long = 0
+
+        override suspend fun <T> save(key: String, serializer: KSerializer<T>, value: T, generation: Long?) = Unit
 
         override suspend fun <T> load(key: String, serializer: KSerializer<T>): Stored<T>? = null
 
@@ -64,7 +73,11 @@ class FileOfflineStore(
 
     private val mutex = Mutex()
 
-    override suspend fun <T> save(key: String, serializer: KSerializer<T>, value: T) = io {
+    @Volatile private var cleared = 0L
+    override val generation: Long get() = cleared
+
+    override suspend fun <T> save(key: String, serializer: KSerializer<T>, value: T, generation: Long?) = io {
+        if (generation != null && generation != cleared) return@io
         try {
             val entry = Entry(clock.millis(), json.encodeToJsonElement(serializer, value))
             dir.mkdirs()
@@ -103,6 +116,7 @@ class FileOfflineStore(
     }
 
     override suspend fun clear() = io {
+        cleared++
         dir.listFiles()?.forEach { it.delete() }
         Unit
     }

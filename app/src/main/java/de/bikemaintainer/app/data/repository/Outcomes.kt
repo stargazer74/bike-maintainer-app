@@ -33,7 +33,8 @@ internal suspend fun <T : Any> ApiProvider.callStored(block: suspend (ApiProvide
 /**
  * Like [callStored], with offline storage under [key]: a successful answer is stored, without a connection
  * ([AppError.Network] only) the stored answer is returned with its fetch time as [Outcome.Success.asOf]. A 404 drops
- * the stored answer – what is gone on the server must not live on in the app.
+ * the stored answer – what is gone on the server must not live on in the app. An answer that arrives after the offline
+ * data was cleared (logout, another person signed in) is not stored (app#97).
  */
 internal suspend fun <T : Any> ApiProvider.callCached(
     offline: OfflineStore,
@@ -41,9 +42,10 @@ internal suspend fun <T : Any> ApiProvider.callCached(
     serializer: KSerializer<T>,
     block: suspend (ApiProvider.Apis) -> Response<T>,
 ): Outcome<T> {
+    val generation = offline.generation
     val result = callStored(block)
     when {
-        result is Outcome.Success -> offline.save(key, serializer, result.value)
+        result is Outcome.Success -> offline.save(key, serializer, result.value, generation)
         result is Outcome.Failure && result.error == AppError.Network ->
             offline.load(key, serializer)?.let { return Outcome.Success(it.value, it.fetchedAt) }
         result is Outcome.Failure && result.error == AppError.NotFound -> offline.remove(key)

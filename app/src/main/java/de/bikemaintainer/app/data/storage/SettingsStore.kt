@@ -22,7 +22,24 @@ data class StoredSettings(
     val reloginNotified: Boolean = false,
     /** Encrypted device tokens the app proposed in an exchange whose answer it never got (newest first), see app#164. */
     val encryptedPendingDeviceTokens: String? = null,
-)
+    /** Account id of the portal login; in household mode the [profileId] is the account id. */
+    val userId: Long? = null,
+) {
+    /**
+     * Who is signed in: server and account id, null without a session (or for a portal login from before app#97 until
+     * its account id is known). Recordings not sent yet belong to this person (app#97).
+     */
+    val owner: String?
+        get() {
+            val server = serverUrl ?: return null
+            val id = when (mode) {
+                ServerMode.PORTAL -> userId?.takeIf { encryptedDeviceToken != null }
+                ServerMode.HOUSEHOLD -> profileId
+                null -> null
+            } ?: return null
+            return "$server#$id"
+        }
+}
 
 class SettingsStore(private val dataStore: DataStore<Preferences>) {
     val settings: Flow<StoredSettings> = dataStore.data.map { prefs ->
@@ -35,6 +52,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             notificationsEnabled = prefs[NOTIFICATIONS_ENABLED] ?: true,
             reloginNotified = prefs[RELOGIN_NOTIFIED] ?: false,
             encryptedPendingDeviceTokens = prefs[PENDING_DEVICE_TOKENS_ENC],
+            userId = prefs[USER_ID],
         )
     }
 
@@ -72,14 +90,15 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     }
 
     /**
-     * A portal login in one write: server, mode and (encrypted) device token; a household profile id is removed.
-     * Use [DeviceTokenStore.saveLogin], which encrypts the token.
+     * A portal login in one write: server, mode, (encrypted) device token and account id; a household profile id is
+     * removed. Use [DeviceTokenStore.saveLogin], which encrypts the token.
      */
-    suspend fun savePortalLogin(url: String, encryptedDeviceToken: String) {
+    suspend fun savePortalLogin(url: String, encryptedDeviceToken: String, userId: Long? = null) {
         dataStore.edit {
             it[SERVER_URL] = url
             it[SERVER_MODE] = ServerMode.PORTAL.name
             it[DEVICE_TOKEN_ENC] = encryptedDeviceToken
+            if (userId == null) it.remove(USER_ID) else it[USER_ID] = userId
             it.remove(PENDING_DEVICE_TOKENS_ENC)
             it.remove(PROFILE_ID)
             it.remove(RELOGIN_NOTIFIED)
@@ -93,6 +112,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
             it[SERVER_URL] = url
             it[SERVER_MODE] = ServerMode.HOUSEHOLD.name
             it[PROFILE_ID] = profileId
+            it.remove(USER_ID)
             it.remove(DEVICE_TOKEN_ENC)
             it.remove(PENDING_DEVICE_TOKENS_ENC)
             it.remove(RELOGIN_NOTIFIED)
@@ -114,6 +134,21 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    /**
+     * Stores the account id of a portal login made before app#97, which did not store it. Only while that login (the
+     * device token) is still stored and no id is, checked in the same write. True if it was stored.
+     */
+    suspend fun adoptUserId(id: Long): Boolean {
+        var adopted = false
+        dataStore.edit {
+            if (it[SERVER_MODE] == ServerMode.PORTAL.name && it[DEVICE_TOKEN_ENC] != null && it[USER_ID] == null) {
+                it[USER_ID] = id
+                adopted = true
+            }
+        }
+        return adopted
+    }
+
     suspend fun setProfileId(id: Long?) {
         dataStore.edit { if (id == null) it.remove(PROFILE_ID) else it[PROFILE_ID] = id }
     }
@@ -122,6 +157,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     suspend fun clearSession() {
         dataStore.edit {
             it.remove(DEVICE_TOKEN_ENC)
+            it.remove(USER_ID)
             it.remove(PENDING_DEVICE_TOKENS_ENC)
             it.remove(PROFILE_ID)
             it.remove(REPORTED_DUE)
@@ -157,6 +193,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         val SERVER_MODE = stringPreferencesKey("server_mode")
         val DEVICE_TOKEN_ENC = stringPreferencesKey("device_token_enc")
         val PROFILE_ID = longPreferencesKey("profile_id")
+        val USER_ID = longPreferencesKey("user_id")
         val NOTIFICATIONS_ASKED = booleanPreferencesKey("notifications_asked")
     }
 }

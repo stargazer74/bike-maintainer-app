@@ -17,7 +17,7 @@ import de.bikemaintainer.app.data.repository.ApiAuthRepository
 import de.bikemaintainer.app.data.repository.ApiMaintenanceRepository
 import de.bikemaintainer.app.data.repository.ApiMeasurementRepository
 import de.bikemaintainer.app.data.repository.ApiVehicleRepository
-import de.bikemaintainer.app.data.repository.OutboxScheduler
+
 import de.bikemaintainer.app.data.repository.OutboxSync
 import de.bikemaintainer.app.data.repository.PendingRepository
 import de.bikemaintainer.app.data.storage.DeviceTokenStore
@@ -41,6 +41,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
  * The app as `AppContainer` + `MainActivity` wire it, with app-private storage in [dir]. Only what needs real hardware
@@ -56,8 +57,9 @@ class TestApp(dir: File) {
     private val provider = ApiProvider(settings, tokens, session, null, errorIds)
     private val offline = FileOfflineStore(File(dir, "offline"), Serializer.kotlinxSerializationJson)
     private val outbox = FileOutbox(File(dir, "outbox/entries.json"), Serializer.kotlinxSerializationJson)
-    val pending = PendingRepository(outbox, OutboxScheduler {})
-    val outboxSync = OutboxSync(provider, outbox)
+    private val owner = settings.settings.map { it.owner }
+    val pending = PendingRepository(outbox, owner)
+    val outboxSync = OutboxSync(provider, outbox, owner)
     val auth = ApiAuthRepository(provider, settings, tokens, session, offline, pending)
     private val vehicles = ApiVehicleRepository(provider, offline, pending)
     private val maintenance = ApiMaintenanceRepository(provider, offline, pending)

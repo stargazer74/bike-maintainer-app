@@ -42,6 +42,13 @@ data class OutboxEntry(
      * was – a repeated create would return the old one unchanged (app#96).
      */
     val edited: Boolean = false,
+    /**
+     * [de.bikemaintainer.app.data.storage.StoredSettings.owner] of the person who recorded it (app#97): only sent and
+     * shown while they are signed in. Null for entries from before app#97, which belong to whoever is signed in.
+     */
+    val owner: String? = null,
+    /** Since when (epoch millis) someone else is signed in; such an entry is dropped after a while (app#97). */
+    val hiddenSince: Long? = null,
 ) {
     /** Sent by the next sync: no open question, no problem. */
     val ready: Boolean get() = problem == null && (duplicateOn == null || confirmed)
@@ -50,7 +57,7 @@ data class OutboxEntry(
 /**
  * The entries waiting to be sent. Unlike [OfflineStore] this is user data that exists nowhere else yet: it survives a
  * new login (the same person signing in again after the session ran out) and is only cleared on logout, server switch
- * and account deletion, after a warning.
+ * and account deletion, after a warning. Each entry belongs to the person who recorded it ([OutboxEntry.owner]).
  */
 interface Outbox {
     val entries: StateFlow<List<OutboxEntry>>
@@ -70,6 +77,12 @@ interface Outbox {
      */
     suspend fun update(id: String, change: (OutboxEntry) -> OutboxEntry?)
 
+    /**
+     * Replaces every entry with [change] of it in one write; `null` removes it.
+     * @throws java.io.IOException if the entries cannot be read or the change cannot be stored.
+     */
+    suspend fun updateAll(change: (OutboxEntry) -> OutboxEntry?)
+
     suspend fun clear()
 }
 
@@ -85,6 +98,10 @@ open class InMemoryOutbox(initial: List<OutboxEntry> = emptyList()) : Outbox {
 
     override suspend fun update(id: String, change: (OutboxEntry) -> OutboxEntry?) = mutex.withLock {
         _entries.value = _entries.value.mapNotNull { if (it.id == id) change(it) else it }
+    }
+
+    override suspend fun updateAll(change: (OutboxEntry) -> OutboxEntry?) = mutex.withLock {
+        _entries.value = _entries.value.mapNotNull(change)
     }
 
     override suspend fun clear() = mutex.withLock { _entries.value = emptyList() }
@@ -109,6 +126,11 @@ class FileOutbox(private val file: File, private val json: Json) : Outbox {
 
     override suspend fun update(id: String, change: (OutboxEntry) -> OutboxEntry?) = locked {
         write(_entries.value.mapNotNull { if (it.id == id) change(it) else it })
+    }
+
+    override suspend fun updateAll(change: (OutboxEntry) -> OutboxEntry?) = locked {
+        val list = _entries.value.mapNotNull(change)
+        if (list != _entries.value) write(list)
     }
 
     override suspend fun clear() = locked {
