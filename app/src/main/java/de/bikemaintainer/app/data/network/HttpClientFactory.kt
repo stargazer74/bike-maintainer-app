@@ -21,6 +21,10 @@ object HttpClientFactory {
             .authenticator(authenticator)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
+            // The API never redirects. A misconfigured proxy must not get the device token or a password sent to
+            // another address (app#98); the session client is derived from this one and inherits it.
+            .followRedirects(false)
+            .followSslRedirects(false)
         applicationInterceptors.forEach(builder::addInterceptor)
         builder.addNetworkInterceptor(CleartextGuard())
         builder.addNetworkInterceptor(CsrfInterceptor(cookieJar))

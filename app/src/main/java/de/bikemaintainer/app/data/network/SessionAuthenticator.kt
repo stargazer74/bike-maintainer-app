@@ -101,7 +101,8 @@ class SessionAuthenticator(
             return null
         }
         // Tokens proposed in an exchange whose answer was lost come first, newest first: one of them may be the
-        // server's current token. One the server does not know (the request never arrived) is dropped.
+        // server's current token. One the server does not know (the request never arrived) is dropped. If they cannot
+        // be read right now, pending() throws and there is no renewal this time (see authenticate).
         for (candidate in tokens.pending()) {
             when (val outcome = exchange(candidate)) {
                 Exchange.Rejected -> tokens.dropPending(candidate)

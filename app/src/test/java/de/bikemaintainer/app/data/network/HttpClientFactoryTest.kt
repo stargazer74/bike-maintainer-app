@@ -20,6 +20,14 @@ class HttpClientFactoryTest {
     }
 
     @Test
+    fun redirectsAreNotFollowed() {
+        // The API never redirects; a misconfigured proxy must not get token or password sent elsewhere (app#98).
+        val client = HttpClientFactory.create(InMemoryCookieJar(), none)
+        assertEquals(false, client.followRedirects)
+        assertEquals(false, client.followSslRedirects)
+    }
+
+    @Test
     fun networkInterceptorOrderIsGuardThenCsrf() {
         val client = HttpClientFactory.create(InMemoryCookieJar(), none)
         assertEquals(
