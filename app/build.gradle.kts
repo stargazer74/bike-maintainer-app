@@ -205,6 +205,14 @@ tasks.withType<Test>().configureEach {
         "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
         "--enable-native-access=ALL-UNNAMED",
     )
+    // The whole message of a failing test in the build log ("On screen: …" of a scenario), so a failure that a rerun
+    // does not repeat can still be read there (app#105).
+    testLogging {
+        events(org.gradle.api.tasks.testing.logging.TestLogEvent.FAILED)
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showCauses = true
+        showStackTraces = false
+    }
 }
 
 // Coverage gate: data and domain layers need >= 90 % line coverage; generated API code and the Keystore-bound cipher
