@@ -135,6 +135,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: reports
+          # One per attempt: a rerun must not replace the reports of the failed attempt (app#105).
+          name: reports-attempt-${{ github.run_attempt }}
           path: bike-maintainer-app/app/build/reports/
           retention-days: 7
