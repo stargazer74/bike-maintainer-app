@@ -91,8 +91,13 @@ internal fun PhotoCamera(
     DisposableEffect(owner) {
         val future = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
+        // Listener and onDispose both run on the main thread, so a plain flag is enough.
+        var disposed = false
         future.addListener(
             {
+                // On a slow first start the provider may arrive after the screen is gone: don't switch the camera on
+                // again for a screen that no longer shows it (#99).
+                if (disposed) return@addListener
                 try {
                     val p = future.get()
                     provider = p
@@ -107,6 +112,7 @@ internal fun PhotoCamera(
         )
         // Unbinding aborts a running capture and reports it to the worker, so the worker stops only afterwards.
         onDispose {
+            disposed = true
             provider?.unbindAll()
             worker.shutdown()
         }

@@ -141,8 +141,12 @@ private fun QrCamera(onText: (String) -> Unit, onFailed: () -> Unit) {
         }
         val future = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
+        // Listener and onDispose both run on the main thread, so a plain flag is enough.
+        var disposed = false
         future.addListener(
             {
+                // A provider that arrives after the screen is gone must not switch the camera on again (#99).
+                if (disposed) return@addListener
                 try {
                     val p = future.get()
                     provider = p
@@ -156,6 +160,7 @@ private fun QrCamera(onText: (String) -> Unit, onFailed: () -> Unit) {
             main,
         )
         onDispose {
+            disposed = true
             provider?.unbindAll()
             analysis.clearAnalyzer()
             worker.shutdown()
