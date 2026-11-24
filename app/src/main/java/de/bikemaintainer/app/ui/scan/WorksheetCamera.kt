@@ -54,10 +54,6 @@ internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit)
     )
 }
 
-private class CameraProviderFuture(val future: ListenableFuture<ProcessCameraProvider>, val callbacks: Executor, val disposed: () -> Unit) {}
-
-private var cameraProviderFuture: CameraProviderFuture? = null
-
 /**
  * Live preview of the back camera with a [frame] as guide, [hint] and a shutter button. The picture is taken into
  * memory (no file, no gallery), turned upright and handed on as grey image; the camera frame is closed right away.
@@ -90,14 +86,18 @@ internal fun PhotoCamera(
             .build()
     }
     val worker = remember { Executors.newSingleThreadExecutor() }
-    var disposed = false
     // Callbacks that arrive after the screen is gone are dropped instead of crashing the app.
     val callbacks = remember { Executor { task -> if (!worker.isShutdown) runCatching { worker.execute(task) } } }
     DisposableEffect(owner) {
         val future = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
+        // Listener and onDispose both run on the main thread, so a plain flag is enough.
+        var disposed = false
         future.addListener(
             {
+                // On a slow first start the provider may arrive after the screen is gone: don't switch the camera on
+                // again for a screen that no longer shows it (#99).
+                if (disposed) return@addListener
                 try {
                     val p = future.get()
                     provider = p
