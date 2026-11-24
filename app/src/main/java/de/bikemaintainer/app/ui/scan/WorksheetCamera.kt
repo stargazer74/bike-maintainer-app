@@ -90,6 +90,7 @@ internal fun PhotoCamera(
             .build()
     }
     val worker = remember { Executors.newSingleThreadExecutor() }
+    var disposed = false
     // Callbacks that arrive after the screen is gone are dropped instead of crashing the app.
     val callbacks = remember { Executor { task -> if (!worker.isShutdown) runCatching { worker.execute(task) } } }
     DisposableEffect(owner) {
@@ -111,6 +112,7 @@ internal fun PhotoCamera(
         )
         // Unbinding aborts a running capture and reports it to the worker, so the worker stops only afterwards.
         onDispose {
+            disposed = true
             provider?.unbindAll()
             worker.shutdown()
         }
