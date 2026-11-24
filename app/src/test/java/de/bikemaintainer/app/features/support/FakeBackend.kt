@@ -53,14 +53,17 @@ import mockwebserver3.RecordedRequest
  * business rules are tested in the backend's own Cucumber suite. A request to an endpoint the fake does not implement
  * is recorded and fails the scenario: add the endpoint here rather than loosening that.
  */
-class FakeBackend {
+class FakeBackend(
+    /** The next port to try at the start; random below the ephemeral range, fixed only in the fake's own tests. */
+    private val portCandidate: () -> Int = { FIXED_PORTS.random() },
+) {
     data class Account(val email: String, var password: String, val verified: Boolean, var access: AccessStatus)
 
     private val json = Serializer.kotlinxSerializationJson
     private val created: OffsetDateTime = OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
     private var nextId = 100L
 
-    var server = MockWebServer()
+    var server: MockWebServer
         private set
     val requests: MutableList<RecordedRequest> = Collections.synchronizedList(mutableListOf())
     val unknownRequests: MutableList<String> = Collections.synchronizedList(mutableListOf())
@@ -74,29 +77,31 @@ class FakeBackend {
     @Volatile var reachable: Boolean = true
         set(value) {
             if (value == field) return
-            field = value
+            // Only once switched: a failed start leaves it off.
             if (value) {
                 server = startOnPort()
             } else {
                 server.close()
             }
+            field = value
         }
 
     private val port: Int
 
     /**
      * A port below the ephemeral range (Linux: from 32768): while the server is off, no outgoing connection can take
-     * it as its local port, so it can be bound again when the connection is back.
+     * it as its local port, so it can be bound again when the connection is back. A new server per attempt:
+     * mockwebserver3 keeps the address of a failed start and refuses any other port afterwards.
      */
-    private fun startOnFreePort(server: MockWebServer): Int {
-        val random = java.util.Random()
+    private fun startOnFreePort(): MockWebServer {
         repeat(BIND_ATTEMPTS) {
-            val candidate = FIXED_PORTS.first + random.nextInt(FIXED_PORTS.last - FIXED_PORTS.first)
+            val next = MockWebServer().also { it.dispatcher = dispatcher }
             try {
-                server.start(candidate)
-                return candidate
+                next.start(portCandidate())
+                return next
             } catch (_: java.net.BindException) {
                 // taken, try another
+                next.close()
             }
         }
         error("No free port in $FIXED_PORTS")
@@ -140,8 +145,8 @@ class FakeBackend {
     }
 
     init {
-        server.dispatcher = dispatcher
-        port = startOnFreePort(server)
+        server = startOnFreePort()
+        port = server.port
         url = server.url("/").toString()
     }
 

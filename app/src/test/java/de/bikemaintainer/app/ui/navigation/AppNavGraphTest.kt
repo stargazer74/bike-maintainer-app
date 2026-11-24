@@ -42,6 +42,7 @@ import de.bikemaintainer.app.ui.odometer.OdometerViewModel
 import de.bikemaintainer.app.domain.scan.GrayImage
 import androidx.lifecycle.ViewModelProvider
 import java.time.LocalDate
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -137,6 +138,37 @@ class AppNavGraphTest {
         compose.mainClock.autoAdvance = true
         compose.waitForIdle()
         assertEquals(listOf(7L), vehicles.deleteVehicleCalls)
+        assertEquals(listOf("VehiclesRoute"), stack())
+    }
+
+    /** app#100: the delete answering while a form is open above the detail must not take the form (and its input) along. */
+    @Test fun deleteAnsweringWhileAFormIsOpenKeepsTheForm() {
+        maintenance.tasksResult = Outcome.Success(listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE)))
+        val gate = CompletableDeferred<Unit>()
+        vehicles.deleteVehicleGate = gate
+        show(VehiclesRoute)
+        compose.onNodeWithText("Africa Twin").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Fahrzeug bearbeiten").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Fahrzeug löschen").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Löschen").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf(7L), vehicles.deleteVehicleCalls)
+        // The detail's buttons are locked while deleting; a form on top is opened directly here. The answer arrives
+        // while the form is still entering, when the detail is still shown and reacts to it.
+        compose.mainClock.autoAdvance = false
+        compose.runOnUiThread { nav.navigate(LogMaintenanceRoute(7)) }
+        compose.mainClock.advanceTimeByFrame()
+        compose.runOnUiThread { gate.complete(Unit) }
+        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        assertEquals(listOf("VehiclesRoute", "VehicleRoute", "LogMaintenanceRoute"), stack())
+        // Back from the form, the detail of the deleted vehicle leaves right away.
+        compose.onNodeWithContentDescription("Zurück").performClick()
+        compose.waitForIdle()
         assertEquals(listOf("VehiclesRoute"), stack())
     }
 

@@ -271,6 +271,7 @@ fun VehicleContent(
                                     actions.onSendPendingAnyway,
                                     actions.onDiscardPending,
                                     actions.onEditPending,
+                                    enabled = !state.deleting,
                                 )
                             }
                         }
