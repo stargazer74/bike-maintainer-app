@@ -54,6 +54,10 @@ internal fun WorksheetCamera(onPhoto: (GrayImage) -> Unit, onFailed: () -> Unit)
     )
 }
 
+private class CameraProviderFuture(val future: ListenableFuture<ProcessCameraProvider>, val callbacks: Executor, val disposed: () -> Unit) {}
+
+private var cameraProviderFuture: CameraProviderFuture? = null
+
 /**
  * Live preview of the back camera with a [frame] as guide, [hint] and a shutter button. The picture is taken into
  * memory (no file, no gallery), turned upright and handed on as grey image; the camera frame is closed right away.
