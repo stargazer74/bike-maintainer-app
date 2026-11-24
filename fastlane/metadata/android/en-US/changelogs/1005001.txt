@@ -1,0 +1,5 @@
+• Entries recorded offline are no longer lost
+• After switching accounts, no data of the previous person is shown
+• An expired login leads to the login page from every screen
+• The camera reliably turns off when leaving the camera view
+• Deleting a vehicle: open forms are kept
