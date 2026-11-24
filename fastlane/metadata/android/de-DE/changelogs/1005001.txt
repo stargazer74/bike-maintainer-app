@@ -1,0 +1,5 @@
+• Offline erfasste Einträge gehen nicht mehr verloren
+• Nach einem Kontowechsel keine Daten der vorherigen Person
+• Abgelaufene Anmeldung führt von jeder Seite zur Anmeldung
+• Kamera geht beim Verlassen der Kameraansicht zuverlässig aus
+• Fahrzeug löschen: offene Formulare bleiben erhalten
