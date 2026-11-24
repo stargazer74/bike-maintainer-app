@@ -114,6 +114,28 @@ class VehicleScreenTest {
         compose.onNodeWithText("Aufgabe hinzufügen").assertIsNotEnabled()
     }
 
+    /** app#100: a pending entry must not open a form or be sent for a vehicle that is being deleted. */
+    @Test @Config(qualifiers = "de-h1600dp") fun whileDeletingPendingEntriesAndTheFormAreLocked() {
+        val day = LocalDate.of(2026, 11, 9)
+        show(
+            VehicleUiState(
+                vehicle = vehicle,
+                tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK)),
+                deleting = true,
+                pending = listOf(
+                    de.bikemaintainer.app.domain.PendingItem(
+                        "d", 7, de.bikemaintainer.app.domain.PendingItem.Kind.MAINTENANCE, 12500, day, setOf(1L),
+                        de.bikemaintainer.app.domain.PendingState.PossibleDuplicate(day),
+                    ),
+                ),
+            ),
+        )
+        compose.onNodeWithText("Bearbeiten").assertIsNotEnabled()
+        compose.onNodeWithText("Trotzdem übertragen").assertIsNotEnabled()
+        compose.onNodeWithText("Verwerfen").assertIsNotEnabled()
+        compose.onNodeWithText("Fahrzeug bearbeiten").assertIsNotEnabled()
+    }
+
     @Test fun deletingIsOnlyOfferedInTheVehicleForm() {
         var edited = 0
         compose.setContent {

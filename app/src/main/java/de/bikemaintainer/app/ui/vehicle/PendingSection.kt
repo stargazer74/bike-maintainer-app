@@ -41,6 +41,8 @@ fun PendingSection(
     onSendAnyway: (String) -> Unit,
     onDiscard: (String) -> Unit,
     onEdit: (PendingItem) -> Unit = {},
+    /** Off while the vehicle is being deleted: nothing to correct or send for it any more (app#100). */
+    enabled: Boolean = true,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -48,7 +50,7 @@ fun PendingSection(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.semantics { heading() },
         )
-        items.forEach { PendingCard(it, tasks, onSendAnyway, onDiscard, onEdit) }
+        items.forEach { PendingCard(it, tasks, onSendAnyway, onDiscard, onEdit, enabled) }
     }
 }
 
@@ -60,6 +62,7 @@ private fun PendingCard(
     onSendAnyway: (String) -> Unit,
     onDiscard: (String) -> Unit,
     onEdit: (PendingItem) -> Unit,
+    enabled: Boolean,
 ) {
     AppCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -89,16 +92,16 @@ private fun PendingCard(
             if (state != PendingState.Waiting) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (item.editable) {
-                        OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        OutlinedButton(onClick = { onEdit(item) }, enabled = enabled, modifier = Modifier.heightIn(min = 48.dp)) {
                             Text(stringResource(R.string.pending_edit))
                         }
                     }
                     if (state is PendingState.PossibleDuplicate) {
-                        OutlinedButton(onClick = { onSendAnyway(item.id) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        OutlinedButton(onClick = { onSendAnyway(item.id) }, enabled = enabled, modifier = Modifier.heightIn(min = 48.dp)) {
                             Text(stringResource(R.string.pending_send_anyway))
                         }
                     }
-                    TextButton(onClick = { onDiscard(item.id) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    TextButton(onClick = { onDiscard(item.id) }, enabled = enabled, modifier = Modifier.heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.pending_discard))
                     }
                 }

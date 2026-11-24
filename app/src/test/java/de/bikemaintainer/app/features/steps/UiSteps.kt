@@ -57,18 +57,12 @@ class UiSteps {
     @When("I click {string}")
     fun click(text: String) {
         node(clickable(text), "button \"$text\"")
+        // Navigation drops a tap while the page is not resumed yet (still entering): wait for that instead of tapping
+        // again, which could tap twice where the first tap changed no text (app#100).
         awaitResumed()
         awaitStable()
-        val before = screenTexts()
         act { first(clickable(text)).performClick() }
         awaitStable()
-        // Navigation drops a tap while the page is not resumed yet (still entering): if nothing happened, tap again,
-        // as a user would. Switches change no text: use "I check" for them.
-        var retries = 0
-        while (screenTexts() == before && exists(clickable(text)) && retries++ < MAX_RETRIES) {
-            act { first(clickable(text)).performClick() }
-            awaitStable()
-        }
     }
 
     @When("I check {string}")
