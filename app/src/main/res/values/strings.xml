@@ -481,5 +481,8 @@
     <string name="template_error_search">The search failed. Please try again.</string>
     <string name="template_error_load">The template could not be loaded.</string>
     <string name="template_error_apply">The template could not be applied. Please try again.</string>
+    <string name="template_error_last_done">Last done doesn\'t fit the vehicle (mileage or date).</string>
+    <string name="template_last_done_km_too_high">The last done mileage is higher than the vehicle\'s mileage.</string>
+    <string name="template_last_done_date_out_of_range">The date is before the first registration or in the future.</string>
     <string name="template_form_hint">A maintenance plan is available for this model</string>
 </resources>

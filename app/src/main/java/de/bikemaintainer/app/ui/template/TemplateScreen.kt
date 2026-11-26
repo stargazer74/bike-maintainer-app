@@ -18,6 +18,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -26,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -92,6 +94,7 @@ private fun TemplateProblem.messageRes(): Int = when (this) {
     is TemplateProblem.Apply -> when {
         error == AppError.Network -> R.string.error_no_connection
         error.isSubscriptionRequired() -> R.string.error_read_only
+        error is AppError.Http && error.status == 400 -> R.string.template_error_last_done
         else -> R.string.template_error_apply
     }
 }
@@ -194,6 +197,9 @@ private fun ColumnScope.ApplyStep(
             row = row,
             showLastDone = state.showLastDone,
             enabled = enabled,
+            error = state.lastDoneError(row),
+            vehicleStart = state.vehicle?.firstRegistrationDate,
+            today = state.today,
             templateId = template.id,
             onToggle = { viewModel.toggle(index) },
             onKm = { viewModel.onLastDoneKm(index, it) },
@@ -231,6 +237,9 @@ private fun TaskRowCard(
     row: TemplateTaskRow,
     showLastDone: Boolean,
     enabled: Boolean,
+    error: LastDoneError?,
+    vehicleStart: LocalDate?,
+    today: LocalDate,
     templateId: String,
     onToggle: () -> Unit,
     onKm: (String) -> Unit,
@@ -266,7 +275,7 @@ private fun TaskRowCard(
             }
             Text(intervalText(task), style = MaterialTheme.typography.bodyMedium)
             task.description?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            if (showLastDone && !row.existing) LastDone(row, enabled, onKm, onDate)
+            if (showLastDone && !row.existing) LastDone(row, enabled, error, vehicleStart, today, onKm, onDate)
             if (task.details.isNotEmpty()) TaskDetails(task)
             TextButton(
                 onClick = { openLink(reportUrl(templateId, task.key)) },
@@ -291,7 +300,15 @@ private fun intervalText(task: TemplateTask): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LastDone(row: TemplateTaskRow, enabled: Boolean, onKm: (String) -> Unit, onDate: (LocalDate?) -> Unit) {
+private fun LastDone(
+    row: TemplateTaskRow,
+    enabled: Boolean,
+    error: LastDoneError?,
+    vehicleStart: LocalDate?,
+    today: LocalDate,
+    onKm: (String) -> Unit,
+    onDate: (LocalDate?) -> Unit,
+) {
     val name = row.task.name
     val kmLabel = stringResource(R.string.template_last_done_km)
     val dateLabel = stringResource(R.string.template_last_done_date)
@@ -303,9 +320,12 @@ private fun LastDone(row: TemplateTaskRow, enabled: Boolean, onKm: (String) -> U
             label = { Text(stringResource(R.string.template_last_done_field, name, kmLabel)) },
             singleLine = true,
             enabled = enabled,
+            isError = error == LastDoneError.KM_TOO_HIGH,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
         )
+        if (error == LastDoneError.KM_TOO_HIGH) ErrorText(stringResource(R.string.template_last_done_km_too_high))
+        if (error == LastDoneError.DATE_OUT_OF_RANGE) ErrorText(stringResource(R.string.template_last_done_date_out_of_range))
         var open by rememberSaveable { mutableStateOf(false) }
         val locale = LocalConfiguration.current.locales[0]
         val date = row.lastDoneDate
@@ -323,7 +343,8 @@ private fun LastDone(row: TemplateTaskRow, enabled: Boolean, onKm: (String) -> U
         if (open) {
             // The picker works in UTC milliseconds.
             val pickerState = rememberDatePickerState(
-                initialSelectedDateMillis = (date ?: LocalDate.now()).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
+                initialSelectedDateMillis = (date ?: today).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
+                selectableDates = remember(vehicleStart, today) { lastDoneDates(vehicleStart, today) },
             )
             DatePickerDialog(
                 onDismissRequest = { open = false },
@@ -341,6 +362,18 @@ private fun LastDone(row: TemplateTaskRow, enabled: Boolean, onKm: (String) -> U
     }
 }
 
+/** Only days from the first registration up to today can be "last done". */
+@OptIn(ExperimentalMaterial3Api::class)
+private fun lastDoneDates(start: LocalDate?, today: LocalDate): SelectableDates = object : SelectableDates {
+    private val from = start?.atStartOfDay()?.toInstant(ZoneOffset.UTC)?.toEpochMilli() ?: Long.MIN_VALUE
+    private val to = today.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
+
+    override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis in from..to
+
+    override fun isSelectableYear(year: Int): Boolean =
+        year <= today.year && (start == null || year >= start.year)
+}
+
 @Composable
 private fun TaskDetails(task: TemplateTask) {
     var expanded by rememberSaveable(task.key) { mutableStateOf(false) }
@@ -349,7 +382,7 @@ private fun TaskDetails(task: TemplateTask) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             task.details.forEach { detail ->
                 Text(
-                    listOfNotNull("${detail.label}: ${detail.value}", detail.quantity).joinToString(" "),
+                    "${detail.label}: ${detail.value}" + detail.quantity?.let { " ($it)" }.orEmpty(),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

@@ -34,10 +34,15 @@ sealed interface TemplateProblem {
     data class Apply(val error: AppError) : TemplateProblem
 }
 
+/** Why a "last done" value cannot be sent: the server answers 400 for it. */
+enum class LastDoneError { KM_TOO_HIGH, DATE_OUT_OF_RANGE }
+
 data class TemplateUiState(
     /** `null` while the vehicle is loading (or failed to load, see [loadError]). */
     val vehicle: Vehicle? = null,
     val loadError: AppError? = null,
+    /** The ViewModel's date source, the latest date "last done" may have. */
+    val today: LocalDate = LocalDate.MIN,
     val make: String = "",
     val model: String = "",
     val searching: Boolean = false,
@@ -59,7 +64,21 @@ data class TemplateUiState(
     val showLastDone: Boolean get() = (vehicle?.currentMileage ?: 0) > 0
     val canSearch: Boolean get() = make.trim().length >= MIN_MAKE_LENGTH && !searching
     val selectedCount: Int get() = rows.count { it.selected && !it.existing }
-    val canApply: Boolean get() = confirmed && !applying && applied == null && selectedCount > 0
+    val canApply: Boolean
+        get() = confirmed && !applying && applied == null && selectedCount > 0 &&
+            rows.none { it.selected && !it.existing && lastDoneError(it) != null }
+
+    /** The first problem of the row's "last done" values; `null` if they fit the vehicle (or are not given). */
+    fun lastDoneError(row: TemplateTaskRow): LastDoneError? {
+        val v = vehicle ?: return null
+        val km = row.lastDoneKm
+        val date = row.lastDoneDate
+        return when {
+            km != null && km > v.currentMileage -> LastDoneError.KM_TOO_HIGH
+            date != null && (date.isBefore(v.firstRegistrationDate) || date.isAfter(today)) -> LastDoneError.DATE_OUT_OF_RANGE
+            else -> null
+        }
+    }
 
     companion object {
         const val MIN_MAKE_LENGTH = 2
@@ -104,7 +123,7 @@ class TemplateViewModel(
                 is Outcome.Failure -> return@launch _state.update { it.copy(loadError = result.error) }
             }
             existingKeys = tasks.mapNotNull { it.templateKey }.toSet()
-            _state.update { it.copy(vehicle = vehicle, make = vehicle.make.orEmpty(), model = vehicle.model.orEmpty()) }
+            _state.update { it.copy(vehicle = vehicle, today = clock(), make = vehicle.make.orEmpty(), model = vehicle.model.orEmpty()) }
             if (_state.value.canSearch) search()
         }
     }

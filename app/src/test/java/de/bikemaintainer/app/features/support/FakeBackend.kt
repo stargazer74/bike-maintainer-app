@@ -403,7 +403,7 @@ class FakeBackend(
     }
 
     /**
-     * Simplified: stores "last done" as last service and never answers 403 (the real server derives the due dates and
+     * Simplified: answers 400 for a "last done" mileage above the vehicle's, stores "last done" as last service and never answers 403 (the real server derives the due dates and
          * checks access). Creates the chosen tasks; a task the vehicle has from the template already (same key) is skipped.
      */
     private fun applyTemplate(vehicle: VehicleResponse, application: ApplyTemplateRequest): MockResponse {
@@ -412,6 +412,7 @@ class FakeBackend(
         var skipped = 0
         for (wanted in application.tasks) {
             val source = template.tasks.firstOrNull { it.key == wanted.key } ?: return error(400, "VALIDATION_FAILED")
+            if ((wanted.lastDoneKm ?: 0) > vehicle.currentMileage) return error(400, "VALIDATION_FAILED")
             if (tasks.values.any { it.vehicleId == vehicle.id && it.templateKey == source.key }) {
                 skipped++
                 continue

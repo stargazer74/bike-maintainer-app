@@ -481,5 +481,8 @@
     <string name="template_error_search">Die Suche ist fehlgeschlagen. Bitte versuche es erneut.</string>
     <string name="template_error_load">Die Vorlage konnte nicht geladen werden.</string>
     <string name="template_error_apply">Die Vorlage konnte nicht übernommen werden. Bitte versuche es erneut.</string>
+    <string name="template_error_last_done">Zuletzt erledigt passt nicht zum Fahrzeug (Kilometerstand oder Datum).</string>
+    <string name="template_last_done_km_too_high">Der Kilometerstand liegt über dem des Fahrzeugs.</string>
+    <string name="template_last_done_date_out_of_range">Das Datum liegt vor der Erstzulassung oder in der Zukunft.</string>
     <string name="template_form_hint">Für dieses Modell gibt es einen Wartungsplan</string>
 </resources>

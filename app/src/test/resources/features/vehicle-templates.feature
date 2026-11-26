@@ -49,6 +49,20 @@ Feature: Maintenance plans from templates
     Then I see the text "2 übernommen, 0 schon vorhanden"
     And the backend has the task "Ölwechsel" for "Hornet" last done at 12345 km
 
+  Scenario: A last done mileage above the vehicle's is shown and cannot be applied
+    Given a motorcycle "Hornet" with 12345 km exists
+    And the vehicle "Hornet" is a "Honda" "CB 650 R"
+    And I open the app
+    When I open the vehicle "Hornet"
+    And I click "Vorlage übernehmen"
+    And I check "Ich habe den Hinweis gelesen."
+    And I fill in "Ölwechsel (km)" with "99999"
+    Then I see the text "Der Kilometerstand liegt über dem des Fahrzeugs."
+    And the button "Übernehmen" is disabled
+    When I fill in "Ölwechsel (km)" with "12000"
+    Then I do not see the text "Der Kilometerstand liegt über dem des Fahrzeugs."
+    And the button "Übernehmen" is enabled
+
   Scenario: Tasks that came from the template are marked and cannot be applied again
     Given a motorcycle "Hornet" with 12345 km exists
     And the vehicle "Hornet" is a "Honda" "CB 650 R"

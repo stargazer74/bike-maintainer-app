@@ -261,6 +261,47 @@ class TemplateViewModelTest {
         assertEquals(TemplateApplyResult(1, 0), vm.state.value.applied)
     }
 
+    @Test fun aLastDoneMileageAboveTheVehiclesCannotBeApplied() {
+        oneHit(task("oil"), task("chain"))
+        val vm = viewModel()
+        vm.onConfirmed(true)
+        vm.onLastDoneKm(0, "12346")
+        assertEquals(LastDoneError.KM_TOO_HIGH, vm.state.value.lastDoneError(vm.state.value.rows[0]))
+        assertFalse(vm.state.value.canApply)
+        vm.toggle(0)
+        assertTrue(vm.state.value.canApply)
+        vm.toggle(0)
+        vm.onLastDoneKm(0, "12345")
+        assertNull(vm.state.value.lastDoneError(vm.state.value.rows[0]))
+        assertTrue(vm.state.value.canApply)
+    }
+
+    @Test fun aLastDoneDateOutsideRegistrationAndTodayCannotBeApplied() {
+        oneHit(task("oil"))
+        val vm = viewModel()
+        vm.onConfirmed(true)
+        for (date in listOf(today.plusDays(1), LocalDate.of(2020, 4, 30))) {
+            vm.onLastDoneDate(0, date)
+            assertEquals(LastDoneError.DATE_OUT_OF_RANGE, vm.state.value.lastDoneError(vm.state.value.rows[0]))
+            assertFalse(vm.state.value.canApply)
+        }
+        for (date in listOf(today, LocalDate.of(2020, 5, 1))) {
+            vm.onLastDoneDate(0, date)
+            assertNull(vm.state.value.lastDoneError(vm.state.value.rows[0]))
+            assertTrue(vm.state.value.canApply)
+        }
+    }
+
+    @Test fun aRejectedApplyIsKeptAsHttp400ForItsOwnMessage() {
+        oneHit(task("oil"))
+        templates.applyResult = Outcome.Failure(AppError.Http(400, "VALIDATION_FAILED"))
+        val vm = viewModel()
+        vm.onConfirmed(true)
+        vm.apply()
+        assertEquals(TemplateProblem.Apply(AppError.Http(400, "VALIDATION_FAILED")), vm.state.value.problem)
+        assertFalse(vm.state.value.applying)
+    }
+
     @Test fun aRefusedApplyMakesTheAccountReadOnly() {
         oneHit(task("oil"))
         templates.applyResult = Outcome.Failure(AppError.Http(403, "SUBSCRIPTION_REQUIRED"))
