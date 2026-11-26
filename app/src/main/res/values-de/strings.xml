@@ -465,7 +465,7 @@
     <string name="template_last_done_date_none">Kein Datum</string>
     <string name="template_last_done_field">Zuletzt erledigt: %1$s (%2$s)</string>
     <string name="template_fill_empty">Leere Felder: aktueller Stand und heute</string>
-    <string name="template_overdue_hint">Aufgaben ohne Angabe erscheinen als überfällig.</string>
+    <string name="template_overdue_hint">Aufgaben ohne Angabe, deren erste Fälligkeit schon erreicht ist, erscheinen als überfällig. „Leere Felder“ füllt nur diese – eine anstehende Erstinspektion bleibt erhalten.</string>
     <string name="template_disclaimer">Die Vorlagen sind Richtwerte ohne Gewähr. Wir übernehmen keine Haftung für die Richtigkeit der Daten; die Nutzung erfolgt auf eigene Gefahr. Maßgeblich ist das Handbuch deines Fahrzeugs.</string>
     <string name="template_disclaimer_confirm">Ich habe den Hinweis gelesen.</string>
     <string name="template_report">Fehler melden</string>

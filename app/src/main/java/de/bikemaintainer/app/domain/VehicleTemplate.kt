@@ -113,13 +113,18 @@ fun initialRows(
     TemplateTaskRow(task, selected, existing)
 }
 
-/** Fills the empty "last done" values of the rows that can be applied; returns new rows. */
-fun fillEmpty(rows: List<TemplateTaskRow>, currentMileage: Int, today: LocalDate): List<TemplateTaskRow> =
+/**
+ * Fills the empty "last done" values of the rows that can be applied; returns new rows. A task whose first due point
+ * (km or months) is still ahead keeps its empty fields, so an upcoming first service is not overwritten by "done now".
+ */
+fun fillEmpty(rows: List<TemplateTaskRow>, vehicle: Vehicle, today: LocalDate): List<TemplateTaskRow> =
     rows.map { row ->
-        if (row.existing) {
+        val task = row.task
+        val firstDueAhead = (task.firstDueKm != null || task.firstDueMonths != null) && !task.firstDueAlreadyPassed(vehicle, today)
+        if (row.existing || firstDueAhead) {
             row.copy()
         } else {
-            row.copy(lastDoneKm = row.lastDoneKm ?: currentMileage, lastDoneDate = row.lastDoneDate ?: today)
+            row.copy(lastDoneKm = row.lastDoneKm ?: vehicle.currentMileage, lastDoneDate = row.lastDoneDate ?: today)
         }
     }
 

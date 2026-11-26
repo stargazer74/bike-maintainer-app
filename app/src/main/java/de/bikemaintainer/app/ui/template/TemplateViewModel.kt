@@ -184,8 +184,8 @@ class TemplateViewModel(
 
     /** Empty "last done" fields get the vehicle's mileage and today. */
     fun fillEmptyFields() = _state.update { s ->
-        val mileage = s.vehicle?.currentMileage ?: return@update s
-        if (s.applying) s else s.copy(rows = fillEmpty(s.rows, mileage, clock()))
+        val vehicle = s.vehicle ?: return@update s
+        if (s.applying) s else s.copy(rows = fillEmpty(s.rows, vehicle, clock()))
     }
 
     fun onConfirmed(confirmed: Boolean) = _state.update { if (it.applying) it else it.copy(confirmed = confirmed) }

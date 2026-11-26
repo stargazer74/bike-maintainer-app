@@ -42,7 +42,7 @@ Feature: Maintenance plans from templates
     When I open the vehicle "Hornet"
     And I click "Vorlage übernehmen"
     Then I see the text "Ölwechsel"
-    And I see the text "Aufgaben ohne Angabe erscheinen als überfällig."
+    And I see the text "Aufgaben ohne Angabe, deren erste Fälligkeit schon erreicht ist, erscheinen als überfällig."
     When I click "Leere Felder: aktueller Stand und heute"
     And I check "Ich habe den Hinweis gelesen."
     And I click "Übernehmen"

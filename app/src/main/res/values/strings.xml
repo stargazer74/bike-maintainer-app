@@ -465,7 +465,7 @@
     <string name="template_last_done_date_none">No date</string>
     <string name="template_last_done_field">Last done: %1$s (%2$s)</string>
     <string name="template_fill_empty">Empty fields: current mileage and today</string>
-    <string name="template_overdue_hint">Tasks without an entry will show as overdue.</string>
+    <string name="template_overdue_hint">Tasks without an entry whose first due point has already been reached show as overdue. “Empty fields” fills only these – an upcoming first service is kept.</string>
     <string name="template_disclaimer">The templates are guideline values without warranty. We accept no liability for the accuracy of the data; use at your own risk. Your vehicle\'s manual is authoritative.</string>
     <string name="template_disclaimer_confirm">I have read the notice.</string>
     <string name="template_report">Report an error</string>

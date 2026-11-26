@@ -91,7 +91,7 @@ class VehicleTemplateTest {
             TemplateTaskRow(task("b"), true, false, null, LocalDate.of(2025, 1, 1)),
             TemplateTaskRow(task("c"), false, true),
         )
-        val filled = fillEmpty(rows, 5000, today)
+        val filled = fillEmpty(rows, vehicle, today)
         assertEquals(100, filled[0].lastDoneKm)
         assertEquals(today, filled[0].lastDoneDate)
         assertEquals(5000, filled[1].lastDoneKm)
@@ -102,9 +102,38 @@ class VehicleTemplateTest {
         assertNull(rows[0].lastDoneDate)
     }
 
+    private fun rowOf(t: TemplateTask) = listOf(TemplateTaskRow(t, true, false))
+
+    private fun intervalOnly() = TemplateTask("km", "km", null, false, 6000, null, null, null, emptyList(), emptyList())
+
+    @Test
+    fun fillEmptyKeepsAnUpcomingFirstService() {
+        val young = vehicle.copy(currentMileage = 300, firstRegistrationDate = LocalDate.of(2026, 9, 1))
+        val byKm = fillEmpty(rowOf(task("a", firstDueKm = 1000)), young, today).single()
+        assertNull(byKm.lastDoneKm)
+        assertNull(byKm.lastDoneDate)
+        val byMonths = fillEmpty(rowOf(task("b", firstDueMonths = 12)), young, today).single()
+        assertNull(byMonths.lastDoneKm)
+        assertNull(byMonths.lastDoneDate)
+        val plain = fillEmpty(rowOf(intervalOnly()), young, today).single()
+        assertEquals(300, plain.lastDoneKm)
+        assertEquals(today, plain.lastDoneDate)
+    }
+
+    @Test
+    fun fillEmptyFillsWhenOneFirstDuePointIsReached() {
+        val old = vehicle.copy(currentMileage = 40000, firstRegistrationDate = LocalDate.of(2024, 11, 20))
+        val byKm = fillEmpty(rowOf(task("a", firstDueKm = 1000, firstDueMonths = 120)), old, today).single()
+        assertEquals(40000, byKm.lastDoneKm)
+        assertEquals(today, byKm.lastDoneDate)
+        val byMonths = fillEmpty(rowOf(task("b", firstDueKm = 90000, firstDueMonths = 12)), old, today).single()
+        assertEquals(40000, byMonths.lastDoneKm)
+        assertEquals(today, byMonths.lastDoneDate)
+    }
+
     @Test
     fun fillEmptyKeepsAnExplicitZero() {
-        val filled = fillEmpty(listOf(TemplateTaskRow(task("a"), true, false, 0, null)), 5000, today)
+        val filled = fillEmpty(listOf(TemplateTaskRow(task("a"), true, false, 0, null)), vehicle, today)
         assertEquals(0, filled.single().lastDoneKm)
         assertEquals(today, filled.single().lastDoneDate)
     }
