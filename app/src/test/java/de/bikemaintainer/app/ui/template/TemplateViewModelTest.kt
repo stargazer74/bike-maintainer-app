@@ -60,18 +60,26 @@ class TemplateViewModelTest {
         return TemplateViewModel(7, vehicles, maintenance, templates, access) { today }
     }
 
+    /** View model whose search found a single hit, which the user has opened. */
+    private fun opened(access: FakeAuthRepository = auth): TemplateViewModel =
+        viewModel(access).also { vm -> vm.pick(vm.state.value.results!!.single()) }
+
     private fun oneHit(vararg tasks: TemplateTask) {
         templates.searchResult = Outcome.Success(listOf(summary("honda-cb650r")))
         templates.templates["honda-cb650r"] = template("honda-cb650r", *tasks)
     }
 
-    @Test fun searchesWithTheVehicleDataAndPicksASingleHitAtOnce() {
+    @Test fun searchesWithTheVehicleDataAndListsASingleHitUntilItIsPicked() {
         oneHit(task("oil"), task("chain"))
         val vm = viewModel()
         assertEquals(
             listOf(TemplateSearchParams("Honda", VehicleType.MOTORCYCLE, "CB 650 R", 2020)),
             templates.searchCalls,
         )
+        assertEquals(1, vm.state.value.results!!.size)
+        assertNull(vm.state.value.template)
+        assertTrue(templates.getCalls.isEmpty())
+        vm.pick(vm.state.value.results!!.single())
         assertEquals(listOf("honda-cb650r"), templates.getCalls)
         assertEquals(listOf("oil", "chain"), vm.state.value.rows.map { it.task.key })
         assertTrue(vm.state.value.rows.all { it.selected })
@@ -124,7 +132,7 @@ class TemplateViewModelTest {
     @Test fun aTemplateThatCannotBeLoadedIsShown() {
         templates.searchResult = Outcome.Success(listOf(summary("a")))
         templates.getFailure = AppError.Network
-        val vm = viewModel()
+        val vm = opened()
         assertEquals(TemplateProblem.Load, vm.state.value.problem)
         assertNull(vm.state.value.template)
     }
@@ -143,7 +151,7 @@ class TemplateViewModelTest {
     @Test fun tasksThatCameFromTheTemplateAreMarkedAndNotSelected() {
         maintenance.tasksResult = Outcome.Success(listOf(existingTask("oil"), existingTask(null)))
         oneHit(task("oil"), task("chain"))
-        val rows = viewModel().state.value.rows
+        val rows = opened().state.value.rows
         assertTrue(rows[0].existing)
         assertFalse(rows[0].selected)
         assertTrue(rows[1].selected)
@@ -151,14 +159,14 @@ class TemplateViewModelTest {
 
     @Test fun lastDoneIsOnlyOfferedForAVehicleThatHasBeenDriven() {
         oneHit(task("oil"))
-        assertTrue(viewModel().state.value.showLastDone)
+        assertTrue(opened().state.value.showLastDone)
         vehicles.vehicleResult = Outcome.Success(vehicle.copy(currentMileage = 0))
-        assertFalse(viewModel().state.value.showLastDone)
+        assertFalse(opened().state.value.showLastDone)
     }
 
     @Test fun fillEmptyFieldsTakesTheMileageAndToday() {
         oneHit(task("oil"), task("chain"))
-        val vm = viewModel()
+        val vm = opened()
         vm.onLastDoneKm(0, "9.000 km")
         vm.fillEmptyFields()
         val rows = vm.state.value.rows
@@ -173,7 +181,7 @@ class TemplateViewModelTest {
 
     @Test fun applyingNeedsTheDisclaimerToBeConfirmed() {
         oneHit(task("oil"))
-        val vm = viewModel()
+        val vm = opened()
         assertFalse(vm.state.value.confirmed)
         assertFalse(vm.state.value.canApply)
         vm.apply()
@@ -186,18 +194,18 @@ class TemplateViewModelTest {
 
     @Test fun theConfirmationStartsOverEachTimeTheApplyStepOpens() {
         oneHit(task("oil"))
-        val vm = viewModel()
+        val vm = opened()
         vm.onConfirmed(true)
         vm.backToSearch()
         assertFalse(vm.state.value.confirmed)
         vm.pick(summary("honda-cb650r"))
         assertFalse(vm.state.value.confirmed)
-        assertFalse(viewModel().state.value.confirmed)
+        assertFalse(opened().state.value.confirmed)
     }
 
     @Test fun nothingSelectedCannotBeApplied() {
         oneHit(task("oil"))
-        val vm = viewModel()
+        val vm = opened()
         vm.toggle(0)
         vm.onConfirmed(true)
         assertEquals(0, vm.state.value.selectedCount)
@@ -207,7 +215,7 @@ class TemplateViewModelTest {
     @Test fun applySendsTheSelectedTasksWithTheirLastDoneValues() {
         oneHit(task("oil"), task("chain"), task("brakes"))
         templates.applyResult = Outcome.Success(TemplateApplyResult(2, 0))
-        val vm = viewModel()
+        val vm = opened()
         vm.toggle(2)
         vm.onLastDoneKm(0, "0")
         vm.onLastDoneDate(1, LocalDate.of(2026, 1, 1))
@@ -228,7 +236,7 @@ class TemplateViewModelTest {
     @Test fun aSecondApplyWhileOneRunsIsIgnored() {
         oneHit(task("oil"))
         templates.applyGate = CompletableDeferred()
-        val vm = viewModel()
+        val vm = opened()
         vm.onConfirmed(true)
         vm.apply()
         vm.apply()
@@ -249,7 +257,7 @@ class TemplateViewModelTest {
     @Test fun aFailedApplyShowsTheErrorAndNothingIsQueued() {
         oneHit(task("oil"))
         templates.applyResult = Outcome.Failure(AppError.Network)
-        val vm = viewModel()
+        val vm = opened()
         vm.onConfirmed(true)
         vm.apply()
         assertEquals(TemplateProblem.Apply(AppError.Network), vm.state.value.problem)
@@ -263,7 +271,7 @@ class TemplateViewModelTest {
 
     @Test fun aLastDoneMileageAboveTheVehiclesCannotBeApplied() {
         oneHit(task("oil"), task("chain"))
-        val vm = viewModel()
+        val vm = opened()
         vm.onConfirmed(true)
         vm.onLastDoneKm(0, "12346")
         assertEquals(LastDoneError.KM_TOO_HIGH, vm.state.value.lastDoneError(vm.state.value.rows[0]))
@@ -278,7 +286,7 @@ class TemplateViewModelTest {
 
     @Test fun aLastDoneDateOutsideRegistrationAndTodayCannotBeApplied() {
         oneHit(task("oil"))
-        val vm = viewModel()
+        val vm = opened()
         vm.onConfirmed(true)
         for (date in listOf(today.plusDays(1), LocalDate.of(2020, 4, 30))) {
             vm.onLastDoneDate(0, date)
@@ -295,7 +303,7 @@ class TemplateViewModelTest {
     @Test fun aRejectedApplyIsKeptAsHttp400ForItsOwnMessage() {
         oneHit(task("oil"))
         templates.applyResult = Outcome.Failure(AppError.Http(400, "VALIDATION_FAILED"))
-        val vm = viewModel()
+        val vm = opened()
         vm.onConfirmed(true)
         vm.apply()
         assertEquals(TemplateProblem.Apply(AppError.Http(400, "VALIDATION_FAILED")), vm.state.value.problem)
@@ -305,7 +313,7 @@ class TemplateViewModelTest {
     @Test fun aRefusedApplyMakesTheAccountReadOnly() {
         oneHit(task("oil"))
         templates.applyResult = Outcome.Failure(AppError.Http(403, "SUBSCRIPTION_REQUIRED"))
-        val vm = viewModel()
+        val vm = opened()
         vm.onConfirmed(true)
         vm.apply()
         assertEquals(AccessStatus.EXPIRED, auth.access.value.status)
@@ -314,7 +322,7 @@ class TemplateViewModelTest {
 
     @Test fun anIdOutOfRangeIsIgnored() {
         oneHit(task("oil"))
-        val vm = viewModel()
+        val vm = opened()
         val before = vm.state.value.rows
         vm.toggle(5)
         vm.onLastDoneKm(5, "1")
@@ -324,7 +332,7 @@ class TemplateViewModelTest {
     @Test fun anExistingTaskCannotBeSelected() {
         maintenance.tasksResult = Outcome.Success(listOf(existingTask("oil")))
         oneHit(task("oil"))
-        val vm = viewModel()
+        val vm = opened()
         vm.toggle(0)
         assertFalse(vm.state.value.rows[0].selected)
     }

@@ -44,9 +44,19 @@ class TemplateScreenTest {
         it.applyResult = Outcome.Success(TemplateApplyResult(1, 0))
     }
 
-    private fun show(onApplied: (TemplateApplyResult) -> Unit = {}) {
+    /** Shows the screen; with [open] the user also picks the single search hit. */
+    private fun show(open: Boolean = true, onApplied: (TemplateApplyResult) -> Unit = {}) {
         val viewModel = TemplateViewModel(7, vehicles, FakeMaintenanceRepository().also { it.tasksResult = Outcome.Success(emptyList()) }, templates)
         compose.setContent { TemplateScreen(viewModel, onBack = {}, onApplied = onApplied) }
+        if (open) compose.onNodeWithText("Honda CB 650 R").performClick()
+    }
+
+    @Test fun aSingleHitIsListedAndOpensOnlyWhenPicked() {
+        show(open = false)
+        compose.onNodeWithText("Vorlage wählen").assertExists()
+        compose.onNodeWithText("Ölwechsel").assertDoesNotExist()
+        compose.onNodeWithText("Honda CB 650 R").performClick()
+        compose.onNodeWithText("Ölwechsel").assertExists()
     }
 
     @Test fun disclaimerStandsAboveTheConfirmationAndApplyNeedsIt() {

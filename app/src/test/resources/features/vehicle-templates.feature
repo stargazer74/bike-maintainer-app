@@ -14,7 +14,8 @@ Feature: Maintenance plans from templates
     Then I see the text "Für dieses Modell gibt es einen Wartungsplan"
     When I click "Speichern"
     Then I see the text "Wartungsplan aus Vorlage"
-    And I see the text "Die Vorlagen sind Richtwerte ohne Gewähr."
+    When I click "Honda CB 650 R"
+    Then I see the text "Die Vorlagen sind Richtwerte ohne Gewähr."
     And the button "Übernehmen" is disabled
     When I check "Ich habe den Hinweis gelesen."
     Then the button "Übernehmen" is enabled
@@ -41,6 +42,7 @@ Feature: Maintenance plans from templates
     And I open the app
     When I open the vehicle "Hornet"
     And I click "Vorlage übernehmen"
+    And I click "Honda CB 650 R"
     Then I see the text "Ölwechsel"
     And I see the text "Aufgaben ohne Angabe, deren erste Fälligkeit schon erreicht ist, erscheinen als überfällig."
     When I click "Leere Felder: aktueller Stand und heute"
@@ -55,6 +57,7 @@ Feature: Maintenance plans from templates
     And I open the app
     When I open the vehicle "Hornet"
     And I click "Vorlage übernehmen"
+    And I click "Honda CB 650 R"
     And I check "Ich habe den Hinweis gelesen."
     And I fill in "Ölwechsel (km)" with "99999"
     Then I see the text "Der Kilometerstand liegt über dem des Fahrzeugs."
@@ -69,10 +72,12 @@ Feature: Maintenance plans from templates
     And I open the app
     When I open the vehicle "Hornet"
     And I click "Vorlage übernehmen"
+    And I click "Honda CB 650 R"
     And I check "Ich habe den Hinweis gelesen."
     And I click "Übernehmen"
     Then I see the text "2 übernommen, 0 schon vorhanden"
     When I click "Vorlage übernehmen"
+    And I click "Honda CB 650 R"
     Then I see the text "schon vorhanden"
     When I check "Ich habe den Hinweis gelesen."
     Then the button "Übernehmen" is disabled
@@ -83,10 +88,12 @@ Feature: Maintenance plans from templates
     And I open the app
     When I open the vehicle "Hornet"
     And I click "Vorlage übernehmen"
+    And I click "Honda CB 650 R"
     And I check "Ich habe den Hinweis gelesen."
     Then the button "Übernehmen" is enabled
     When I go back
     And I click "Vorlage übernehmen"
+    And I click "Honda CB 650 R"
     Then the button "Übernehmen" is disabled
 
   Scenario: Searching for another make and model
@@ -97,6 +104,7 @@ Feature: Maintenance plans from templates
     And I fill in "Hersteller" with "honda"
     And I fill in "Modell" with "cb650r"
     And I click "Suchen"
+    And I click "Honda CB 650 R"
     Then I see the text "Ölwechsel"
     And the button "Übernehmen" is disabled
 
@@ -137,6 +145,7 @@ Feature: Maintenance plans from templates
     And I open the app
     When I open the vehicle "Hornet"
     And I click "Vorlage übernehmen"
+    And I click "Honda CB 650 R"
     Then I see the text "Die Vorlagen sind Richtwerte ohne Gewähr."
     When I have no connection
     And I check "Ich habe den Hinweis gelesen."
