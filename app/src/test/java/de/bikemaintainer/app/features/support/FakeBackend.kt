@@ -402,7 +402,10 @@ class FakeBackend(
         return ok(ListSerializer(VehicleTemplateSummaryResponse.serializer()), hits)
     }
 
-    /** Creates the chosen tasks; a task the vehicle has from the template already (same key) is skipped. */
+    /**
+     * Simplified: stores "last done" as last service and never answers 403 (the real server derives the due dates and
+         * checks access). Creates the chosen tasks; a task the vehicle has from the template already (same key) is skipped.
+     */
     private fun applyTemplate(vehicle: VehicleResponse, application: ApplyTemplateRequest): MockResponse {
         val template = vehicleTemplates[application.templateId] ?: return error(404, "NOT_FOUND")
         var createdCount = 0

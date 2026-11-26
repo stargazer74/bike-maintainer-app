@@ -9,6 +9,7 @@ import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.Outcome
 import de.bikemaintainer.app.domain.TemplateSearchParams
 import de.bikemaintainer.app.domain.VehicleDraft
+import de.bikemaintainer.app.domain.VehicleInput
 import de.bikemaintainer.app.domain.isSubscriptionRequired
 import de.bikemaintainer.app.domain.templateSearchParams
 import java.time.LocalDate
@@ -89,6 +90,12 @@ class VehicleFormViewModel(
         _state.value.draft?.let(::watchForTemplate)
     }
 
+    private suspend fun templateExistsFor(input: VehicleInput): Boolean {
+        val repository = templates ?: return false
+        val params = templateSearchParams(input.make, input.model, input.type, input.modelYear) ?: return false
+        return (repository.search(params) as? Outcome.Success)?.value?.isNotEmpty() == true
+    }
+
     private var hintJob: Job? = null
     private var hintParams: TemplateSearchParams? = null
 
@@ -101,6 +108,8 @@ class VehicleFormViewModel(
         if (params == hintParams) return
         hintParams = params
         hintJob?.cancel()
+        // The old answer belongs to other input: no hint until the new search says so.
+        _state.update { it.copy(templateHint = false) }
         if (params == null) {
             _state.update { it.copy(templateHint = false) }
             return
@@ -125,10 +134,10 @@ class VehicleFormViewModel(
             val result = if (vehicleId == null) vehicles.createVehicle(input) else vehicles.updateVehicle(vehicleId, input)
             when (result) {
                 is Outcome.Success -> {
+                    // The offer is decided by a fresh search for what was saved, not by the typing-time hint.
                     hintJob?.cancel()
-                    _state.update {
-                        it.copy(saving = false, saved = result.value.id, offerTemplate = vehicleId == null && it.templateHint)
-                    }
+                    val offer = vehicleId == null && templateExistsFor(input)
+                    _state.update { it.copy(saving = false, saved = result.value.id, offerTemplate = offer) }
                 }
                 is Outcome.Failure -> {
                     if (result.error.isSubscriptionRequired()) accessSource.subscriptionRequired()

@@ -63,6 +63,18 @@ Feature: Maintenance plans from templates
     When I check "Ich habe den Hinweis gelesen."
     Then the button "Übernehmen" is disabled
 
+  Scenario: The confirmation starts over every time the template is opened
+    Given a motorcycle "Hornet" with 12345 km exists
+    And the vehicle "Hornet" is a "Honda" "CB 650 R"
+    And I open the app
+    When I open the vehicle "Hornet"
+    And I click "Vorlage übernehmen"
+    And I check "Ich habe den Hinweis gelesen."
+    Then the button "Übernehmen" is enabled
+    When I go back
+    And I click "Vorlage übernehmen"
+    Then the button "Übernehmen" is disabled
+
   Scenario: Searching for another make and model
     Given a motorcycle "Hornet" with 12345 km exists
     And I open the app

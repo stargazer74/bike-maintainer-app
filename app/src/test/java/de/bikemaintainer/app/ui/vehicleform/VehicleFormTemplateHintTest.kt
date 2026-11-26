@@ -115,6 +115,41 @@ class VehicleFormTemplateHintTest {
         assertTrue(vm.state.value.offerTemplate)
     }
 
+    @Test fun savingBeforeTheDebounceEndsOffersOnAHitOfTheSavedData() {
+        templates.searchResult = Outcome.Success(listOf(hit))
+        vehicles.createVehicleResult = Outcome.Success(created)
+        val vm = viewModel()
+        vm.edit { it.copy(name = "Hornet", make = "Honda", model = "CB 650 R", modelYear = "2020") }
+        vm.save()
+        assertEquals(9L, vm.state.value.saved)
+        assertTrue(vm.state.value.offerTemplate)
+        assertEquals(listOf("CB 650 R"), templates.searchCalls.map { it.model })
+    }
+
+    @Test fun savingBeforeTheDebounceEndsOffersNothingOnAMiss() {
+        templates.searchResult = Outcome.Success(emptyList())
+        vehicles.createVehicleResult = Outcome.Success(created)
+        val vm = viewModel()
+        vm.edit { it.copy(name = "Hornet", make = "Honda", model = "CB 650 R", modelYear = "2020") }
+        vm.save()
+        assertEquals(9L, vm.state.value.saved)
+        assertFalse(vm.state.value.offerTemplate)
+    }
+
+    @Test fun aStaleHintDoesNotOfferAMissAfterTheInputChanged() {
+        templates.searchResult = Outcome.Success(listOf(hit))
+        vehicles.createVehicleResult = Outcome.Success(created)
+        val vm = viewModel()
+        vm.edit { it.copy(name = "Hornet", make = "Honda", model = "CB 650 R", modelYear = "2020") }
+        settle()
+        assertTrue(vm.state.value.templateHint)
+        templates.searchResult = Outcome.Success(emptyList())
+        vm.edit { it.copy(model = "XYZ") }
+        assertFalse(vm.state.value.templateHint)
+        vm.save()
+        assertFalse(vm.state.value.offerTemplate)
+    }
+
     @Test fun editingAVehicleNeverSearches() {
         vehicles.vehicleResult = Outcome.Success(created)
         vehicles.updateVehicleResult = Outcome.Success(created)
