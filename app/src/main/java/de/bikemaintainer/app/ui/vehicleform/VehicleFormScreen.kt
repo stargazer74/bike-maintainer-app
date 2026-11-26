@@ -32,7 +32,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import de.bikemaintainer.app.R
 import de.bikemaintainer.app.domain.VehicleDraft
@@ -53,12 +56,12 @@ import java.time.format.FormatStyle
 fun VehicleFormScreen(
     viewModel: VehicleFormViewModel,
     onBack: () -> Unit,
-    onSaved: (Long) -> Unit,
+    onSaved: (id: Long, offerTemplate: Boolean) -> Unit,
     onDelete: (() -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsState()
     val currentOnSaved by rememberUpdatedState(onSaved)
-    LaunchedEffect(state.saved) { state.saved?.let(currentOnSaved) }
+    LaunchedEffect(state.saved) { state.saved?.let { currentOnSaved(it, state.offerTemplate) } }
     VehicleFormContent(
         state = state,
         today = viewModel.today,
@@ -145,6 +148,14 @@ fun VehicleFormContent(
             enabled = enabled,
             number = true,
         )
+        if (state.templateHint && !state.readOnly) {
+            Text(
+                stringResource(R.string.template_form_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
         state.saveError?.let { ErrorText(stringResource(it.saveMessageRes())) }
         if (!state.readOnly) {
             Button(onClick = onSave, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {

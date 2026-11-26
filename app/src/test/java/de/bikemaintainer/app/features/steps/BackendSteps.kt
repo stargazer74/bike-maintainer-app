@@ -114,6 +114,14 @@ class BackendSteps {
         backend.addTask(backend.vehicle(vehicle).id, task, km, active = false)
     }
 
+    @Given("the vehicle {string} is a {string} {string}")
+    fun makeAndModel(vehicle: String, make: String, model: String) = backend.setMakeAndModel(vehicle, make, model)
+
+    @Given("a template for the {word} {string} {string} with the tasks {string} exists")
+    fun template(type: String, make: String, model: String, tasks: String) {
+        backend.addVehicleTemplate(vehicleType(type), make, model, tasks.split(",").map { it.trim() })
+    }
+
     @Given("the vehicle {string} offers the worksheets {string}")
     fun worksheets(vehicle: String, names: String) {
         backend.templates[backend.vehicle(vehicle).id] = names.split(",").map { template(it.trim()) }
@@ -171,6 +179,26 @@ class BackendSteps {
         assertEquals(backend.vehicle(vehicle).id, stored.vehicleId)
         assertEquals(km, stored.intervalKm)
     }
+
+    @Then("the backend has the task {string} from the template for {string}")
+    fun templateTask(task: String, vehicle: String) {
+        val stored = backend.task(task)
+        assertEquals(backend.vehicle(vehicle).id, stored.vehicleId)
+        assertNotNull("Task \"$task\" does not come from a template", stored.templateKey)
+    }
+
+    @Then("the backend has the task {string} for {string} last done at {int} km")
+    fun lastDone(task: String, vehicle: String, km: Int) {
+        val stored = backend.task(task)
+        assertEquals(backend.vehicle(vehicle).id, stored.vehicleId)
+        assertEquals(km, stored.lastServiceMileage)
+    }
+
+    @Then("the backend received no template search")
+    fun noTemplateSearch() = assertTrue(backend.requests.none { it.url.encodedPath.startsWith("/api/v1/vehicle-templates") })
+
+    @Then("the backend has no task {string}")
+    fun noTask(task: String) = assertTrue(backend.tasks.values.none { it.name == task })
 
     @Then("the task {string} is switched off on the backend")
     fun taskOff(task: String) = assertEquals(false, backend.task(task).active)

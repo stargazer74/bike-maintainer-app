@@ -44,6 +44,7 @@ class MappersTest {
             MaintenanceTask(2, 3, "Chain", true, false, TaskStatus.DONE, null, null, null, null, null, null),
             sparse.toDomain(),
         )
+        assertEquals("oil", sparse.copy(templateKey = "oil").toDomain().templateKey)
         MaintenanceTaskStatus.entries.forEach { assertEquals(it.name, it.toDomain().name) }
         ApiVehicleType.entries.forEach { assertEquals(it.name, it.toDomain().name) }
     }

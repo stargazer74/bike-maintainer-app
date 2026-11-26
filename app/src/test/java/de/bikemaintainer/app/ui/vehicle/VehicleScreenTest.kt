@@ -1,6 +1,7 @@
 package de.bikemaintainer.app.ui.vehicle
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -100,6 +101,37 @@ class VehicleScreenTest {
         compose.onNodeWithText("Fahrzeug löschen").assertDoesNotExist()
     }
 
+    @Test fun templateButtonOpensTheTemplateScreenOnline() {
+        var opened = 0
+        compose.setContent {
+            VehicleContent(
+                state = VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK))),
+                onBack = {}, onRefresh = {}, onRetry = {},
+                actions = VehicleActions({}, {}, {}, {}, {}, onApplyTemplate = { opened++ }),
+            )
+        }
+        compose.onNodeWithText("Vorlage übernehmen").assertIsEnabled().performClick()
+        assertEquals(1, opened)
+        compose.onNodeWithText("Nur mit Verbindung möglich").assertDoesNotExist()
+    }
+
+    @Test fun templateButtonIsOffWithoutAConnection() {
+        show(
+            VehicleUiState(
+                vehicle = vehicle,
+                tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK)),
+                asOf = java.time.Instant.parse("2026-11-26T10:00:00Z"),
+            ),
+        )
+        compose.onNodeWithText("Vorlage übernehmen").assertIsNotEnabled()
+        compose.onNodeWithText("Nur mit Verbindung möglich").assertExists()
+    }
+
+    @Test fun noTemplateButtonForAReadOnlyAccount() {
+        show(VehicleUiState(vehicle = vehicle, access = Access(AccessStatus.EXPIRED)))
+        compose.onNodeWithText("Vorlage übernehmen").assertDoesNotExist()
+    }
+
     @Test fun storedVehicleIsShownWithAQuietHintWhileUpdating() {
         show(VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK)), updating = true))
         compose.onNodeWithText("12.345 km").assertExists()
@@ -136,7 +168,7 @@ class VehicleScreenTest {
         compose.onNodeWithText("Fahrzeug bearbeiten").assertIsNotEnabled()
     }
 
-    @Test fun deletingIsOnlyOfferedInTheVehicleForm() {
+    @Test @Config(qualifiers = "de-h1200dp") fun deletingIsOnlyOfferedInTheVehicleForm() {
         var edited = 0
         compose.setContent {
             VehicleContent(
@@ -152,7 +184,7 @@ class VehicleScreenTest {
         assertEquals(1, edited)
     }
 
-    @Test fun aFailedDeleteIsReportedOnTheVehiclePage() {
+    @Test @Config(qualifiers = "de-h1200dp") fun aFailedDeleteIsReportedOnTheVehiclePage() {
         show(VehicleUiState(vehicle = vehicle, tasks = listOf(task(1, "Ölwechsel", TaskStatus.OK)), deleteError = AppError.Network))
         compose.onNodeWithText("Das Fahrzeug konnte nicht gelöscht werden.").performScrollTo().assertExists()
     }

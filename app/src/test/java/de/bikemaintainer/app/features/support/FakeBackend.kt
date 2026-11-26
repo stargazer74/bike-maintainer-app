@@ -2,6 +2,8 @@ package de.bikemaintainer.app.features.support
 
 import de.bikemaintainer.app.api.infrastructure.Serializer
 import de.bikemaintainer.app.api.models.AccessStatus
+import de.bikemaintainer.app.api.models.ApplyTemplateRequest
+import de.bikemaintainer.app.api.models.ApplyTemplateResponse
 import de.bikemaintainer.app.api.models.AppConfigResponse
 import de.bikemaintainer.app.api.models.BrakeMeasurementResponse
 import de.bikemaintainer.app.api.models.Currency
@@ -33,6 +35,10 @@ import de.bikemaintainer.app.api.models.UserRole
 import de.bikemaintainer.app.api.models.VehicleRequest
 import de.bikemaintainer.app.api.models.VehicleResponse
 import de.bikemaintainer.app.api.models.VehicleSpecifications
+import de.bikemaintainer.app.api.models.VehicleTemplateResponse
+import de.bikemaintainer.app.api.models.VehicleTemplateSourceQuality
+import de.bikemaintainer.app.api.models.VehicleTemplateSummaryResponse
+import de.bikemaintainer.app.api.models.VehicleTemplateTaskResponse
 import de.bikemaintainer.app.api.models.VehicleType
 import de.bikemaintainer.app.api.models.WorksheetTemplate
 import de.bikemaintainer.app.api.models.WorksheetTemplateResponse
@@ -131,6 +137,8 @@ class FakeBackend(
     val logs = mutableListOf<MaintenanceLogResponse>()
     val templates = mutableMapOf<Long, List<WorksheetTemplate>>()
     val specifications = mutableMapOf<Long, VehicleSpecifications>()
+    /** The template catalog by id. */
+    val vehicleTemplates = linkedMapOf<String, VehicleTemplateResponse>()
     val registrations = mutableListOf<RegisterRequest>()
     val resentVerifications = mutableListOf<String>()
 
@@ -173,6 +181,22 @@ class FakeBackend(
             task
         }
 
+    /** A template for [make] [model] (built from 2015 on) whose tasks are every 6000 km; the task key is the lower-case name. */
+    fun addVehicleTemplate(type: VehicleType, make: String, model: String, taskNames: List<String>) = synchronized(this) {
+        val id = "${make}-${model}".lowercase().replace(Regex("[^a-z0-9]+"), "-")
+        val tasks = taskNames.map { name ->
+            VehicleTemplateTaskResponse(name.lowercase(), name, oneTime = false, sourceIds = emptyList(), details = emptyList(), intervalKm = 6000)
+        }
+        VehicleTemplateResponse(
+            id, type, make, model, 2015, tasks.size, VehicleTemplateSourceQuality.MANUFACTURER, emptyList(), tasks,
+        ).also { vehicleTemplates[id] = it }
+    }
+
+    fun setMakeAndModel(vehicle: String, make: String, model: String) = synchronized(this) {
+        val current = vehicle(vehicle)
+        vehicles[current.id] = current.copy(make = make, model = model)
+    }
+
     fun vehicle(name: String): VehicleResponse =
         synchronized(this) { vehicles.values.firstOrNull { it.name == name } ?: error("No vehicle \"$name\"") }
 
@@ -193,6 +217,9 @@ class FakeBackend(
                 cookie = "XSRF-TOKEN=csrf; Path=/",
             )
             path.startsWith("/api/v1/auth/") -> auth(method, segments.drop(1), request)
+            path == "/api/v1/vehicle-templates" && method == "GET" -> searchTemplates(request)
+            path.startsWith("/api/v1/vehicle-templates/") && method == "GET" ->
+                vehicleTemplates[segments[1]]?.let { ok(VehicleTemplateResponse.serializer(), it) } ?: error(404, "NOT_FOUND")
             path.startsWith("/api/v1/profiles") -> profiles(method, segments.drop(1), request)
             path.startsWith("/api/v1/vehicles") -> vehicles(method, segments.drop(1), request)
             else -> unknown(request)
@@ -340,6 +367,7 @@ class FakeBackend(
             sub == listOf("maintenance-logs") && method == "GET" ->
                 ok(ListSerializer(MaintenanceLogResponse.serializer()), logs.filter { it.vehicleId == vehicleId })
             sub == listOf("maintenance-logs") && method == "POST" -> createLog(vehicle, body(request, MaintenanceLogRequest.serializer()))
+            sub == listOf("template") && method == "POST" -> applyTemplate(vehicle, body(request, ApplyTemplateRequest.serializer()))
             sub == listOf("worksheets") && method == "GET" -> ok(
                 ListSerializer(WorksheetTemplateResponse.serializer()),
                 templates[vehicleId].orEmpty().map { WorksheetTemplateResponse(it) },
@@ -354,6 +382,50 @@ class FakeBackend(
             }
             else -> unknown(request)
         }
+    }
+
+    /** Type and model year are filters, make and model match without regard to case, spaces and dashes. */
+    private fun searchTemplates(request: RecordedRequest): MockResponse {
+        fun String.plain() = lowercase().replace(Regex("[^a-z0-9]"), "")
+        val make = request.url.queryParameter("make").orEmpty().plain()
+        val type = request.url.queryParameter("type")
+        val model = request.url.queryParameter("model").orEmpty().plain()
+        val year = request.url.queryParameter("year")?.toIntOrNull()
+        val hits = vehicleTemplates.values.filter { t ->
+            t.make.plain() == make &&
+                (type == null || t.type.name == type) &&
+                (model.isEmpty() || t.model.plain().contains(model)) &&
+                (year == null || (year >= t.yearFrom && (t.yearTo == null || year <= t.yearTo)))
+        }.map {
+            VehicleTemplateSummaryResponse(it.id, it.type, it.make, it.model, it.yearFrom, it.taskCount, it.sourceQuality, it.yearTo)
+        }
+        return ok(ListSerializer(VehicleTemplateSummaryResponse.serializer()), hits)
+    }
+
+    /**
+     * Simplified: answers 400 for a "last done" mileage above the vehicle's, stores "last done" as last service and never answers 403 (the real server derives the due dates and
+         * checks access). Creates the chosen tasks; a task the vehicle has from the template already (same key) is skipped.
+     */
+    private fun applyTemplate(vehicle: VehicleResponse, application: ApplyTemplateRequest): MockResponse {
+        val template = vehicleTemplates[application.templateId] ?: return error(404, "NOT_FOUND")
+        var createdCount = 0
+        var skipped = 0
+        for (wanted in application.tasks) {
+            val source = template.tasks.firstOrNull { it.key == wanted.key } ?: return error(400, "VALIDATION_FAILED")
+            if ((wanted.lastDoneKm ?: 0) > vehicle.currentMileage) return error(400, "VALIDATION_FAILED")
+            if (tasks.values.any { it.vehicleId == vehicle.id && it.templateKey == source.key }) {
+                skipped++
+                continue
+            }
+            val task = MaintenanceTaskResponse(
+                id(), vehicle.id, source.name, source.oneTime, true, MaintenanceTaskStatus.OK, source.description,
+                source.intervalKm, source.intervalMonths, source.firstDueKm, source.firstDueMonths, source.key,
+                lastServiceMileage = wanted.lastDoneKm, lastServiceDate = wanted.lastDoneDate,
+            )
+            tasks[task.id] = task
+            createdCount++
+        }
+        return ok(ApplyTemplateResponse.serializer(), ApplyTemplateResponse(createdCount, skipped))
     }
 
     private fun createLog(vehicle: VehicleResponse, log: MaintenanceLogRequest): MockResponse {

@@ -76,6 +76,7 @@ import de.bikemaintainer.app.ui.common.saveMessageRes
 import de.bikemaintainer.app.ui.common.statusColor
 import de.bikemaintainer.app.ui.common.vehicleLoadMessageRes
 import de.bikemaintainer.app.ui.logmaintenance.LogResult
+import de.bikemaintainer.app.ui.template.parseTemplateResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -100,6 +101,11 @@ fun VehicleScreen(
     onScanOdometer: () -> Unit = {},
     odometerResult: StateFlow<Int?> = MutableStateFlow(null),
     onOdometerResultShown: () -> Unit = {},
+    /** Opens the template screen (online only). */
+    onApplyTemplate: () -> Unit = {},
+    /** Set by the template screen: `created/skipped` of the template that was just applied. */
+    templateResult: StateFlow<String?> = MutableStateFlow(null),
+    onTemplateResultShown: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val currentOnDeleted by rememberUpdatedState(onDeleted)
@@ -121,6 +127,8 @@ fun VehicleScreen(
             viewModel.applyOdometer(it)
         }
     }
+    val applied by templateResult.collectAsState()
+    val currentTemplateShown by rememberUpdatedState(onTemplateResultShown)
     val result by logResult.collectAsState()
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -131,6 +139,15 @@ fun VehicleScreen(
     val queued = stringResource(R.string.log_queued)
     val updated = stringResource(R.string.pending_edit_saved)
     val mileageQueued = stringResource(R.string.mileage_queued)
+    // Resolved up front like the others: the numbers fill the sentence "n übernommen, m schon vorhanden".
+    val appliedResult = parseTemplateResult(applied)
+    val appliedMessage = appliedResult?.let { stringResource(R.string.template_applied, it.created.toString(), it.skipped.toString()) }
+    LaunchedEffect(applied) {
+        val message = appliedMessage ?: return@LaunchedEffect
+        // Consume first, as for the log result: shown once even if the screen is recreated meanwhile.
+        currentTemplateShown()
+        scope.launch { snackbarHost.showSnackbar(message, duration = SnackbarDuration.Long) }
+    }
     LaunchedEffect(state.mileageQueued) {
         if (!state.mileageQueued) return@LaunchedEffect
         viewModel.consumeMileageQueued()
@@ -172,6 +189,7 @@ fun VehicleScreen(
             onLogMaintenance = onLogMaintenance,
             onEditVehicle = onEditVehicle,
             onAddTask = onAddTask,
+            onApplyTemplate = onApplyTemplate,
             onEditTask = onEditTask,
             onSendPendingAnyway = viewModel::sendPendingAnyway,
             onDiscardPending = viewModel::discardPending,
@@ -192,6 +210,8 @@ data class VehicleActions(
     val onScanOdometer: () -> Unit = {},
     val onEditVehicle: () -> Unit = {},
     val onAddTask: () -> Unit = {},
+    /** The maintenance plan from a template; only online. */
+    val onApplyTemplate: () -> Unit = {},
     val onEditTask: (Long) -> Unit = {},
     val onSendPendingAnyway: (String) -> Unit = {},
     val onDiscardPending: (String) -> Unit = {},
@@ -401,6 +421,18 @@ private fun VehicleButtons(state: VehicleUiState, actions: VehicleActions) {
             OutlinedButton(onClick = actions.onAddTask, enabled = enabled, modifier = Modifier.weight(1f).fillMaxHeight()) {
                 Text(stringResource(R.string.task_add), maxLines = 2, textAlign = TextAlign.Center)
             }
+        }
+        // Applying a template needs the server (nothing is queued): without a connection the button is off.
+        val offline = state.asOf != null
+        OutlinedButton(onClick = actions.onApplyTemplate, enabled = enabled && !offline, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.template_open))
+        }
+        if (offline) {
+            Text(
+                stringResource(R.string.template_online_only),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

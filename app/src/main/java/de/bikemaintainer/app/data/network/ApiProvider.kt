@@ -6,6 +6,7 @@ import de.bikemaintainer.app.api.apis.MaintenanceLogsApi
 import de.bikemaintainer.app.api.apis.MaintenanceTasksApi
 import de.bikemaintainer.app.api.apis.MeasurementsApi
 import de.bikemaintainer.app.api.apis.ProfilesApi
+import de.bikemaintainer.app.api.apis.VehicleTemplatesApi
 import de.bikemaintainer.app.api.apis.VehiclesApi
 import de.bikemaintainer.app.api.apis.WorksheetsApi
 import de.bikemaintainer.app.api.infrastructure.Serializer
@@ -40,6 +41,7 @@ class ApiProvider(
         val logs: MaintenanceLogsApi,
         val measurements: MeasurementsApi,
         val worksheets: WorksheetsApi,
+        val templates: VehicleTemplatesApi,
         val challenge: ChallengeApi,
         val account: AccountApi,
     )
@@ -94,6 +96,7 @@ class ApiProvider(
             logs = retrofit.create(MaintenanceLogsApi::class.java),
             measurements = retrofit.create(MeasurementsApi::class.java),
             worksheets = retrofit.create(WorksheetsApi::class.java),
+            templates = retrofit.create(VehicleTemplatesApi::class.java),
             challenge = retrofit.create(ChallengeApi::class.java),
             account = retrofit.create(AccountApi::class.java),
         )

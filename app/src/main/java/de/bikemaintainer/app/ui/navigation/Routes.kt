@@ -54,3 +54,9 @@ const val ODOMETER_RESULT_KEY = "odometer_result"
 
 /** SavedStateHandle key under which the scan screen hands a [de.bikemaintainer.app.ui.logmaintenance.ScanTransfer] (JSON) to the log form. */
 const val SCAN_RESULT_KEY = "scan_result"
+
+/** Apply a maintenance plan template to [vehicleId] (Epic backend#150); online only. */
+@Serializable data class TemplateRoute(val vehicleId: Long)
+
+/** SavedStateHandle key under which the template screen hands the result (`created/skipped`) to the vehicle detail. */
+const val TEMPLATE_RESULT_KEY = "template_result"

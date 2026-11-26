@@ -22,4 +22,6 @@ data class MaintenanceTask(
     val intervalMonths: Int? = null,
     val firstDueKm: Int? = null,
     val firstDueMonths: Int? = null,
+    /** Key of the template task this task was applied from; `null` for tasks created by hand. */
+    val templateKey: String? = null,
 )
