@@ -1,0 +1,2 @@
+• Neu: Wartungsplan aus Vorlage – beim Anlegen eines Fahrzeugs oder später im Wartungsplan die Herstellerintervalle übernehmen
+• Je Aufgabe „zuletzt erledigt“ angeben; eine anstehende Erstinspektion bleibt erhalten

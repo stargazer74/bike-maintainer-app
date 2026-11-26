@@ -1,0 +1,2 @@
+• New: maintenance plan from a template – apply the manufacturer's intervals when adding a vehicle or later from the maintenance plan
+• Enter "last done" per task; an upcoming first service is kept
