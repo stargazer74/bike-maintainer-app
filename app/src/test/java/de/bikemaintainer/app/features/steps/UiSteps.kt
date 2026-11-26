@@ -11,6 +11,8 @@ import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.isEnabled
+import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -98,6 +100,16 @@ class UiSteps {
     @Then("I see a button {string}")
     fun seeButton(text: String) {
         waitFor("button \"$text\"", clickable(text))
+    }
+
+    @Then("the button {string} is disabled")
+    fun buttonDisabled(text: String) {
+        waitFor("disabled button \"$text\"", clickable(text) and isNotEnabled())
+    }
+
+    @Then("the button {string} is enabled")
+    fun buttonEnabled(text: String) {
+        waitFor("enabled button \"$text\"", clickable(text) and isEnabled())
     }
 
     @Then("I do not see a button {string}")

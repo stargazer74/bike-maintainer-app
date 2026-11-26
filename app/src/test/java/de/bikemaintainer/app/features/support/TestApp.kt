@@ -16,6 +16,7 @@ import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.repository.ApiAuthRepository
 import de.bikemaintainer.app.data.repository.ApiMaintenanceRepository
 import de.bikemaintainer.app.data.repository.ApiMeasurementRepository
+import de.bikemaintainer.app.data.repository.ApiTemplateRepository
 import de.bikemaintainer.app.data.repository.ApiVehicleRepository
 
 import de.bikemaintainer.app.data.repository.OutboxSync
@@ -64,6 +65,7 @@ class TestApp(dir: File) {
     private val vehicles = ApiVehicleRepository(provider, offline, pending)
     private val maintenance = ApiMaintenanceRepository(provider, offline, pending)
     private val measurements = ApiMeasurementRepository(provider, offline)
+    private val templates = ApiTemplateRepository(provider)
     private val openVehicle = MutableStateFlow<Long?>(null)
 
     private val deps = AppDependencies(
@@ -78,6 +80,7 @@ class TestApp(dir: File) {
         openVehicle.asStateFlow(),
         { openVehicle.value = null },
         pending = pending,
+        templates = templates,
     )
 
     /** The app's navigation, so steps can wait until a page accepts taps (RESUMED). */

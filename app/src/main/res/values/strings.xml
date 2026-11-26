@@ -435,4 +435,51 @@
         <item quantity="one">%1$d entry not sent yet will be lost.</item>
         <item quantity="other">%1$d entries not sent yet will be lost.</item>
     </plurals>
+
+    <!-- Vehicle templates (app#55) -->
+    <string name="template_title">Maintenance plan from template</string>
+    <string name="template_open">Apply template</string>
+    <string name="template_online_only">Only possible with a connection</string>
+    <string name="template_search_intro">Search for a template for your vehicle.</string>
+    <string name="template_make">Make</string>
+    <string name="template_model">Model</string>
+    <string name="template_search">Search</string>
+    <string name="template_none">No template found</string>
+    <string name="template_pick">Choose a template</string>
+    <string name="template_years">%1$d–%2$d</string>
+    <string name="template_years_open">from %1$d</string>
+    <plurals name="template_task_count">
+        <item quantity="one">%1$d task</item>
+        <item quantity="other">%1$d tasks</item>
+    </plurals>
+    <string name="template_quality_manufacturer">Manufacturer data</string>
+    <string name="template_quality_secondary">Secondary source</string>
+    <string name="template_back_to_search">Back to search</string>
+    <string name="template_already_present">already present</string>
+    <string name="template_details">Details</string>
+    <string name="template_sources">Sources</string>
+    <string name="template_retrieved">retrieved on %1$s</string>
+    <string name="template_last_done">Last done</string>
+    <string name="template_last_done_km">km</string>
+    <string name="template_last_done_date">Date</string>
+    <string name="template_last_done_date_none">No date</string>
+    <string name="template_last_done_field">Last done: %1$s (%2$s)</string>
+    <string name="template_fill_empty">Empty fields: current mileage and today</string>
+    <string name="template_overdue_hint">Tasks without an entry will show as overdue.</string>
+    <string name="template_disclaimer">The templates are guideline values without warranty. We accept no liability for the accuracy of the data; use at your own risk. Your vehicle\'s manual is authoritative.</string>
+    <string name="template_disclaimer_confirm">I have read the notice.</string>
+    <string name="template_report">Report an error</string>
+    <string name="template_report_task">Report an error in this task: %1$s</string>
+    <string name="template_apply">Apply</string>
+    <string name="template_applied">%1$s applied, %2$s already present</string>
+    <string name="template_interval_one_time">One-time task</string>
+    <string name="template_interval_none">No interval set</string>
+    <string name="template_interval_km">Every %1$s km</string>
+    <string name="template_interval_months">Every %1$s months</string>
+    <string name="template_interval_month">Every month</string>
+    <string name="template_interval_km_months">Every %1$s km or %2$s months</string>
+    <string name="template_error_search">The search failed. Please try again.</string>
+    <string name="template_error_load">The template could not be loaded.</string>
+    <string name="template_error_apply">The template could not be applied. Please try again.</string>
+    <string name="template_form_hint">A maintenance plan is available for this model</string>
 </resources>

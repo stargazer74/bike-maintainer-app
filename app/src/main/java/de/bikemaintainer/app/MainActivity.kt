@@ -56,6 +56,7 @@ class MainActivity : AppCompatActivity() {
                             container.worksheetScanner,
                             container.pendingRepository,
                             container.odometerScanner,
+                            container.templateRepository,
                         )
                     }
                     val errorId by container.errorIds.errorId.collectAsState()

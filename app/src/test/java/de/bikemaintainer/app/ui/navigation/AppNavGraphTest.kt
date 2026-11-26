@@ -142,7 +142,7 @@ class AppNavGraphTest {
     }
 
     /** app#100: the delete answering while a form is open above the detail must not take the form (and its input) along. */
-    @Test fun deleteAnsweringWhileAFormIsOpenKeepsTheForm() {
+    @Test @Config(qualifiers = "de-h1200dp") fun deleteAnsweringWhileAFormIsOpenKeepsTheForm() {
         maintenance.tasksResult = Outcome.Success(listOf(task(1, "Ölwechsel", TaskStatus.OVERDUE)))
         val gate = CompletableDeferred<Unit>()
         vehicles.deleteVehicleGate = gate

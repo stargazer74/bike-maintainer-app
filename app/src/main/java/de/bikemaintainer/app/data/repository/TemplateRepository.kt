@@ -14,7 +14,7 @@ import de.bikemaintainer.app.domain.VehicleTemplate
  * [de.bikemaintainer.app.domain.AppError.Network].
  */
 interface TemplateRepository {
-    /** Templates matching the vehicle data; see [de.bikemaintainer.app.domain.templateSearchParams]. */
+    /** Templates matching the vehicle data (see [de.bikemaintainer.app.domain.templateSearchParams]); a blank model is not sent. */
     suspend fun search(params: TemplateSearchParams): Outcome<List<TemplateSummary>>
 
     suspend fun get(id: String): Outcome<VehicleTemplate>
@@ -26,7 +26,7 @@ interface TemplateRepository {
 class ApiTemplateRepository(private val provider: ApiProvider) : TemplateRepository {
     override suspend fun search(params: TemplateSearchParams): Outcome<List<TemplateSummary>> =
         provider.callStored {
-            it.templates.searchVehicleTemplates(params.make, params.type.toApi(), params.model, params.modelYear)
+            it.templates.searchVehicleTemplates(params.make, params.type.toApi(), params.model.ifBlank { null }, params.modelYear)
         }.map { list -> list.map { it.toDomain() } }
 
     override suspend fun get(id: String): Outcome<VehicleTemplate> =

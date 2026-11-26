@@ -123,11 +123,14 @@ fun fillEmpty(rows: List<TemplateTaskRow>, currentMileage: Int, today: LocalDate
         }
     }
 
-/** The selected, not yet existing rows as request; empty values are left out. */
+/** The selected, not yet existing rows as request; empty "last done" values stay `null` (the server keeps the template's). */
 fun toApplyRequest(templateId: String, rows: List<TemplateTaskRow>): TemplateApplication = TemplateApplication(
     templateId,
     rows.filter { it.selected && !it.existing }.map { AppliedTask(it.task.key, it.lastDoneKm, it.lastDoneDate) },
 )
+
+/** The source's link if it is a web address (http or https); anything else is never offered to open. */
+fun TemplateSource.openableUrl(): String? = url?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
 
 /** Link to report a mistake in a template (or one of its tasks); opened only on a tap. */
 fun reportUrl(templateId: String, taskKey: String? = null): String {

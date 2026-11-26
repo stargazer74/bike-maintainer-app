@@ -18,6 +18,7 @@ import mockwebserver3.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -74,6 +75,13 @@ class TemplateRepositoryTest {
     }
 
     @Test
+    fun searchWithBlankModelOmitsIt() {
+        val repo = setUp { json("[]") }
+        runBlocking { repo.search(TemplateSearchParams("Honda", VehicleType.CAR, "", 2020)) }
+        assertNull(env!!.requests.single().url.queryParameter("model"))
+    }
+
+    @Test
     fun getMapsTemplateWithSourcesTasksAndDetails() {
         val repo = setUp { json(template) }
         val value = (runBlocking { repo.get("honda-cb650r") } as Outcome.Success).value
@@ -107,9 +115,9 @@ class TemplateRepositoryTest {
         assertEquals("POST", request.method)
         assertEquals("/api/v1/vehicles/7/template", request.url.encodedPath)
         val body = request.body!!.utf8()
-        assertEquals(true, body.contains(""""lastDoneKm":5000"""))
-        assertEquals(true, body.contains(""""lastDoneDate":"2026-11-26""""))
-        assertEquals(true, body.contains(""""key":"chain""""))
+        assertTrue(body.contains(""""lastDoneKm":5000"""))
+        assertTrue(body.contains(""""lastDoneDate":"2026-11-26""""))
+        assertTrue(body.contains(""""key":"chain""""))
     }
 
     @Test

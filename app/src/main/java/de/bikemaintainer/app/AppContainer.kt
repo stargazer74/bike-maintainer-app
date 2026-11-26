@@ -9,12 +9,14 @@ import de.bikemaintainer.app.data.network.SessionState
 import de.bikemaintainer.app.data.repository.ApiAuthRepository
 import de.bikemaintainer.app.data.repository.ApiMaintenanceRepository
 import de.bikemaintainer.app.data.repository.ApiMeasurementRepository
+import de.bikemaintainer.app.data.repository.ApiTemplateRepository
 import de.bikemaintainer.app.data.repository.ApiVehicleRepository
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.MeasurementRepository
 import de.bikemaintainer.app.data.repository.OutboxSync
 import de.bikemaintainer.app.data.repository.PendingRepository
+import de.bikemaintainer.app.data.repository.TemplateRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.data.storage.DeviceTokenStore
 import de.bikemaintainer.app.data.storage.FileOfflineStore
@@ -74,6 +76,8 @@ class AppContainer(context: Context) {
     val vehicleRepository: VehicleRepository = ApiVehicleRepository(provider, offline, pendingRepository)
     val maintenanceRepository: MaintenanceRepository = ApiMaintenanceRepository(provider, offline, pendingRepository)
     val measurementRepository: MeasurementRepository = ApiMeasurementRepository(provider, offline)
+    /** Vehicle templates; online only, nothing is stored (Epic backend#150). */
+    val templateRepository: TemplateRepository = ApiTemplateRepository(provider)
 
     private val notificationsAllowed = { notificationsAllowed(context) }
     val notifier: DueNotifications = DueTaskNotifier(context)

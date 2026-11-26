@@ -54,7 +54,7 @@ class VehicleTemplateTest {
 
     @Test
     fun firstDueMonthsOnTheDayItselfCountsAsPassed() {
-        // 2020-01-31 + 82 months = 2026-11-30 (clamped); +81 = 2026-10-31
+        // 2020-11-26 + 72 months = 2026-11-26 = today (passed); +73 months = 2026-12-26
         val on = vehicle.copy(firstRegistrationDate = LocalDate.of(2020, 11, 26))
         assertFalse(initialRows(template(task("a", true, firstDueMonths = 72)), emptySet(), on, today).single().selected)
         assertTrue(initialRows(template(task("a", true, firstDueMonths = 73)), emptySet(), on, today).single().selected)
@@ -62,7 +62,7 @@ class VehicleTemplateTest {
 
     @Test
     fun monthEndIsClamped() {
-        // 2020-01-31 + 58 months = 2024-11-30 -> passed; with day clamping 2026-02-28 for +74 months
+        // 2020-01-31 + 82 months = 2026-11-30 (the 31st clamped to the end of the month)
         val v = vehicle.copy(firstRegistrationDate = LocalDate.of(2020, 1, 31))
         val rows = initialRows(template(task("a", true, firstDueMonths = 82)), emptySet(), v, LocalDate.of(2026, 11, 30))
         assertFalse(rows.single().selected)
@@ -103,7 +103,20 @@ class VehicleTemplateTest {
     }
 
     @Test
-    fun toApplyRequestTakesSelectedNewRowsAndOmitsEmptyFields() {
+    fun fillEmptyKeepsAnExplicitZero() {
+        val filled = fillEmpty(listOf(TemplateTaskRow(task("a"), true, false, 0, null)), 5000, today)
+        assertEquals(0, filled.single().lastDoneKm)
+        assertEquals(today, filled.single().lastDoneDate)
+    }
+
+    @Test
+    fun toApplyRequestKeepsAZero() {
+        val request = toApplyRequest("t1", listOf(TemplateTaskRow(task("a"), true, false, 0, null)))
+        assertEquals(listOf(AppliedTask("a", 0, null)), request.tasks)
+    }
+
+    @Test
+    fun toApplyRequestTakesSelectedNewRowsAndPassesEmptyFieldsAsNull() {
         val rows = listOf(
             TemplateTaskRow(task("a"), true, false, 100, LocalDate.of(2025, 1, 1)),
             TemplateTaskRow(task("b"), true, false),
@@ -122,6 +135,16 @@ class VehicleTemplateTest {
         assertEquals("$base&vorlage=honda%2Fcb", reportUrl("honda/cb"))
         assertEquals("$base&vorlage=honda%2Fcb", reportUrl("honda/cb", null))
         assertEquals("$base&vorlage=t1&aufgabe=oil%20change%26x", reportUrl("t1", "oil change&x"))
+    }
+
+    @Test
+    fun onlyWebAddressesOfASourceAreOpenable() {
+        fun source(url: String?) = TemplateSource("s", TemplateSourceKind.FORUM, "t", today, url, null)
+        assertEquals("https://x.test/a", source("https://x.test/a").openableUrl())
+        assertEquals("http://x.test", source("http://x.test").openableUrl())
+        assertNull(source("javascript:alert(1)").openableUrl())
+        assertNull(source("intent://x#Intent;end").openableUrl())
+        assertNull(source(null).openableUrl())
     }
 
     @Test

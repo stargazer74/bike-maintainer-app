@@ -22,6 +22,7 @@ import de.bikemaintainer.app.data.network.SessionStatus
 import de.bikemaintainer.app.data.repository.AuthRepository
 import de.bikemaintainer.app.data.repository.MaintenanceRepository
 import de.bikemaintainer.app.data.repository.MeasurementRepository
+import de.bikemaintainer.app.data.repository.TemplateRepository
 import de.bikemaintainer.app.data.repository.VehicleRepository
 import de.bikemaintainer.app.notifications.DueNotifications
 import de.bikemaintainer.app.notifications.ReminderScheduler
@@ -56,13 +57,23 @@ import de.bikemaintainer.app.ui.setup.SetupViewModel
 import de.bikemaintainer.app.ui.setup.WelcomeScreen
 import de.bikemaintainer.app.ui.taskform.TaskFormScreen
 import de.bikemaintainer.app.ui.taskform.TaskFormViewModel
+import de.bikemaintainer.app.ui.template.TemplateScreen
+import de.bikemaintainer.app.ui.template.TemplateViewModel
+import de.bikemaintainer.app.ui.template.toNavValue
 import de.bikemaintainer.app.ui.vehicle.VehicleScreen
 import de.bikemaintainer.app.ui.vehicle.VehicleViewModel
 import de.bikemaintainer.app.ui.vehicleform.VehicleFormScreen
 import de.bikemaintainer.app.ui.vehicleform.VehicleFormViewModel
 import de.bikemaintainer.app.ui.vehicles.VehiclesScreen
 import de.bikemaintainer.app.ui.vehicles.VehiclesViewModel
+import de.bikemaintainer.app.domain.AppError
 import de.bikemaintainer.app.domain.MeasurementTemplate
+import de.bikemaintainer.app.domain.Outcome
+import de.bikemaintainer.app.domain.TemplateApplication
+import de.bikemaintainer.app.domain.TemplateApplyResult
+import de.bikemaintainer.app.domain.TemplateSearchParams
+import de.bikemaintainer.app.domain.TemplateSummary
+import de.bikemaintainer.app.domain.VehicleTemplate
 import de.bikemaintainer.app.domain.scan.ScanOutcome
 import kotlinx.serialization.json.Json
 import de.bikemaintainer.app.data.repository.PendingRepository
@@ -90,7 +101,18 @@ class AppDependencies(
     val pending: PendingRepository = PendingRepository(),
     /** Reads the odometer from a photo; tests without a camera keep the default (no line found). */
     val odometerScanner: OdometerScanner = NoOdometerScanner,
+    /** Vehicle templates (online only); tests that are not about them keep the default (no connection). */
+    val templates: TemplateRepository = NoTemplates,
 )
+
+private object NoTemplates : TemplateRepository {
+    override suspend fun search(params: TemplateSearchParams): Outcome<List<TemplateSummary>> = Outcome.Failure(AppError.Network)
+
+    override suspend fun get(id: String): Outcome<VehicleTemplate> = Outcome.Failure(AppError.Network)
+
+    override suspend fun apply(vehicleId: Long, application: TemplateApplication): Outcome<TemplateApplyResult> =
+        Outcome.Failure(AppError.Network)
+}
 
 private object NoOdometerScanner : OdometerScanner {
     override suspend fun detect(photo: GrayImage): OdoLine? = null
@@ -261,23 +283,30 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                 },
                 odometerResult = entry.savedStateHandle.getStateFlow<Int?>(ODOMETER_RESULT_KEY, null),
                 onOdometerResultShown = { entry.savedStateHandle[ODOMETER_RESULT_KEY] = null },
+                onApplyTemplate = dropUnlessResumed { navController.navigate(TemplateRoute(route.vehicleId)) },
+                templateResult = entry.savedStateHandle.getStateFlow<String?>(TEMPLATE_RESULT_KEY, null),
+                onTemplateResultShown = { entry.savedStateHandle[TEMPLATE_RESULT_KEY] = null },
             )
         }
         composable<VehicleFormRoute> { entry ->
             val route = entry.toRoute<VehicleFormRoute>()
             val back = navController.popBackOnce()
             val viewModel: VehicleFormViewModel = viewModel(
-                factory = viewModelFactory { initializer { VehicleFormViewModel(route.vehicleId, deps.vehicles, deps.auth) } },
+                factory = viewModelFactory {
+                    initializer { VehicleFormViewModel(route.vehicleId, deps.vehicles, deps.auth, deps.templates) }
+                },
             )
             VehicleFormScreen(
                 viewModel = viewModel,
                 onBack = back,
-                onSaved = { id ->
+                onSaved = { id, offerTemplate ->
                     // Only the entry still on top leaves, exactly once: an edit returns to the detail (it reloads on
-                    // resume), a new vehicle opens its detail instead of the form.
+                    // resume), a new vehicle opens its detail instead of the form – and, if a template exists for it,
+                    // the template screen on top of the detail (back leads to the detail).
                     if (navController.currentBackStackEntry == entry) {
                         if (route.vehicleId == null) {
                             navController.navigate(VehicleRoute(id)) { popUpTo<VehicleFormRoute> { inclusive = true } }
+                            if (offerTemplate) navController.navigate(TemplateRoute(id))
                         } else {
                             navController.popBackStack()
                         }
@@ -306,6 +335,26 @@ fun AppNavHost(deps: AppDependencies, start: Any, navController: NavHostControll
                 viewModel = viewModel,
                 onBack = back,
                 onSaved = { if (navController.currentBackStackEntry == entry) navController.popBackStack() },
+            )
+        }
+        composable<TemplateRoute> { entry ->
+            val route = entry.toRoute<TemplateRoute>()
+            val back = navController.popBackOnce()
+            val viewModel: TemplateViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer { TemplateViewModel(route.vehicleId, deps.vehicles, deps.maintenance, deps.templates, deps.auth) }
+                },
+            )
+            TemplateScreen(
+                viewModel = viewModel,
+                onBack = back,
+                onApplied = { result ->
+                    // Idempotent: only the entry that is still on top may hand over its result and pop.
+                    if (navController.currentBackStackEntry == entry) {
+                        navController.previousBackStackEntry?.savedStateHandle?.set(TEMPLATE_RESULT_KEY, result.toNavValue())
+                        navController.popBackStack()
+                    }
+                },
             )
         }
         composable<LogMaintenanceRoute> { entry ->

@@ -435,4 +435,51 @@
         <item quantity="one">%1$d noch nicht übertragener Eintrag geht dabei verloren.</item>
         <item quantity="other">%1$d noch nicht übertragene Einträge gehen dabei verloren.</item>
     </plurals>
+
+    <!-- Vehicle templates (app#55) -->
+    <string name="template_title">Wartungsplan aus Vorlage</string>
+    <string name="template_open">Vorlage übernehmen</string>
+    <string name="template_online_only">Nur mit Verbindung möglich</string>
+    <string name="template_search_intro">Suche eine Vorlage für dein Fahrzeug.</string>
+    <string name="template_make">Hersteller</string>
+    <string name="template_model">Modell</string>
+    <string name="template_search">Suchen</string>
+    <string name="template_none">Keine Vorlage gefunden</string>
+    <string name="template_pick">Vorlage wählen</string>
+    <string name="template_years">%1$d–%2$d</string>
+    <string name="template_years_open">ab %1$d</string>
+    <plurals name="template_task_count">
+        <item quantity="one">%1$d Aufgabe</item>
+        <item quantity="other">%1$d Aufgaben</item>
+    </plurals>
+    <string name="template_quality_manufacturer">Herstellerangaben</string>
+    <string name="template_quality_secondary">Zweitrangige Quelle</string>
+    <string name="template_back_to_search">Zurück zur Suche</string>
+    <string name="template_already_present">schon vorhanden</string>
+    <string name="template_details">Details</string>
+    <string name="template_sources">Quellen</string>
+    <string name="template_retrieved">abgerufen am %1$s</string>
+    <string name="template_last_done">Zuletzt erledigt</string>
+    <string name="template_last_done_km">km</string>
+    <string name="template_last_done_date">Datum</string>
+    <string name="template_last_done_date_none">Kein Datum</string>
+    <string name="template_last_done_field">Zuletzt erledigt: %1$s (%2$s)</string>
+    <string name="template_fill_empty">Leere Felder: aktueller Stand und heute</string>
+    <string name="template_overdue_hint">Aufgaben ohne Angabe erscheinen als überfällig.</string>
+    <string name="template_disclaimer">Die Vorlagen sind Richtwerte ohne Gewähr. Wir übernehmen keine Haftung für die Richtigkeit der Daten; die Nutzung erfolgt auf eigene Gefahr. Maßgeblich ist das Handbuch deines Fahrzeugs.</string>
+    <string name="template_disclaimer_confirm">Ich habe den Hinweis gelesen.</string>
+    <string name="template_report">Fehler melden</string>
+    <string name="template_report_task">Fehler in dieser Aufgabe melden: %1$s</string>
+    <string name="template_apply">Übernehmen</string>
+    <string name="template_applied">%1$s übernommen, %2$s schon vorhanden</string>
+    <string name="template_interval_one_time">Einmalige Aufgabe</string>
+    <string name="template_interval_none">Kein Intervall hinterlegt</string>
+    <string name="template_interval_km">Alle %1$s km</string>
+    <string name="template_interval_months">Alle %1$s Monate</string>
+    <string name="template_interval_month">Jeden Monat</string>
+    <string name="template_interval_km_months">Alle %1$s km oder %2$s Monate</string>
+    <string name="template_error_search">Die Suche ist fehlgeschlagen. Bitte versuche es erneut.</string>
+    <string name="template_error_load">Die Vorlage konnte nicht geladen werden.</string>
+    <string name="template_error_apply">Die Vorlage konnte nicht übernommen werden. Bitte versuche es erneut.</string>
+    <string name="template_form_hint">Für dieses Modell gibt es einen Wartungsplan</string>
 </resources>
