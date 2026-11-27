@@ -141,10 +141,9 @@ class TemplateViewModel(
         viewModelScope.launch {
             val params = TemplateSearchParams(s.make.trim(), vehicle.type, s.model.trim(), vehicle.modelYear)
             when (val result = templates.search(params)) {
-                is Outcome.Success -> {
-                    _state.update { it.copy(searching = false, results = result.value) }
-                    result.value.singleOrNull()?.let(::pick)
-                }
+                // Always list the hits, even a single one: the user sees what was searched for and can
+                // still adjust the search before opening a template.
+                is Outcome.Success -> _state.update { it.copy(searching = false, results = result.value) }
                 is Outcome.Failure -> _state.update { it.copy(searching = false, problem = TemplateProblem.Search) }
             }
         }

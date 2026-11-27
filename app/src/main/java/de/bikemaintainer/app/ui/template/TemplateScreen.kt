@@ -130,7 +130,7 @@ private fun ColumnScope.SearchStep(state: TemplateUiState, viewModel: TemplateVi
         when {
             hits.isEmpty() -> Text(stringResource(R.string.template_none), style = MaterialTheme.typography.bodyLarge)
             else -> {
-                if (hits.size > 1) Text(stringResource(R.string.template_pick), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.template_pick), style = MaterialTheme.typography.titleMedium)
                 hits.forEach { hit -> HitCard(hit, enabled) { viewModel.pick(hit) } }
             }
         }
