@@ -62,6 +62,7 @@ class UiSteps {
         // Navigation drops a tap while the page is not resumed yet (still entering): wait for that instead of tapping
         // again, which could tap twice where the first tap changed no text (app#100).
         awaitResumed()
+        awaitLoaded()
         awaitStable()
         act { first(clickable(text)).performClick() }
         awaitStable()
@@ -196,6 +197,21 @@ class UiSteps {
         }
     }
 
+    /**
+     * Until no page shows that it is still loading ("Wird aktualisiert …", a loading indicator). Requests run on real
+     * threads, so [settle] does not wait for them; when the answer arrives during a tap, the notice above the buttons
+     * disappears, the list moves up under the finger and Compose drops the tap (app#105). A page that keeps loading
+     * gets the tap after [TIMEOUT_MILLIS] as before; the next step then shows what is on screen.
+     */
+    private fun awaitLoaded() {
+        val loading = hasText(UPDATING, substring = true) or hasContentDescription(LOADING)
+        try {
+            compose.waitUntil(TIMEOUT_MILLIS) { !exists(loading) }
+        } catch (_: androidx.compose.ui.test.ComposeTimeoutException) {
+            // still loading: tap anyway
+        }
+    }
+
     /** Lets the app finish what it started (requests, transitions). */
     private fun settle() = compose.waitForIdle()
 
@@ -234,5 +250,7 @@ class UiSteps {
         const val STABLE_MILLIS = 200L
         const val MAX_RETRIES = 5
         const val SCROLL_EVERY_POLLS = 25
+        const val UPDATING = "Wird aktualisiert"
+        const val LOADING = "Lädt…"
     }
 }

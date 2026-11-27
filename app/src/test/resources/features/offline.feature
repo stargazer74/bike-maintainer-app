@@ -49,6 +49,8 @@ Feature: Using the app without a connection
     Given the vehicle "Africa Twin" offers the worksheets "Bremsen"
     And I open the app
     And I open the vehicle "Africa Twin"
+    # The page keeps the worksheets for offline use once it shows them (app#105).
+    And I see the text "Letzte Messwerte"
     And I have no connection
     When I click "Wartung erfassen"
     Then I see a button "Bremsen hinzufügen"
